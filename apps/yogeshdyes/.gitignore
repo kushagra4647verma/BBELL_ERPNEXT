@@ -1,0 +1,7 @@
+env/
+logs/
+sites/*/private/files
+sites/*/private/backups
+sites/assets/
+node_modules/
+*.pyc

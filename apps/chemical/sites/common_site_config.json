@@ -1,0 +1,23 @@
+{
+ "background_workers": 1,
+ "developer_mode": 1,
+ "einvoice_client_id": "EAE2E6A7AD904CB48E5AE2633BE0F71F",
+ "einvoice_client_secret": "17BF0CD3G9CF8G4ECBG9CB3GD728C46CB847",
+ "file_watcher_port": 6788,
+ "frappe_user": "ubuntu",
+ "gunicorn_workers": 5,
+ "live_reload": true,
+ "maintainace_mode": 0,
+ "pause_scheduler": 0,
+ "rebase_on_pull": false,
+ "redis_cache": "redis://localhost:13001",
+ "redis_queue": "redis://localhost:11001",
+ "redis_socketio": "redis://localhost:12001",
+ "restart_supervisor_on_update": true,
+ "restart_systemd_on_update": false,
+ "serve_default_site": true,
+ "shallow_clone": true,
+ "socketio_port": 9001,
+ "use_redis_auth": false,
+ "webserver_port": 8001
+}

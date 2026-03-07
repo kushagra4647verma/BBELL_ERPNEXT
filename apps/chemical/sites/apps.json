@@ -1,0 +1,81 @@
+{
+    "frappe": {
+        "resolution": {
+            "commit_hash": null,
+            "branch": null
+        },
+        "required": [],
+        "idx": 1,
+        "version": "14.36.1"
+    },
+    "erpnext": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "756ac6c5873b78e55dfca44d7e93645f64dd94ea",
+            "branch": "version-14"
+        },
+        "required": [],
+        "idx": 2,
+        "version": "14.24.3"
+    },
+    "finbyzerp": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "08c52ac9fdf881f54ae6d62e4127d29f848d6e95",
+            "branch": "v14"
+        },
+        "required": [],
+        "idx": 3,
+        "version": "14.0.5"
+    },
+    "exim": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "fbfe447f807fb53e23d896969c5ffcdfffc3972e",
+            "branch": "v14"
+        },
+        "required": [],
+        "idx": 4,
+        "version": "3.1.0"
+    },
+    "chemical": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "6dc1a103d081bac27fdec45485e82012b5d71575",
+            "branch": "v14"
+        },
+        "required": [],
+        "idx": 5,
+        "version": "0.0.1"
+    },
+    "yogeshdyes": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "d9c37a97ded387bd80f455adb8ce514b2ce777cc",
+            "branch": "master"
+        },
+        "required": [],
+        "idx": 6,
+        "version": "0.0.1"
+    },
+    "india_compliance": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "6df1e904b9d5c2bce55ffb1f62f9401c9defa827",
+            "branch": "version-14"
+        },
+        "required": [],
+        "idx": 7,
+        "version": "14.7.0"
+    },
+    "hrms": {
+        "is_repo": true,
+        "resolution": {
+            "commit_hash": "1ff710d7cdc0c0ce1d380ab34815cf1a9c3e021d",
+            "branch": "develop"
+        },
+        "required": [],
+        "idx": 8,
+        "version": "15.0.0-dev"
+    }
+}

@@ -1,0 +1,8 @@
+frappe
+erpnext
+exim
+finbyzerp
+chemical
+hrms
+india_compliance
+yogeshdyes
