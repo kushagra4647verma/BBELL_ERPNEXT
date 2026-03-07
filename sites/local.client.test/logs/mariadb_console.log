@@ -1,0 +1,8 @@
+_HiStOrY_V2_
+select\040*\040from\040tabInstalled\040Applications;
+show\040tables\040like\040'%Installed%';
+select\040*\040from\040`tabInstalled\040Applications`;
+select\040*\040from\040`tabInstalled\040Application`;
+show\040tables\040like\040'%Installed%';
+desc\040`tabInstalled\040Application`;
+select\040*\040from\040`tabInstalled\040Application`;
