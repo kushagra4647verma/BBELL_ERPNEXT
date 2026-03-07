@@ -1,0 +1,112 @@
+# -----------------------------
+
+# OS files
+
+# -----------------------------
+
+.DS_Store
+Thumbs.db
+
+# -----------------------------
+
+# Logs
+
+# -----------------------------
+
+logs/
+*.log
+
+# -----------------------------
+
+# Node / Frontend
+
+# -----------------------------
+
+node_modules/
+yarn-error.log
+npm-debug.log
+
+# -----------------------------
+
+# Redis / PID / Runtime
+
+# -----------------------------
+
+config/pids/
+*.pid
+*.rdb
+
+# -----------------------------
+
+# Python
+
+# -----------------------------
+
+**pycache**/
+*.pyc
+*.pyo
+*.pyd
+.env
+.env.*
+
+# -----------------------------
+
+# Bench generated assets
+
+# -----------------------------
+
+sites/assets/
+sites/*/public/assets/
+
+# -----------------------------
+
+# Site specific data
+
+# -----------------------------
+
+sites/*/locks/
+sites/*/private/
+sites/*/backups/
+sites/*/logs/
+sites/*/tmp/
+
+# Ignore site config except template if needed
+
+sites/*/site_config.json
+
+# -----------------------------
+
+# Archived benches
+
+# -----------------------------
+
+archived/
+
+# -----------------------------
+
+# Temporary / cache
+
+# -----------------------------
+
+.cache/
+*.sqlite3
+*.db
+
+# -----------------------------
+
+# VSCode / IDE
+
+# -----------------------------
+
+.vscode/
+.idea/
+
+# -----------------------------
+
+# Bench local configs
+
+# -----------------------------
+
+*.bench
+node_modules
+node_modules
