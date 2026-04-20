@@ -34,8 +34,23 @@ override_doctype_class = {
 # include js in page
 # page_js = {"page" : "public/js/file.js"}
 
+# ---------------------------------------------------------------------------
+# DocType JS Overrides
+# ---------------------------------------------------------------------------
+# Injects custom JS into the Purchase Invoice form.
+# Adds the "Manage Attachments" button under the Actions dropdown.
+# Visible only to Accounts Manager / System Manager.
+
+doctype_js = {
+    "Purchase Invoice": "public/js/purchase_invoice_overrides.js",
+    "Sales Invoice":    "public/js/sales_invoice_gst.js",
+}
+
+# Amendment / Create-Edit-Display mode controller
+# Applied to both Purchase Invoice and Sales Invoice via app_include_js
+app_include_js = ["/assets/purchase_fast_entry/js/document_controls.js"]
+
 # include js in doctype views
-# doctype_js = {"doctype" : "public/js/doctype.js"}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}
@@ -74,7 +89,7 @@ override_doctype_class = {
 # ---------------------------------------------------------------------------
 
 # before_install = "purchase_fast_entry.install.before_install"
-# after_install = "purchase_fast_entry.install.after_install"
+after_install = "purchase_fast_entry.setup.create_custom_fields_on_install"
 
 # ---------------------------------------------------------------------------
 # Uninstallation
