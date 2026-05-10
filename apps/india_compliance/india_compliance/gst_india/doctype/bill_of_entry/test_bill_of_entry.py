@@ -5,16 +5,20 @@ import json
 import re
 
 import frappe
+from erpnext.projects.doctype.project.test_project import make_project
 from frappe.tests.utils import FrappeTestCase
 from frappe.utils import today
 
 from india_compliance.gst_india.doctype.bill_of_entry.bill_of_entry import (
+    fetch_pending_boe_invoices,
+    get_pi_items,
     make_bill_of_entry,
     make_journal_entry_for_payment,
     make_landed_cost_voucher,
 )
 from india_compliance.gst_india.overrides.test_transaction import create_cess_accounts
 from india_compliance.gst_india.utils import get_gst_accounts_by_type
+from india_compliance.gst_india.utils.itc_claim import format_period
 from india_compliance.gst_india.utils.tests import create_purchase_invoice
 
 
@@ -188,9 +192,7 @@ class TestBillofEntry(FrappeTestCase):
 
         self.assertRaisesRegex(
             frappe.exceptions.ValidationError,
-            re.compile(
-                r"^(Tax Row #\d+: Charge Type is set to Actual. However, this would*)"
-            ),
+            re.compile(r"^(Tax Row #\d+: Charge Type is set to Actual. However, this would*)"),
             boe.save,
         )
 
@@ -209,9 +211,7 @@ class TestBillofEntry(FrappeTestCase):
 
         self.assertRaisesRegex(
             frappe.exceptions.ValidationError,
-            re.compile(
-                r"^(Tax Row #\d+: Charge Type is set to Actual. However, Tax Amount*)"
-            ),
+            re.compile(r"^(Tax Row #\d+: Charge Type is set to Actual. However, Tax Amount*)"),
             boe.save,
         )
 
@@ -229,3 +229,294 @@ class TestBillofEntry(FrappeTestCase):
         )
 
         boe.save()
+
+    def test_pending_boe_qty(self):
+        pi = create_purchase_invoice(supplier="_Test Foreign Supplier", update_stock=1)
+
+        self.assertDocumentEqual(
+            {
+                "pending_boe_qty": 1,
+            },
+            pi.items[0],
+        )
+
+        # Create BOE
+        boe = make_bill_of_entry(pi.name)
+        boe.bill_of_entry_no = "123"
+        boe.bill_of_entry_date = today()
+        boe.save()
+        boe.submit()
+
+        pi.reload()
+        self.assertDocumentEqual(
+            {
+                "pending_boe_qty": 0,
+            },
+            pi.items[0],
+        )
+
+        boe.cancel()
+        pi.reload()
+
+        self.assertDocumentEqual(
+            {
+                "pending_boe_qty": 1,
+            },
+            pi.items[0],
+        )
+
+        # with partial boe
+        pi = create_purchase_invoice(supplier="_Test Foreign Supplier", update_stock=1, qty=2)
+        boe = make_bill_of_entry(pi.name)
+        boe.bill_of_entry_no = "123"
+        boe.bill_of_entry_date = today()
+        boe.items[0].qty = 1
+        boe.save()
+        boe.submit()
+
+        pi.reload()
+        self.assertDocumentEqual(
+            {
+                "pending_boe_qty": 1,
+            },
+            pi.items[0],
+        )
+
+        boe.cancel()
+        pi.reload()
+        self.assertDocumentEqual(
+            {
+                "pending_boe_qty": 2,
+            },
+            pi.items[0],
+        )
+
+    def test_project_in_gl_entries(self):
+        """Test that project from Purchase Invoice is auto-copied to Bill of Entry and passed to GL Entry"""
+
+        project = make_project(
+            {
+                "project_name": "_Test BOE Project",
+                "company": "_Test Indian Registered Company",
+            }
+        ).name
+
+        # Test 1: Project set on PI item
+        pi = create_purchase_invoice(supplier="_Test Foreign Supplier", update_stock=1, do_not_submit=True)
+        pi.items[0].project = project
+        pi.submit()
+
+        boe = make_bill_of_entry(pi.name)
+        self.assertEqual(boe.items[0].project, project)
+
+        boe.items[0].customs_duty = 100
+        boe.bill_of_entry_no = "456"
+        boe.bill_of_entry_date = today()
+        boe.save()
+        boe.submit()
+
+        gl_entry = frappe.get_value(
+            "GL Entry",
+            {
+                "voucher_type": "Bill of Entry",
+                "voucher_no": boe.name,
+                "account": boe.customs_expense_account,
+            },
+            "project",
+        )
+        self.assertEqual(gl_entry, project)
+
+        # Test 2: Project set on PI header only (not on item) - should fallback
+        pi2 = create_purchase_invoice(supplier="_Test Foreign Supplier", update_stock=1, do_not_submit=True)
+        pi2.project = project
+        pi2.items[0].project = None
+        pi2.submit()
+
+        boe2 = make_bill_of_entry(pi2.name)
+        self.assertEqual(boe2.items[0].project, project)
+
+        # Test get_pi_items function
+
+        pi_items = get_pi_items([pi2.name])
+        self.assertEqual(pi_items[0].project, project)
+
+    def test_itc_claim_period_auto_set(self):
+        """Test that ITC claim period is auto-set on Bill of Entry creation."""
+        pi = create_purchase_invoice(supplier="_Test Foreign Supplier", update_stock=1)
+
+        boe = make_bill_of_entry(pi.name)
+        boe.bill_of_entry_no = "123"
+        boe.bill_of_entry_date = today()
+        boe.save()
+
+        # ITC claim period should be set to posting period by default
+        expected_period = format_period(boe.posting_date)
+        self.assertEqual(boe.itc_claim_period, expected_period)
+
+    def test_create_bill_of_entry_for_sez_goods_only(self):
+        """
+        SEZ goods-only invoice should allow BOE creation
+        """
+        pi = create_purchase_invoice(
+            supplier="_Test Registered Supplier",
+            update_stock=1,
+            do_not_submit=True,
+            do_not_save=True,
+        )
+        pi.gst_category = "SEZ"
+        pi.insert()
+        pi.submit()
+
+        pi.reload()
+        self.assertEqual(pi.items[0].pending_boe_qty, 1)
+
+        boe = make_bill_of_entry(pi.name)
+        self.assertEqual(len(boe.items), 1)
+        self.assertEqual(boe.items[0].pi_detail, pi.items[0].name)
+
+    def test_sez_service_invoice_no_boe(self):
+        """
+        SEZ service-only invoice should have pending_boe_qty = 0
+        """
+        pi = create_purchase_invoice(
+            supplier="_Test Registered Supplier",
+            item_code="_Test Service Item",
+            do_not_submit=True,
+            do_not_save=True,
+        )
+        pi.gst_category = "SEZ"
+        pi.insert()
+        pi.submit()
+
+        pi.reload()
+        self.assertEqual(pi.items[0].pending_boe_qty, 0)
+
+    def test_sez_pending_boe_qty(self):
+        """
+        SEZ goods invoice: pending_boe_qty decrements on BOE submit,
+        restores on cancel, and handles partial BOE correctly.
+        """
+        pi = create_purchase_invoice(
+            supplier="_Test Registered Supplier",
+            update_stock=1,
+            qty=2,
+            do_not_submit=True,
+            do_not_save=True,
+        )
+        pi.gst_category = "SEZ"
+        pi.insert()
+        pi.submit()
+
+        boe = make_bill_of_entry(pi.name)
+        boe.bill_of_entry_no = "SEZ-BOE-002"
+        boe.bill_of_entry_date = today()
+        boe.items[0].qty = 1
+        boe.save()
+        boe.submit()
+
+        pi.reload()
+        self.assertEqual(pi.items[0].pending_boe_qty, 1)
+
+        boe.cancel()
+        pi.reload()
+        self.assertEqual(pi.items[0].pending_boe_qty, 2)
+
+    def test_validate_account_currency_error_message(self):
+        pi = create_purchase_invoice(supplier="_Test Foreign Supplier", update_stock=1)
+        boe = make_bill_of_entry(pi.name)
+
+        self.assertRaisesRegex(
+            frappe.exceptions.ValidationError,
+            re.compile(r"^Account .* must be of INR currency"),
+            boe.validate_account_currency,
+            boe.customs_payable_account,
+            "USD",
+        )
+
+    def test_sez_goods_with_gst_taxes_cannot_be_linked_to_boe(self):
+        """
+        A SEZ goods invoice with GST taxes has is_boe_applicable = 0 and
+        must fail BOE validation even if linked manually.
+        """
+        # SEZ Invoice with GST taxes - not BOE eligible
+        pi2 = create_purchase_invoice(
+            supplier="_Test Registered Supplier",
+            update_stock=1,
+            is_out_state=True,
+            do_not_save=True,
+            do_not_submit=True,
+        )
+        pi2.gst_category = "SEZ"
+        pi2.save()
+        pi2.submit()
+        self.assertEqual(pi2.is_boe_applicable, 0)
+
+        company = frappe.get_cached_doc("Company", pi2.company)
+        gst_accounts = get_gst_accounts_by_type(pi2.company, "Input")
+
+        boe = frappe.get_doc(
+            {
+                "doctype": "Bill of Entry",
+                "company": pi2.company,
+                "company_gstin": pi2.company_gstin,
+                "bill_of_entry_no": "SEZ-BOE-003",
+                "bill_of_entry_date": today(),
+                "posting_date": today(),
+                "customs_expense_account": company.default_customs_expense_account,
+                "customs_payable_account": company.default_customs_payable_account,
+                "items": [
+                    {
+                        "item_code": pi2.items[0].item_code,
+                        "purchase_invoice": pi2.name,
+                        "pi_detail": pi2.items[0].name,
+                        "qty": pi2.items[0].qty,
+                        "uom": pi2.items[0].uom,
+                        "assessable_value": pi2.items[0].taxable_value,
+                        "customs_duty": 0,
+                        "cost_center": pi2.items[0].cost_center,
+                    }
+                ],
+                "taxes": [
+                    {
+                        "charge_type": "On Net Total",
+                        "account_head": gst_accounts.igst_account,
+                        "rate": 0,
+                        "cost_center": pi2.items[0].cost_center,
+                    }
+                ],
+            }
+        )
+
+        self.assertRaisesRegex(
+            frappe.exceptions.ValidationError,
+            re.compile(r"^Bill of Entry is not applicable for Purchase Invoice"),
+            boe.save,
+        )
+
+    def test_boe_not_applicable_excludes_invoice_from_boe(self):
+        """
+        An Import Of Service invoice (is_boe_applicable auto-set to 0) must not
+        appear in get_pi_items or fetch_pending_boe_invoices.
+        """
+        pi = create_purchase_invoice(
+            supplier="_Test Foreign Supplier",
+            item_code="_Test Service Item",
+            do_not_submit=True,
+        )
+        self.assertEqual(pi.is_boe_applicable, 0)
+        pi.submit()
+
+        pi.reload()
+        self.assertEqual(pi.items[0].pending_boe_qty, 0)
+        self.assertEqual(get_pi_items([pi.name]), [])
+
+        pending_invoices = fetch_pending_boe_invoices(
+            doctype="Purchase Invoice",
+            txt="",
+            searchfield="name",
+            start=0,
+            page_len=20,
+            filters={},
+        )
+
+        self.assertNotIn(pi.name, [invoice.name for invoice in pending_invoices])

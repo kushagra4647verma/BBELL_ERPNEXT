@@ -24,32 +24,17 @@ frappe.query_reports["Accounts Receivable Summary"] = {
 			default: "Due Date",
 		},
 		{
-			fieldname: "range1",
-			label: __("Ageing Range 1"),
-			fieldtype: "Int",
-			default: "30",
-			reqd: 1,
+			fieldname: "calculate_ageing_with",
+			label: __("Calculate Ageing With"),
+			fieldtype: "Select",
+			options: "Report Date\nToday Date",
+			default: "Report Date",
 		},
 		{
-			fieldname: "range2",
-			label: __("Ageing Range 2"),
-			fieldtype: "Int",
-			default: "60",
-			reqd: 1,
-		},
-		{
-			fieldname: "range3",
-			label: __("Ageing Range 3"),
-			fieldtype: "Int",
-			default: "90",
-			reqd: 1,
-		},
-		{
-			fieldname: "range4",
-			label: __("Ageing Range 4"),
-			fieldtype: "Int",
-			default: "120",
-			reqd: 1,
+			fieldname: "range",
+			label: __("Ageing Range"),
+			fieldtype: "Data",
+			default: "30, 60, 90, 120",
 		},
 		{
 			fieldname: "finance_book",
@@ -60,15 +45,23 @@ frappe.query_reports["Accounts Receivable Summary"] = {
 		{
 			fieldname: "cost_center",
 			label: __("Cost Center"),
-			fieldtype: "Link",
+			fieldtype: "MultiSelectList",
+			get_data: function (txt) {
+				return frappe.db.get_link_options("Cost Center", txt, {
+					company: frappe.query_report.get_filter_value("company"),
+				});
+			},
 			options: "Cost Center",
-			get_query: () => {
-				var company = frappe.query_report.get_filter_value("company");
-				return {
-					filters: {
-						company: company,
-					},
-				};
+		},
+		{
+			fieldname: "project",
+			label: __("Project"),
+			fieldtype: "MultiSelectList",
+			options: "Project",
+			get_data: function (txt) {
+				return frappe.db.get_link_options("Project", txt, {
+					company: frappe.query_report.get_filter_value("company"),
+				});
 			},
 		},
 		{
@@ -155,6 +148,10 @@ frappe.query_reports["Accounts Receivable Summary"] = {
 			var filters = report.get_values();
 			frappe.set_route("query-report", "Accounts Receivable", { company: filters.company });
 		});
+
+		if (frappe.boot.sysdefaults.default_ageing_range) {
+			report.set_filter_value("range", frappe.boot.sysdefaults.default_ageing_range);
+		}
 	},
 };
 

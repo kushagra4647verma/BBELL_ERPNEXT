@@ -5,6 +5,8 @@ from math import ceil
 
 import frappe
 from frappe import _
+from frappe.query_builder import DocType, Order
+from frappe.query_builder.functions import Concat, Count, IfNull
 from frappe.utils import (
 	cint,
 	get_fullname,
@@ -24,6 +26,37 @@ from frappe.website.website_generator import WebsiteGenerator
 
 
 class BlogPost(WebsiteGenerator):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		blog_category: DF.Link
+		blog_intro: DF.SmallText | None
+		blogger: DF.Link
+		content: DF.TextEditor | None
+		content_html: DF.HTMLEditor | None
+		content_md: DF.MarkdownEditor | None
+		content_type: DF.Literal["Markdown", "Rich Text", "HTML"]
+		disable_comments: DF.Check
+		disable_likes: DF.Check
+		email_sent: DF.Check
+		enable_email_notification: DF.Check
+		featured: DF.Check
+		hide_cta: DF.Check
+		meta_description: DF.SmallText | None
+		meta_image: DF.AttachImage | None
+		meta_title: DF.Data | None
+		published: DF.Check
+		published_on: DF.Date | None
+		read_time: DF.Int
+		route: DF.Data | None
+		title: DF.Data
+
+	# end: auto-generated types
 	@frappe.whitelist()
 	def make_route(self):
 		if not self.route:
@@ -32,9 +65,6 @@ class BlogPost(WebsiteGenerator):
 				+ "/"
 				+ self.scrub(self.title)
 			)
-
-	def get_feed(self):
-		return self.title
 
 	def validate(self):
 		super().validate()
@@ -148,17 +178,24 @@ class BlogPost(WebsiteGenerator):
 
 		url = frappe.local.site + "/" + self.route
 
-		social_links = [
+		return [
 			{
 				"icon": "twitter",
 				"link": "https://twitter.com/intent/tweet?text=" + self.title + "&url=" + url,
 			},
-			{"icon": "facebook", "link": "https://www.facebook.com/sharer.php?u=" + url},
-			{"icon": "linkedin", "link": "https://www.linkedin.com/sharing/share-offsite/?url=" + url},
-			{"icon": "envelope", "link": "mailto:?subject=" + self.title + "&body=" + url},
+			{
+				"icon": "facebook",
+				"link": "https://www.facebook.com/sharer.php?u=" + url,
+			},
+			{
+				"icon": "linkedin",
+				"link": "https://www.linkedin.com/sharing/share-offsite/?url=" + url,
+			},
+			{
+				"icon": "envelope",
+				"link": "mailto:?subject=" + self.title + "&body=" + url,
+			},
 		]
-
-		return social_links
 
 	def load_comments(self, context):
 		context.comment_list = get_comment_list(self.doctype, self.name)
@@ -204,13 +241,19 @@ def get_list_context(context=None):
 		title=_("Blog"),
 	)
 
-	category = frappe.utils.escape_html(
+	blog_settings = frappe.get_doc("Blog Settings").as_dict(no_default_fields=True)
+	list_context.update(blog_settings)
+
+	category_name = frappe.utils.escape_html(
 		frappe.local.form_dict.blog_category or frappe.local.form_dict.category
 	)
-	if category:
-		category_title = get_blog_category(category)
-		list_context.sub_title = _("Posts filed under {0}").format(category_title)
-		list_context.title = category_title
+	if category_name:
+		category = frappe.get_doc("Blog Category", category_name)
+		list_context.blog_introduction = category.description or _("Posts filed under {0}").format(
+			category.title
+		)
+		list_context.blog_title = category.title
+		list_context.preview_image = category.preview_image
 
 	elif frappe.local.form_dict.blogger:
 		blogger = frappe.db.get_value("Blogger", {"name": frappe.local.form_dict.blogger}, "full_name")
@@ -225,11 +268,15 @@ def get_list_context(context=None):
 	else:
 		list_context.parents = [{"name": _("Home"), "route": "/"}]
 
-	blog_settings = frappe.get_doc("Blog Settings").as_dict(no_default_fields=True)
-	list_context.update(blog_settings)
-
 	if blog_settings.browse_by_category:
 		list_context.blog_categories = get_blog_categories()
+
+	list_context.metatags = {
+		"name": list_context.blog_title,
+		"title": list_context.blog_title,
+		"description": list_context.blog_introduction,
+		"image": list_context.preview_image,
+	}
 
 	return list_context
 
@@ -256,72 +303,82 @@ def get_blog_categories():
 
 
 def clear_blog_cache():
-	for blog in frappe.db.sql_list(
-		"""select route from
-		`tabBlog Post` where ifnull(published,0)=1"""
-	):
+	for blog in frappe.db.get_list("Blog Post", fields=["route"], pluck="route", filters={"published": True}):
 		clear_cache(blog)
 
 	clear_cache("writers")
 
 
-def get_blog_category(route):
-	return frappe.db.get_value("Blog Category", {"name": route}, "title") or route
-
-
 def get_blog_list(doctype, txt=None, filters=None, limit_start=0, limit_page_length=20, order_by=None):
-	conditions = []
-	if filters and filters.get("blog_category"):
-		category = filters.get("blog_category")
-	else:
-		category = frappe.utils.escape_html(
-			frappe.local.form_dict.blog_category or frappe.local.form_dict.category
-		)
+	BlogPost = DocType("Blog Post")
+	Blogger = DocType("Blogger")
+	Comment = DocType("Comment")
 
-	if filters and filters.get("blogger"):
-		conditions.append("t1.blogger=%s" % frappe.db.escape(filters.get("blogger")))
-
-	if category:
-		conditions.append("t1.blog_category=%s" % frappe.db.escape(category))
-
-	if txt:
-		conditions.append(
-			'(t1.content like {0} or t1.title like {0}")'.format(frappe.db.escape("%" + txt + "%"))
-		)
-
-	if conditions:
-		frappe.local.no_cache = 1
-
-	query = """\
-		select
-			t1.title, t1.name, t1.blog_category, t1.route, t1.published_on, t1.read_time,
-				t1.published_on as creation,
-				t1.read_time as read_time,
-				t1.featured as featured,
-				t1.meta_image as cover_image,
-				t1.content as content,
-				t1.content_type as content_type,
-				t1.content_html as content_html,
-				t1.content_md as content_md,
-				ifnull(t1.blog_intro, t1.content) as intro,
-				t2.full_name, t2.avatar, t1.blogger,
-				(select count(name) from `tabComment`
-					where
-						comment_type='Comment'
-						and reference_doctype='Blog Post'
-						and reference_name=t1.name) as comments
-		from `tabBlog Post` t1, `tabBlogger` t2
-		where ifnull(t1.published,0)=1
-		and t1.blogger = t2.name
-		{condition}
-		order by featured desc, published_on desc, name asc
-		limit {page_len} OFFSET {start}""".format(
-		start=limit_start,
-		page_len=limit_page_length,
-		condition=(" and " + " and ".join(conditions)) if conditions else "",
+	comments_subquery = (
+		frappe.qb.from_(Comment)
+		.select(Count(Comment.name))
+		.where(Comment.comment_type == "Comment")
+		.where(Comment.reference_doctype == "Blog Post")
+		.where(Comment.reference_name == BlogPost.name)
 	)
 
-	posts = frappe.db.sql(query, as_dict=1)
+	query = (
+		frappe.qb.from_(BlogPost)
+		.join(Blogger)
+		.on(BlogPost.blogger == Blogger.name)
+		.select(
+			BlogPost.title,
+			BlogPost.name,
+			BlogPost.blog_category,
+			BlogPost.route,
+			BlogPost.published_on,
+			BlogPost.read_time,
+			BlogPost.published_on.as_("creation"),
+			BlogPost.featured.as_("featured"),
+			BlogPost.meta_image.as_("cover_image"),
+			BlogPost.content.as_("content"),
+			BlogPost.content_type.as_("content_type"),
+			BlogPost.content_html.as_("content_html"),
+			BlogPost.content_md.as_("content_md"),
+			IfNull(BlogPost.blog_intro, BlogPost.content).as_("intro"),
+			Blogger.full_name,
+			Blogger.avatar,
+			BlogPost.blogger,
+			comments_subquery.as_("comments"),
+		)
+		.where(BlogPost.published == 1)
+	)
+
+	if filters and filters.get("blogger"):
+		query = query.where(BlogPost.blogger == filters.get("blogger"))
+
+	category = (
+		(filters.get("blog_category") if filters else None)
+		or frappe.local.form_dict.blog_category
+		or frappe.local.form_dict.category
+	)
+
+	if category:
+		category = frappe.utils.escape_html(category)
+		query = query.where(BlogPost.blog_category == category)
+
+	if txt:
+		query = query.where(
+			(BlogPost.content.like(Concat("%", txt, "%"))) | (BlogPost.title.like(Concat("%", txt, "%")))
+		)
+
+	if filters or txt:
+		frappe.local.no_cache = 1
+
+	query = (
+		query.orderby(BlogPost.featured, order=Order.desc)
+		.orderby(BlogPost.published_on, order=Order.desc)
+		.orderby(BlogPost.name, order=Order.asc)
+		.limit(cint(limit_page_length))
+		.offset(cint(limit_start))
+	)
+
+	posts = query.run(as_dict=1)
 
 	for post in posts:
 		post.content = get_html_content_based_on_type(post, "content", post.content_type)

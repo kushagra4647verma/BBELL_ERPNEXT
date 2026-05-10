@@ -26,6 +26,45 @@ if TYPE_CHECKING:
 
 
 class LDAPSettings(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.integrations.doctype.ldap_group_mapping.ldap_group_mapping import LDAPGroupMapping
+		from frappe.types import DF
+
+		base_dn: DF.Data
+		default_role: DF.Link | None
+		default_user_type: DF.Link
+		do_not_create_new_user: DF.Check
+		enabled: DF.Check
+		ldap_custom_group_search: DF.Data | None
+		ldap_directory_server: DF.Literal["", "Active Directory", "OpenLDAP", "Custom"]
+		ldap_email_field: DF.Data
+		ldap_first_name_field: DF.Data
+		ldap_group_field: DF.Data | None
+		ldap_group_member_attribute: DF.Data | None
+		ldap_group_objectclass: DF.Data | None
+		ldap_groups: DF.Table[LDAPGroupMapping]
+		ldap_last_name_field: DF.Data | None
+		ldap_middle_name_field: DF.Data | None
+		ldap_mobile_field: DF.Data | None
+		ldap_phone_field: DF.Data | None
+		ldap_search_path_group: DF.Data
+		ldap_search_path_user: DF.Data
+		ldap_search_string: DF.Data
+		ldap_server_url: DF.Data
+		ldap_username_field: DF.Data
+		local_ca_certs_file: DF.Data | None
+		local_private_key_file: DF.Data | None
+		local_server_certificate_file: DF.Data | None
+		password: DF.Password
+		require_trusted_certificate: DF.Literal["No", "Yes"]
+		ssl_tls_mode: DF.Literal["Off", "StartTLS"]
+
+	# end: auto-generated types
 	def validate(self):
 		self.default_user_type = self.default_user_type or "Website User"
 
@@ -60,7 +99,7 @@ class LDAPSettings(Document):
 
 				except LDAPAttributeError as ex:
 					frappe.throw(
-						_("LDAP settings incorrect. validation response was: {0}").format(ex),
+						_("LDAP settings incorrect. validation response was: {0}").format(str(ex)),
 						title=_("Misconfigured"),
 					)
 
@@ -166,7 +205,7 @@ class LDAPSettings(Document):
 		user.remove_roles(*roles_to_remove)
 
 	def create_or_update_user(self, user_data: dict, groups: list | None = None):
-		user: "User" = None
+		user: User = None
 		role: str = None
 
 		if frappe.db.exists("User", user_data["email"]):
@@ -263,10 +302,7 @@ class LDAPSettings(Document):
 			)  # Build search query
 
 		if len(conn.entries) >= 1:
-			fetch_ldap_groups = []
-			for group in conn.entries:
-				fetch_ldap_groups.append(group["cn"].value)
-
+			fetch_ldap_groups = [group["cn"].value for group in conn.entries]
 		return fetch_ldap_groups
 
 	def authenticate(self, username: str, password: str):
@@ -382,19 +418,14 @@ def login():
 	frappe.form_dict.pop("pwd", None)
 	frappe.local.login_manager.post_login()
 
-	try:
-		from frappe.core.doctype.activity_log.activity_log import add_authentication_log
-
-		add_authentication_log(_("{0} logged in").format(user.full_name), user.name)
-	except ImportError:
-		pass
-
 	# because of a GET request!
 	frappe.db.commit()
 
 
 @frappe.whitelist()
 def reset_password(user: str, password: str, logout: int):
+	frappe.only_for("System Manager")
+
 	ldap: LDAPSettings = frappe.get_doc("LDAP Settings")
 	if not ldap.enabled:
 		frappe.throw(_("LDAP is not enabled."))

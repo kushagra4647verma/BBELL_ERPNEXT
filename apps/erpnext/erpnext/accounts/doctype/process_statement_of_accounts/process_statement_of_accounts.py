@@ -6,8 +6,9 @@ import copy
 
 import frappe
 from frappe import _
+from frappe.desk.reportview import get_match_cond
 from frappe.model.document import Document
-from frappe.utils import add_days, add_months, format_date, getdate, today
+from frappe.utils import add_days, add_months, add_to_date, format_date, getdate, today
 from frappe.utils.jinja import validate_template
 from frappe.utils.pdf import get_pdf
 from frappe.www.printview import get_print_style
@@ -22,7 +23,69 @@ from erpnext.accounts.report.general_ledger.general_ledger import execute as get
 
 
 class ProcessStatementOfAccounts(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.accounts.doctype.process_statement_of_accounts_cc.process_statement_of_accounts_cc import (
+			ProcessStatementOfAccountsCC,
+		)
+		from erpnext.accounts.doctype.process_statement_of_accounts_customer.process_statement_of_accounts_customer import (
+			ProcessStatementOfAccountsCustomer,
+		)
+		from erpnext.accounts.doctype.psoa_cost_center.psoa_cost_center import PSOACostCenter
+		from erpnext.accounts.doctype.psoa_project.psoa_project import PSOAProject
+
+		account: DF.Link | None
+		ageing_based_on: DF.Literal["Due Date", "Posting Date"]
+		based_on_payment_terms: DF.Check
+		body: DF.TextEditor | None
+		categorize_by: DF.Literal["", "Categorize by Voucher", "Categorize by Voucher (Consolidated)"]
+		cc_to: DF.TableMultiSelect[ProcessStatementOfAccountsCC]
+		collection_name: DF.DynamicLink | None
+		company: DF.Link
+		cost_center: DF.TableMultiSelect[PSOACostCenter]
+		currency: DF.Link | None
+		customer_collection: DF.Literal["", "Customer Group", "Territory", "Sales Partner", "Sales Person"]
+		customers: DF.Table[ProcessStatementOfAccountsCustomer]
+		enable_auto_email: DF.Check
+		filter_duration: DF.Int
+		finance_book: DF.Link | None
+		frequency: DF.Literal["Daily", "Weekly", "Biweekly", "Monthly", "Quarterly"]
+		from_date: DF.Date | None
+		ignore_cr_dr_notes: DF.Check
+		ignore_exchange_rate_revaluation_journals: DF.Check
+		include_ageing: DF.Check
+		include_break: DF.Check
+		letter_head: DF.Link | None
+		orientation: DF.Literal["Landscape", "Portrait"]
+		payment_terms_template: DF.Link | None
+		pdf_name: DF.Data | None
+		posting_date: DF.Date | None
+		primary_mandatory: DF.Check
+		project: DF.TableMultiSelect[PSOAProject]
+		report: DF.Literal["General Ledger", "Accounts Receivable"]
+		sales_partner: DF.Link | None
+		sales_person: DF.Link | None
+		sender: DF.Link | None
+		show_net_values_in_party_account: DF.Check
+		show_remarks: DF.Check
+		start_date: DF.Date | None
+		subject: DF.Data | None
+		terms_and_conditions: DF.Link | None
+		territory: DF.Link | None
+		to_date: DF.Date | None
+	# end: auto-generated types
+
 	def validate(self):
+		self.validate_account()
+		self.validate_company_for_table("Cost Center")
+		self.validate_company_for_table("Project")
+
 		if not self.subject:
 			self.subject = "Statement Of Accounts for {{ customer.customer_name }}"
 		if not self.body:
@@ -44,6 +107,43 @@ class ProcessStatementOfAccounts(Document):
 			if self.start_date and getdate(self.start_date) >= getdate(today()):
 				self.to_date = self.start_date
 				self.from_date = add_months(self.to_date, -1 * self.filter_duration)
+
+	def validate_account(self):
+		if not self.account:
+			return
+
+		if self.company != frappe.get_cached_value("Account", self.account, "company"):
+			frappe.throw(
+				_("Account {0} doesn't belong to Company {1}").format(
+					frappe.bold(self.account),
+					frappe.bold(self.company),
+				)
+			)
+
+	def validate_company_for_table(self, doctype):
+		field = frappe.scrub(doctype)
+		if not self.get(field):
+			return
+
+		fieldname = field + "_name"
+
+		values = set(d.get(fieldname) for d in self.get(field))
+		invalid_values = frappe.db.get_all(
+			doctype, filters={"name": ["in", values], "company": ["!=", self.company]}, pluck="name"
+		)
+
+		if invalid_values:
+			msg = _("<p>Following {0}s doesn't belong to Company {1} :</p>").format(
+				doctype, frappe.bold(self.company)
+			)
+
+			msg += (
+				"<ul>"
+				+ "".join(_("<li>{}</li>").format(frappe.bold(row)) for row in invalid_values)
+				+ "</ul>"
+			)
+
+			frappe.throw(_(msg))
 
 
 def get_report_pdf(doc, consolidated=True):
@@ -70,8 +170,8 @@ def get_statement_dict(doc, get_statement_dict=False):
 
 		tax_id = frappe.get_doc("Customer", entry.customer).tax_id
 		presentation_currency = (
-			get_party_account_currency("Customer", entry.customer, doc.company)
-			or doc.currency
+			doc.currency
+			or get_party_account_currency("Customer", entry.customer, doc.company)
 			or get_company_currency(doc.company)
 		)
 
@@ -232,7 +332,7 @@ def get_customers_based_on_territory_or_customer_group(customer_collection, coll
 	return frappe.get_list(
 		"Customer",
 		fields=["name", "customer_name", "email_id"],
-		filters=[[fields_dict[customer_collection], "IN", selected]],
+		filters=[["disabled", "=", 0], [fields_dict[customer_collection], "IN", selected]],
 	)
 
 
@@ -274,7 +374,7 @@ def get_recipients_and_cc(customer, doc):
 	cc = []
 	if doc.cc_to != "":
 		try:
-			cc = [frappe.get_value("User", doc.cc_to, "email")]
+			cc = [frappe.get_value("User", user.cc, "email") for user in doc.cc_to]
 		except Exception:
 			pass
 
@@ -321,8 +421,6 @@ def fetch_customers(customer_collection, collection_name, primary_mandatory):
 		if int(primary_mandatory):
 			if primary_email == "":
 				continue
-		elif (billing_email == "") and (primary_email == ""):
-			continue
 
 		customer_list.append(
 			{
@@ -359,8 +457,10 @@ def get_customer_emails(customer_name, primary_mandatory, billing_and_primary=Tr
 			link.link_doctype='Customer'
 			and link.link_name=%s
 			and contact.is_billing_contact=1
+			{mcond}
 		ORDER BY
-			contact.creation desc""",
+			contact.creation desc
+		""".format(mcond=get_match_cond("Contact")),
 		customer_name,
 	)
 
@@ -424,12 +524,14 @@ def send_emails(document_name, from_scheduler=False, posting_date=None):
 				reference_doctype="Process Statement Of Accounts",
 				reference_name=document_name,
 				attachments=attachments,
+				expose_recipients="header",
 			)
 
 		if doc.enable_auto_email and from_scheduler:
 			new_to_date = getdate(posting_date or today())
-			if doc.frequency == "Weekly":
-				new_to_date = add_days(new_to_date, 7)
+			if doc.frequency in ("Daily", "Weekly", "Biweekly"):
+				frequency = {"Daily": 1, "Weekly": 7, "Biweekly": 14}
+				new_to_date = add_days(new_to_date, frequency[doc.frequency])
 			else:
 				new_to_date = add_months(new_to_date, 1 if doc.frequency == "Monthly" else 3)
 			new_from_date = add_months(new_to_date, -1 * doc.filter_duration)

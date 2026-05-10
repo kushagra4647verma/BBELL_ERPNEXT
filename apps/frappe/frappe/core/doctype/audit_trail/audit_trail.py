@@ -7,30 +7,33 @@ import frappe
 from frappe import _
 from frappe.core.doctype.version.version import get_diff
 from frappe.model.document import Document
-from frappe.utils import compare
 
 
 class AuditTrail(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		doctype_name: DF.Link
+		document: DF.DynamicLink
+	# end: auto-generated types
+	pass
+
 	def validate(self):
-		self.validate_fields()
+		self.validate_doctype_name()
 		self.validate_document()
 
-	def validate_fields(self):
-		fields_dict = {
-			"DocType": self.doctype_name,
-			"Document": self.document,
-		}
-		for field in fields_dict:
-			if not fields_dict[field]:
-				frappe.throw(_("{} field cannot be empty.").format(frappe.bold(field)))
+	def validate_doctype_name(self):
+		if not self.doctype_name:
+			frappe.throw(_("{} field cannot be empty.").format(frappe.bold("Doctype")))
 
 	def validate_document(self):
-		if not frappe.db.exists(self.doctype_name, self.document):
-			frappe.throw(
-				_("The selected document {0} is not a {1}.").format(
-					frappe.bold(self.document), frappe.bold(self.doctype_name)
-				)
-			)
+		if not self.document:
+			frappe.throw(_("{} field cannot be empty.").format(frappe.bold("Document")))
 
 	@frappe.whitelist()
 	def compare_document(self):
@@ -55,18 +58,11 @@ class AuditTrail(Document):
 		}
 
 	def get_amended_documents(self):
-		start_date = self.get("start_date")
 		amended_document_names = []
 		curr_doc = self.document
-		creation = frappe.db.get_value(self.doctype_name, self.document, "creation")
-		while (
-			curr_doc
-			and len(amended_document_names) < 5
-			and (start_date is None or compare(creation, ">=", start_date, "Date"))
-		):
+		while curr_doc and len(amended_document_names) < 5:
 			amended_document_names.append(curr_doc)
 			curr_doc = frappe.db.get_value(self.doctype_name, curr_doc, "amended_from")
-			creation = frappe.db.get_value(self.doctype_name, curr_doc, "creation")
 		amended_document_names = amended_document_names[::-1]
 
 		return amended_document_names

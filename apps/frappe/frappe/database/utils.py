@@ -1,11 +1,16 @@
 # Copyright (c) 2022, Frappe Technologies Pvt. Ltd. and Contributors
 # License: MIT. See LICENSE
 
+import typing
 from functools import cached_property, wraps
+from types import NoneType
 
 import frappe
 from frappe.query_builder.builder import MariaDB, Postgres
 from frappe.query_builder.functions import Function
+
+if typing.TYPE_CHECKING:
+	from frappe.query_builder import DocType
 
 Query = str | MariaDB | Postgres
 QueryValues = tuple | list | dict | None
@@ -18,6 +23,7 @@ NestedSetHierarchy = (
 	"descendants of",
 	"not ancestors of",
 	"not descendants of",
+	"descendants of (inclusive)",
 )
 
 
@@ -33,8 +39,7 @@ def get_doctype_name(table_name: str) -> str:
 	if table_name.startswith(("tab", "`tab", '"tab')):
 		table_name = table_name.replace("tab", "", 1)
 	table_name = table_name.replace("`", "")
-	table_name = table_name.replace('"', "")
-	return table_name
+	return table_name.replace('"', "")
 
 
 class LazyString:
@@ -94,3 +99,25 @@ def dangerously_reconnect_on_connection_abort(func):
 			raise
 
 	return wrapper
+
+
+def drop_index_if_exists(table: str, index: str):
+	import click
+
+	if not frappe.db.has_index(table, index):
+		click.echo(f"- Skipped {index} index for {table} because it doesn't exist")
+		return
+
+	try:
+		if frappe.db.db_type == "postgres":
+			# Postgres drops indexes with DROP INDEX, not ALTER TABLE ... DROP INDEX
+			safe_index = index.replace('"', '""')
+			frappe.db.sql_ddl(f'DROP INDEX IF EXISTS "{safe_index}"')
+		else:
+			frappe.db.sql_ddl(f"ALTER TABLE `{table}` DROP INDEX `{index}`")
+	except Exception as e:
+		frappe.log_error("Failed to drop index")
+		click.secho(f"x Failed to drop index {index} from {table}\n {e!s}", fg="red")
+		return
+
+	click.echo(f"✓ dropped {index} index from {table}")

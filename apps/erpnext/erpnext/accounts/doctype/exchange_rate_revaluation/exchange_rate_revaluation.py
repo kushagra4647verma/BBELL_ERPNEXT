@@ -17,6 +17,28 @@ from erpnext.setup.utils import get_exchange_rate
 
 
 class ExchangeRateRevaluation(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.accounts.doctype.exchange_rate_revaluation_account.exchange_rate_revaluation_account import (
+			ExchangeRateRevaluationAccount,
+		)
+
+		accounts: DF.Table[ExchangeRateRevaluationAccount]
+		amended_from: DF.Link | None
+		company: DF.Link
+		gain_loss_booked: DF.Currency
+		gain_loss_unbooked: DF.Currency
+		posting_date: DF.Date
+		rounding_loss_allowance: DF.Float
+		total_gain_loss: DF.Currency
+	# end: auto-generated types
+
 	def validate(self):
 		self.validate_rounding_loss_allowance()
 		self.set_total_gain_loss()
@@ -112,7 +134,8 @@ class ExchangeRateRevaluation(Document):
 		accounts = self.get_accounts_data()
 		if accounts:
 			for acc in accounts:
-				self.append("accounts", acc)
+				if acc.get("gain_loss"):
+					self.append("accounts", acc)
 
 	@frappe.whitelist()
 	def get_accounts_data(self):
@@ -229,7 +252,7 @@ class ExchangeRateRevaluation(Document):
 		company_currency = erpnext.get_company_currency(company)
 		precision = get_field_precision(
 			frappe.get_meta("Exchange Rate Revaluation Account").get_field("new_balance_in_base_currency"),
-			company_currency,
+			currency=company_currency,
 		)
 
 		if account_details:
@@ -462,6 +485,9 @@ class ExchangeRateRevaluation(Document):
 		journal_entry.company = self.company
 		journal_entry.posting_date = self.posting_date
 		journal_entry.multi_currency = 1
+
+		# Prevent JE from overriding user-entered exchange rates (e.g., rate of 1)
+		journal_entry.flags.ignore_exchange_rate = True
 
 		journal_entry_accounts = []
 		for d in accounts:

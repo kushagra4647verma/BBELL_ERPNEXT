@@ -20,7 +20,7 @@ def calculate_hash(path: str) -> str:
 	Returns:
 	        str: The calculated hash
 	"""
-	hash_md5 = hashlib.md5()
+	hash_md5 = hashlib.md5(usedforsecurity=False)
 	with open(path, "rb") as f:
 		for chunk in iter(lambda: f.read(4096), b""):
 			hash_md5.update(chunk)
@@ -34,6 +34,7 @@ ignore_values = {
 	"Print Style": ["disabled"],
 	"Module Onboarding": ["is_complete"],
 	"Onboarding Step": ["is_complete", "is_skipped"],
+	"Workspace": ["is_hidden"],
 }
 
 ignore_doctypes = [""]
@@ -41,19 +42,17 @@ ignore_doctypes = [""]
 
 def import_files(module, dt=None, dn=None, force=False, pre_process=None, reset_permissions=False):
 	if isinstance(module, list):
-		out = []
-		for m in module:
-			out.append(
-				import_file(
-					m[0],
-					m[1],
-					m[2],
-					force=force,
-					pre_process=pre_process,
-					reset_permissions=reset_permissions,
-				)
+		return [
+			import_file(
+				m[0],
+				m[1],
+				m[2],
+				force=force,
+				pre_process=pre_process,
+				reset_permissions=reset_permissions,
 			)
-		return out
+			for m in module
+		]
 	else:
 		return import_file(
 			module, dt, dn, force=force, pre_process=pre_process, reset_permissions=reset_permissions
@@ -63,8 +62,7 @@ def import_files(module, dt=None, dn=None, force=False, pre_process=None, reset_
 def import_file(module, dt, dn, force=False, pre_process=None, reset_permissions=False):
 	"""Sync a file from txt if modifed, return false if not updated"""
 	path = get_file_path(module, dt, dn)
-	ret = import_file_by_path(path, force, pre_process=pre_process, reset_permissions=reset_permissions)
-	return ret
+	return import_file_by_path(path, force, pre_process=pre_process, reset_permissions=reset_permissions)
 
 
 def get_file_path(module, dt, dn):
@@ -182,7 +180,7 @@ def read_doc_from_file(path):
 				print(f"bad json: {path}")
 				raise
 	else:
-		raise OSError("%s missing" % path)
+		raise OSError("{} missing".format(path))
 
 	return doc
 
@@ -251,7 +249,7 @@ def load_code_properties(doc, path):
 		if hasattr(doc, "get_code_fields"):
 			dirname, filename = os.path.split(path)
 			for key, extn in doc.get_code_fields().items():
-				codefile = os.path.join(dirname, filename.split(".", 1)[0] + "." + extn)
+				codefile = os.path.join(dirname, filename[: filename.rfind(".")] + "." + extn)
 				if os.path.exists(codefile):
 					with open(codefile) as txtfile:
 						doc.set(key, txtfile.read())

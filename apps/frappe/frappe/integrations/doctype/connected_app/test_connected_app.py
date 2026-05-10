@@ -126,7 +126,7 @@ class TestConnectedApp(FrappeTestCase):
 		def delete_if_exists(attribute):
 			doc = getattr(self, attribute, None)
 			if doc:
-				doc.delete()
+				doc.delete(force=True)
 
 		frappe.db.commit()  # Avoid snapshot violation issues
 
@@ -143,6 +143,8 @@ class TestConnectedApp(FrappeTestCase):
 			for code in codes:
 				doc = frappe.get_doc("OAuth Authorization Code", code.name)
 				doc.delete()
+
+		frappe.db.commit()
 
 		delete_if_exists("user")
 		delete_if_exists("oauth_client")

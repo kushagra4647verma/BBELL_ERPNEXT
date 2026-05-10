@@ -8,10 +8,48 @@ from frappe import _, qb
 from frappe.desk.notifications import clear_notifications
 from frappe.model.document import Document
 from frappe.utils import cint, comma_and, create_batch, get_link_to_form
-from frappe.utils.background_jobs import create_job_id, is_job_enqueued
+from frappe.utils.background_jobs import get_job, is_job_enqueued
+
+LEDGER_ENTRY_DOCTYPES = frozenset(
+	(
+		"GL Entry",
+		"Payment Ledger Entry",
+		"Stock Ledger Entry",
+	)
+)
 
 
 class TransactionDeletionRecord(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.accounts.doctype.transaction_deletion_record_details.transaction_deletion_record_details import (
+			TransactionDeletionRecordDetails,
+		)
+		from erpnext.setup.doctype.transaction_deletion_record_item.transaction_deletion_record_item import (
+			TransactionDeletionRecordItem,
+		)
+
+		amended_from: DF.Link | None
+		clear_notifications: DF.Check
+		company: DF.Link
+		delete_bin_data: DF.Check
+		delete_leads_and_addresses: DF.Check
+		delete_transactions: DF.Check
+		doctypes: DF.Table[TransactionDeletionRecordDetails]
+		doctypes_to_be_ignored: DF.Table[TransactionDeletionRecordItem]
+		error_log: DF.LongText | None
+		initialize_doctypes_table: DF.Check
+		process_in_single_transaction: DF.Check
+		reset_company_default_values: DF.Check
+		status: DF.Literal["Queued", "Running", "Failed", "Completed", "Cancelled"]
+	# end: auto-generated types
+
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.batch_size = 5000
@@ -152,7 +190,7 @@ class TransactionDeletionRecord(Document):
 		running_tasks = []
 		for x in job_names:
 			if is_job_enqueued(x):
-				running_tasks.append(create_job_id(x))
+				running_tasks.append(get_job(x).get_id())
 
 		if running_tasks:
 			frappe.throw(
@@ -437,6 +475,7 @@ def get_doctypes_to_be_ignored():
 		"Item Default",
 		"Customer",
 		"Supplier",
+		"Department",
 	]
 
 	doctypes_to_be_ignored.extend(frappe.get_hooks("company_data_to_be_ignored") or [])
@@ -446,25 +485,31 @@ def get_doctypes_to_be_ignored():
 
 @frappe.whitelist()
 def is_deletion_doc_running(company: str | None = None, err_msg: str | None = None):
-	if company:
-		if running_deletion_jobs := frappe.db.get_all(
-			"Transaction Deletion Record",
-			filters={"docstatus": 1, "company": company, "status": "Running"},
-		):
-			if not err_msg:
-				err_msg = ""
-			frappe.throw(
-				title=_("Deletion in Progress!"),
-				msg=_("Transaction Deletion Document: {0} is running for this Company. {1}").format(
-					get_link_to_form("Transaction Deletion Record", running_deletion_jobs[0].name), err_msg
-				),
-			)
+	if not company:
+		return
+
+	running_deletion_job = frappe.db.get_value(
+		"Transaction Deletion Record",
+		{"docstatus": 1, "company": company, "status": "Running"},
+		"name",
+	)
+
+	if not running_deletion_job:
+		return
+
+	frappe.throw(
+		title=_("Deletion in Progress!"),
+		msg=_("Transaction Deletion Document: {0} is running for this Company. {1}").format(
+			get_link_to_form("Transaction Deletion Record", running_deletion_job), err_msg or ""
+		),
+	)
 
 
 def check_for_running_deletion_job(doc, method=None):
 	# Check if DocType has 'company' field
-	df = qb.DocType("DocField")
-	if qb.from_(df).select(df.parent).where((df.fieldname == "company") & (df.parent == doc.doctype)).run():
-		is_deletion_doc_running(
-			doc.company, _("Cannot make any transactions until the deletion job is completed")
-		)
+	if doc.doctype in LEDGER_ENTRY_DOCTYPES or not doc.meta.has_field("company"):
+		return
+
+	is_deletion_doc_running(
+		doc.company, _("Cannot make any transactions until the deletion job is completed")
+	)

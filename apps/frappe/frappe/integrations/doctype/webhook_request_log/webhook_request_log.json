@@ -6,12 +6,12 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "user",
   "webhook",
   "reference_document",
   "headers",
   "data",
   "column_break_4",
+  "user",
   "url",
   "response",
   "error"
@@ -101,6 +101,5 @@
  ],
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+ "states": []
 }

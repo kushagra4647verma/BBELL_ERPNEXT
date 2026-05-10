@@ -74,8 +74,11 @@ frappe.data_import.DataExporter = class DataExporter {
 					let child_fieldname = df.fieldname;
 					let label = df.reqd
 						? // prettier-ignore
-						  __('{0} ({1}) (1 row mandatory)', [__(df.label || df.fieldname), __(doctype)])
-						: __("{0} ({1})", [__(df.label || df.fieldname), __(doctype)]);
+						  __('{0} ({1}) (1 row mandatory)', [__(df.label || df.fieldname, null, df.parent), __(doctype)])
+						: __("{0} ({1})", [
+								__(df.label || df.fieldname, null, df.parent),
+								__(doctype),
+						  ]);
 					return {
 						label,
 						fieldname: child_fieldname,
@@ -204,7 +207,6 @@ frappe.data_import.DataExporter = class DataExporter {
 	}
 
 	update_record_count_message() {
-		let export_records = this.dialog.get_value("export_records");
 		let count_method = {
 			all: () => frappe.db.count(this.doctype),
 			by_filter: () =>
@@ -214,6 +216,10 @@ frappe.data_import.DataExporter = class DataExporter {
 			blank_template: () => Promise.resolve(0),
 			"5_records": () => Promise.resolve(5),
 		};
+
+		let export_records = this.dialog.get_value("export_records");
+
+		if (!export_records || !count_method[export_records]) return;
 
 		count_method[export_records]().then((value) => {
 			let message = "";
@@ -292,7 +298,7 @@ frappe.data_import.DataExporter = class DataExporter {
 			})
 			.map((df) => {
 				return {
-					label: __(df.label),
+					label: __(df.label, null, df.parent),
 					value: df.fieldname,
 					danger: is_field_mandatory(df),
 					checked: false,

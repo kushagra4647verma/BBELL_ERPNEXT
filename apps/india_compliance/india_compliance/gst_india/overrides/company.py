@@ -1,6 +1,8 @@
 import frappe
+from erpnext.setup.setup_wizard.operations.taxes_setup import (
+    from_detailed_data,
+)
 from frappe.utils import flt
-from erpnext.setup.setup_wizard.operations.taxes_setup import from_detailed_data
 
 from india_compliance.gst_india.utils import get_data_file_path
 
@@ -61,7 +63,7 @@ def make_default_gst_expense_accounts(company):
 
 
 @frappe.whitelist()
-def make_default_tax_templates(company: str, gst_rate=None):
+def make_default_tax_templates(company: str, gst_rate: float | None = None):
     frappe.has_permission("Company", ptype="write", doc=company, throw=True)
 
     default_taxes = get_tax_defaults(gst_rate)
@@ -88,11 +90,7 @@ def modify_tax_defaults(default_taxes, gst_rate):
         template = default_taxes["chart_of_accounts"]["*"][template_type]
         for tax in template:
             for row in tax.get("taxes"):
-                rate = (
-                    gst_rate
-                    if row["account_head"]["tax_rate"] == 18
-                    else flt(gst_rate / 2, 3)
-                )
+                rate = gst_rate if abs(row["account_head"]["tax_rate"]) == 18 else flt(gst_rate / 2, 3)
 
                 row["account_head"]["tax_rate"] = rate
 
@@ -103,7 +101,16 @@ def update_gst_settings(company):
     # Will only add default GST accounts if present
     input_account_names = ["Input Tax CGST", "Input Tax SGST", "Input Tax IGST"]
     output_account_names = ["Output Tax CGST", "Output Tax SGST", "Output Tax IGST"]
-    rcm_accounts = ["Input Tax CGST RCM", "Input Tax SGST RCM", "Input Tax IGST RCM"]
+    purchase_rcm_accounts = [
+        "Input Tax CGST RCM",
+        "Input Tax SGST RCM",
+        "Input Tax IGST RCM",
+    ]
+    sales_rcm_accounts = [
+        "Output Tax CGST RCM",
+        "Output Tax SGST RCM",
+        "Output Tax IGST RCM",
+    ]
     gst_settings = frappe.get_single("GST Settings")
     existing_account_list = []
 
@@ -118,7 +125,7 @@ def update_gst_settings(company):
                 "company": company,
                 "account_name": (
                     "in",
-                    input_account_names + output_account_names + rcm_accounts,
+                    input_account_names + output_account_names + purchase_rcm_accounts + sales_rcm_accounts,
                 ),
             },
             ["account_name", "name"],
@@ -144,11 +151,19 @@ def update_gst_settings(company):
     )
     add_accounts_in_gst_settings(
         company,
-        rcm_accounts,
+        purchase_rcm_accounts,
         gst_accounts,
         existing_account_list,
         gst_settings,
-        "Reverse Charge",
+        "Purchase Reverse Charge",
+    )
+    add_accounts_in_gst_settings(
+        company,
+        sales_rcm_accounts,
+        gst_accounts,
+        existing_account_list,
+        gst_settings,
+        "Sales Reverse Charge",
     )
 
     # Ignore mandatory during install, some values may not be set by post install patch
@@ -218,11 +233,17 @@ def create_default_company_account(
         }
     )
     account.flags.ignore_permissions = True
-    account.insert(ignore_if_duplicate=True)
+    account.flags.ignore_root_company_validation = True
+    account.insert(ignore_if_duplicate=True, ignore_mandatory=True)
 
-    if default_fieldname and not frappe.db.get_value(
-        "Company", company, default_fieldname
-    ):
-        frappe.db.set_value(
-            "Company", company, default_fieldname, account.name, update_modified=False
-        )
+    if default_fieldname and not frappe.db.get_value("Company", company, default_fieldname):
+        frappe.db.set_value("Company", company, default_fieldname, account.name, update_modified=False)
+
+
+@frappe.whitelist()
+def get_default_print_options(for_bank: int = 1) -> list:
+    """Permission check not required as this returns static non-sensitive data."""
+    if int(for_bank):
+        return ["Account No.", "Bank Name", "Branch", "IFSC Code", "UPI ID"]
+    else:
+        return ["MSME No.", "MSME Type", "LLPIN", "LUT No."]

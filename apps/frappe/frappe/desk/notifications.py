@@ -2,6 +2,7 @@
 # License: MIT. See LICENSE
 
 import json
+from typing import Literal
 
 from bs4 import BeautifulSoup
 
@@ -25,7 +26,7 @@ def get_notifications():
 		"open_count_doctype": {},
 		"targets": {},
 	}
-	if frappe.flags.in_install or not frappe.db.get_single_value("System Settings", "setup_complete"):
+	if frappe.flags.in_install or not frappe.is_setup_complete():
 		return out
 
 	config = get_notification_config()
@@ -34,13 +35,12 @@ def get_notifications():
 		return out
 
 	groups = list(config.get("for_doctype")) + list(config.get("for_module"))
-	cache = frappe.cache()
 
 	notification_count = {}
 	notification_percent = {}
 
 	for name in groups:
-		count = cache.hget("notification_count:" + name, frappe.session.user)
+		count = frappe.cache.hget("notification_count:" + name, frappe.session.user)
 		if count is not None:
 			notification_count[name] = count
 
@@ -83,7 +83,7 @@ def get_notifications_for_doctypes(config, notification_count):
 
 				else:
 					open_count_doctype[d] = result
-					frappe.cache().hset("notification_count:" + d, frappe.session.user, result)
+					frappe.cache.hset("notification_count:" + d, frappe.session.user, result)
 
 	return open_count_doctype
 
@@ -141,7 +141,6 @@ def get_notifications_for_targets(config, notification_percent):
 def clear_notifications(user=None):
 	if frappe.flags.in_install:
 		return
-	cache = frappe.cache()
 	config = get_notification_config()
 
 	if not config:
@@ -153,17 +152,17 @@ def clear_notifications(user=None):
 
 	for name in groups:
 		if user:
-			cache.hdel("notification_count:" + name, user)
+			frappe.cache.hdel("notification_count:" + name, user)
 		else:
-			cache.delete_key("notification_count:" + name)
+			frappe.cache.delete_key("notification_count:" + name)
 
 
 def clear_notification_config(user):
-	frappe.cache().hdel("notification_config", user)
+	frappe.cache.hdel("notification_config", user)
 
 
 def delete_notification_count_for(doctype):
-	frappe.cache().delete_key("notification_count:" + doctype)
+	frappe.cache.delete_key("notification_count:" + doctype)
 
 
 def clear_doctype_notifications(doc, method=None, *args, **kwargs):
@@ -232,16 +231,14 @@ def get_notification_config():
 						config[key].update(nc.get(key, {}))
 		return config
 
-	return frappe.cache().hget("notification_config", user, _get)
+	return frappe.cache.hget("notification_config", user, _get)
 
 
 def get_filters_for(doctype):
 	"""get open filters for doctype"""
 	config = get_notification_config()
 	doctype_config = config.get("for_doctype").get(doctype, {})
-	filters = doctype_config if not isinstance(doctype_config, str) else None
-
-	return filters
+	return None if isinstance(doctype_config, str) else doctype_config
 
 
 @frappe.whitelist()
@@ -256,6 +253,18 @@ def get_open_count(doctype: str, name: str, items=None):
 	if frappe.flags.in_migrate or frappe.flags.in_install:
 		return {"count": []}
 
+	# None of the count queries should take more than 1s individually
+	frappe.db.set_execution_timeout(1)
+
+	try:
+		return _get_linked_document_counts(doctype, name, items)
+	except Exception as e:
+		if frappe.db.is_statement_timeout(e):
+			return {"count": []}
+		raise
+
+
+def _get_linked_document_counts(doctype: str, name: str, items=None):
 	doc = frappe.get_doc(doctype, name)
 	doc.check_permission()
 	meta = doc.meta
@@ -347,18 +356,16 @@ def get_external_links(doctype, name, links):
 	return {"doctype": doctype, "count": total_count, "open_count": open_count}
 
 
-def get_doc_count(doctype, filters):
-	return len(
-		frappe.get_all(
-			doctype,
-			fields="name",
-			filters=filters,
-			limit=100,
-			distinct=True,
-			ignore_ifnull=True,
-			order_by=None,
+def get_doc_count(doctype, filters) -> int | Literal["?"]:
+	try:
+		docs = frappe.get_all(
+			doctype, filters=filters, limit=100, distinct=True, ignore_ifnull=True, order_by=None
 		)
-	)
+		return len(docs)
+	except Exception as e:
+		if frappe.db.is_statement_timeout(e):  # Skip fetching correct count if it's too slow
+			return "?"
+		raise
 
 
 def get_dynamic_link_filters(doctype, links, fieldname):

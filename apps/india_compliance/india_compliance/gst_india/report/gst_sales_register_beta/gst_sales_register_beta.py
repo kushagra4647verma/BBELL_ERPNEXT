@@ -5,6 +5,7 @@ import frappe
 from frappe import _
 from frappe.utils import getdate
 
+from india_compliance.gst_india.utils.gstr_1 import GSTR1_Category
 from india_compliance.gst_india.utils.gstr_1.gstr_1_data import GSTR1Invoices
 
 
@@ -21,11 +22,8 @@ def validate_filters(filters):
     filters["from_date"] = filters.date_range[0]
     filters["to_date"] = filters.date_range[1]
 
-    if filters.from_date and filters.to_date:
-        if getdate(filters.from_date) > getdate(filters.to_date):
-            frappe.throw(
-                _("From Date must be before To Date"), title=_("Invalid Filter")
-            )
+    if filters.from_date and filters.to_date and getdate(filters.from_date) > getdate(filters.to_date):
+        frappe.throw(_("From Date must be before To Date"), title=_("Invalid Filter"))
 
     return filters
 
@@ -44,9 +42,7 @@ def get_data(filters):
         return _class.get_overview()
 
     if filters.invoice_category:
-        return _class.get_filtered_invoices(
-            invoices, filters.invoice_category, filters.invoice_sub_category
-        )
+        return _class.get_filtered_invoices(invoices, filters.invoice_category, filters.invoice_sub_category)
 
     _class.process_invoices(invoices)
 
@@ -55,6 +51,7 @@ def get_data(filters):
 
 def get_columns(filters):
     columns = []
+    company_currency = frappe.get_cached_value("Company", filters.get("company"), "default_currency")
 
     if filters.summary_by == "Overview":
         columns.extend(
@@ -71,35 +68,35 @@ def get_columns(filters):
                     "fieldname": "taxable_value",
                     "width": "120",
                     "fieldtype": "Currency",
-                    "options": "Company:company:default_currency",
+                    "options": company_currency,
                 },
                 {
                     "label": _("IGST Amount"),
                     "fieldname": "igst_amount",
                     "width": "120",
                     "fieldtype": "Currency",
-                    "options": "Company:company:default_currency",
+                    "options": company_currency,
                 },
                 {
                     "label": _("CGST Amount"),
                     "fieldname": "cgst_amount",
                     "width": "120",
                     "fieldtype": "Currency",
-                    "options": "Company:company:default_currency",
+                    "options": company_currency,
                 },
                 {
                     "label": _("SGST Amount"),
                     "fieldname": "sgst_amount",
                     "width": "120",
                     "fieldtype": "Currency",
-                    "options": "Company:company:default_currency",
+                    "options": company_currency,
                 },
                 {
                     "label": _("Total Cess Amount"),
                     "fieldname": "total_cess_amount",
                     "width": "120",
                     "fieldtype": "Currency",
-                    "options": "Company:company:default_currency",
+                    "options": company_currency,
                 },
             ]
         )
@@ -196,6 +193,16 @@ def get_columns(filters):
     )
 
     if filters.summary_by == "Summary by Item":
+        if gst_settings.enable_sales_through_ecommerce_operators:
+            columns.append(
+                {
+                    "label": _("E-Commerce GSTIN"),
+                    "fieldname": "ecommerce_gstin",
+                    "fieldtype": "Data",
+                    "width": 180,
+                }
+            )
+
         columns.append(
             {
                 "label": _("Item Code"),
@@ -209,15 +216,22 @@ def get_columns(filters):
     columns.extend(
         [
             {
+                "label": _("Item Qty"),
+                "fieldname": "qty",
+                "fieldtype": "Data",
+                "width": 100,
+            },
+            {
                 "label": _("HSN Code"),
                 "fieldname": "gst_hsn_code",
                 "fieldtype": "Link",
                 "options": "GST HSN Code",
                 "width": 120,
             },
+            # TODO: HSN Subcategory Column
             {
                 "label": _("UOM"),
-                "fieldname": "stock_uom",
+                "fieldname": "uom",
                 "fieldtype": "Data",
                 "width": 100,
             },
@@ -232,7 +246,7 @@ def get_columns(filters):
                 "fieldname": "taxable_value",
                 "width": 120,
                 "fieldtype": "Currency",
-                "options": "Company:company:default_currency",
+                "options": company_currency,
             },
             {
                 "label": _("GST Rate"),
@@ -245,49 +259,49 @@ def get_columns(filters):
                 "fieldname": "cgst_amount",
                 "width": 120,
                 "fieldtype": "Currency",
-                "options": "Company:company:default_currency",
+                "options": company_currency,
             },
             {
                 "label": _("SGST Amount"),
                 "fieldname": "sgst_amount",
                 "width": 120,
                 "fieldtype": "Currency",
-                "options": "Company:company:default_currency",
+                "options": company_currency,
             },
             {
                 "label": _("IGST Amount"),
                 "fieldname": "igst_amount",
                 "width": 120,
                 "fieldtype": "Currency",
-                "options": "Company:company:default_currency",
+                "options": company_currency,
             },
             {
                 "label": _("Total Cess Amount"),
                 "fieldname": "total_cess_amount",
                 "width": 120,
                 "fieldtype": "Currency",
-                "options": "Company:company:default_currency",
+                "options": company_currency,
             },
             {
                 "label": _("Total Tax"),
                 "fieldname": "total_tax",
                 "width": 120,
                 "fieldtype": "Currency",
-                "options": "Company:company:default_currency",
+                "options": company_currency,
             },
             {
                 "label": _("Total Amount"),
                 "fieldname": "total_amount",
                 "width": 120,
                 "fieldtype": "Currency",
-                "options": "Company:company:default_currency",
+                "options": company_currency,
             },
             {
-                "label": _("Retured Invoice Total"),
+                "label": _("Returned Invoice Total"),
                 "fieldname": "returned_invoice_total",
                 "width": 120,
                 "fieldtype": "Currency",
-                "options": "Company:company:default_currency",
+                "options": company_currency,
             },
             {
                 "label": _("Invoice Type"),
@@ -297,7 +311,8 @@ def get_columns(filters):
             },
         ]
     )
-    if not filters.invoice_category:
+
+    if not filters.invoice_category or filters.invoice_category == GSTR1_Category.SUPECOM.value:
         columns.append(
             {
                 "label": _("Invoice Category"),
@@ -306,13 +321,24 @@ def get_columns(filters):
                 "fieldtype": "Data",
             }
         )
-    if not filters.invoice_sub_category:
+
+    if not filters.invoice_sub_category or filters.invoice_category == GSTR1_Category.SUPECOM.value:
         columns.append(
             {
                 "label": _("Invoice Sub Category"),
                 "fieldname": "invoice_sub_category",
                 "width": 120,
                 "fieldtype": "Data",
+            }
+        )
+
+    if filters.summary_by == "Summary by Item" and gst_settings.enable_sales_through_ecommerce_operators:
+        columns.append(
+            {
+                "label": _("E-Commerce Supply Type"),
+                "fieldname": "ecommerce_supply_type",
+                "fieldtype": "Data",
+                "width": 250,
             }
         )
 

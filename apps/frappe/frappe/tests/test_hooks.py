@@ -26,7 +26,7 @@ class TestHooks(FrappeTestCase):
 		hooks.override_doctype_class = {"ToDo": ["frappe.tests.test_hooks.CustomToDo"]}
 
 		# Clear cache
-		frappe.cache().delete_value("app_hooks")
+		frappe.cache.delete_value("app_hooks")
 		clear_controller_cache("ToDo")
 
 		todo = frappe.get_doc(doctype="ToDo", description="asdf")
@@ -53,7 +53,7 @@ class TestHooks(FrappeTestCase):
 		hooks.has_permission["*"] = wildcard_has_permission_hook
 
 		# Clear cache
-		frappe.cache().delete_value("app_hooks")
+		frappe.cache.delete_value("app_hooks")
 
 		# Init User and Address
 		username = "test@example.com"
@@ -130,7 +130,7 @@ def custom_has_permission(doc, ptype, user):
 
 
 def custom_auth():
-	auth_type, token = frappe.get_request_header("Authorization", "Bearer ").split(" ")
+	_auth_type, token = frappe.get_request_header("Authorization", "Bearer ").split(" ")
 	if token == "set_test_example_user":
 		frappe.set_user("test@example.com")
 

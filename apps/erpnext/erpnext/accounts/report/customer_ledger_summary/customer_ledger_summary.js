@@ -1,6 +1,5 @@
 // Copyright (c) 2016, Frappe Technologies Pvt. Ltd. and contributors
 // For license information, please see license.txt
-/* eslint-disable */
 
 frappe.query_reports["Customer Ledger Summary"] = {
 	filters: [
@@ -10,6 +9,7 @@ frappe.query_reports["Customer Ledger Summary"] = {
 			fieldtype: "Link",
 			options: "Company",
 			default: frappe.defaults.get_user_default("Company"),
+			reqd: 1,
 		},
 		{
 			fieldname: "from_date",

@@ -3,22 +3,78 @@
 
 import frappe
 from frappe import _
+from frappe.query_builder.functions import Sum
 from frappe.utils import add_months, cint, flt, get_link_to_form, getdate, time_diff_in_hours
 
 import erpnext
+from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
+	get_accounting_dimensions,
+)
 from erpnext.accounts.general_ledger import make_gl_entries
 from erpnext.assets.doctype.asset.asset import get_asset_account
+from erpnext.assets.doctype.asset_activity.asset_activity import add_asset_activity
+from erpnext.assets.doctype.asset_depreciation_schedule.asset_depreciation_schedule import (
+	get_depr_schedule,
+	make_new_active_asset_depr_schedules_and_cancel_current_ones,
+)
 from erpnext.controllers.accounts_controller import AccountsController
 
 
 class AssetRepair(AccountsController):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.assets.doctype.asset_repair_consumed_item.asset_repair_consumed_item import (
+			AssetRepairConsumedItem,
+		)
+
+		actions_performed: DF.LongText | None
+		amended_from: DF.Link | None
+		asset: DF.Link
+		asset_name: DF.ReadOnly | None
+		capitalize_repair_cost: DF.Check
+		company: DF.Link | None
+		completion_date: DF.Datetime | None
+		cost_center: DF.Link | None
+		description: DF.LongText | None
+		downtime: DF.Data | None
+		failure_date: DF.Datetime
+		increase_in_asset_life: DF.Int
+		naming_series: DF.Literal["ACC-ASR-.YYYY.-"]
+		project: DF.Link | None
+		purchase_invoice: DF.Link | None
+		repair_cost: DF.Currency
+		repair_status: DF.Literal["Pending", "Completed", "Cancelled"]
+		stock_consumption: DF.Check
+		stock_items: DF.Table[AssetRepairConsumedItem]
+		total_repair_cost: DF.Currency
+	# end: auto-generated types
+
 	def validate(self):
 		self.asset_doc = frappe.get_doc("Asset", self.asset)
+		self.validate_asset()
+		self.validate_dates()
 		self.update_status()
 
 		if self.get("stock_items"):
 			self.set_stock_items_cost()
 		self.calculate_total_repair_cost()
+		self.validate_purchase_invoice_status()
+
+	def validate_purchase_invoice_status(self):
+		if self.purchase_invoice:
+			docstatus = frappe.db.get_value("Purchase Invoice", self.purchase_invoice, "docstatus")
+			if docstatus == 0:
+				frappe.throw(
+					_("{0} is still in Draft. Please submit it before saving the Asset Repair.").format(
+						get_link_to_form("Purchase Invoice", self.purchase_invoice)
+					)
+				)
 
 	def validate_asset(self):
 		if self.asset_doc.status in ("Sold", "Fully Depreciated", "Scrapped"):
@@ -35,8 +91,14 @@ class AssetRepair(AccountsController):
 			)
 
 	def update_status(self):
-		if self.repair_status == "Pending":
+		if self.repair_status == "Pending" and self.asset_doc.status != "Out of Order":
 			frappe.db.set_value("Asset", self.asset, "status", "Out of Order")
+			add_asset_activity(
+				self.asset,
+				_("Asset out of order due to Asset Repair {0}").format(
+					get_link_to_form("Asset Repair", self.name)
+				),
+			)
 		else:
 			self.asset_doc.set_status()
 
@@ -60,9 +122,11 @@ class AssetRepair(AccountsController):
 
 			self.increase_asset_value()
 
+			total_repair_cost = self.get_total_value_of_stock_consumed()
 			if self.capitalize_repair_cost:
-				self.asset_doc.total_asset_cost += self.repair_cost
-				self.asset_doc.additional_asset_cost += self.repair_cost
+				total_repair_cost += self.repair_cost
+			self.asset_doc.total_asset_cost += total_repair_cost
+			self.asset_doc.additional_asset_cost += total_repair_cost
 
 			if self.get("stock_consumption"):
 				self.check_for_stock_items_and_warehouse()
@@ -72,9 +136,31 @@ class AssetRepair(AccountsController):
 				if self.asset_doc.calculate_depreciation and self.increase_in_asset_life:
 					self.modify_depreciation_schedule()
 
-			self.asset_doc.flags.ignore_validate_update_after_submit = True
-			self.asset_doc.prepare_depreciation_data()
-			self.asset_doc.save()
+				notes = _(
+					"This schedule was created when Asset {0} was repaired through Asset Repair {1}."
+				).format(
+					get_link_to_form(self.asset_doc.doctype, self.asset_doc.name),
+					get_link_to_form(self.doctype, self.name),
+				)
+				self.asset_doc.flags.ignore_validate_update_after_submit = True
+				make_new_active_asset_depr_schedules_and_cancel_current_ones(
+					self.asset_doc, notes, ignore_booked_entry=True
+				)
+				self.asset_doc.save()
+
+				add_asset_activity(
+					self.asset,
+					_("Asset updated after completion of Asset Repair {0}").format(
+						get_link_to_form("Asset Repair", self.name)
+					),
+				)
+
+	def cancel_sabb(self):
+		for row in self.stock_items:
+			if sabb := row.serial_and_batch_bundle:
+				row.db_set("serial_and_batch_bundle", None)
+				doc = frappe.get_doc("Serial and Batch Bundle", sabb)
+				doc.cancel()
 
 	def before_cancel(self):
 		self.asset_doc = frappe.get_doc("Asset", self.asset)
@@ -86,22 +172,38 @@ class AssetRepair(AccountsController):
 
 			self.decrease_asset_value()
 
+			total_repair_cost = self.get_total_value_of_stock_consumed()
 			if self.capitalize_repair_cost:
-				self.asset_doc.total_asset_cost -= self.repair_cost
-				self.asset_doc.additional_asset_cost -= self.repair_cost
+				total_repair_cost += self.repair_cost
+			self.asset_doc.total_asset_cost -= total_repair_cost
+			self.asset_doc.additional_asset_cost -= total_repair_cost
 
-			if self.get("stock_consumption"):
-				self.increase_stock_quantity()
 			if self.get("capitalize_repair_cost"):
 				self.ignore_linked_doctypes = ("GL Entry", "Stock Ledger Entry")
 				self.make_gl_entries(cancel=True)
-				self.db_set("stock_entry", None)
 				if self.asset_doc.calculate_depreciation and self.increase_in_asset_life:
 					self.revert_depreciation_schedule_on_cancellation()
 
-			self.asset_doc.flags.ignore_validate_update_after_submit = True
-			self.asset_doc.prepare_depreciation_data()
-			self.asset_doc.save()
+				notes = _(
+					"This schedule was created when Asset {0}'s Asset Repair {1} was cancelled."
+				).format(
+					get_link_to_form(self.asset_doc.doctype, self.asset_doc.name),
+					get_link_to_form(self.doctype, self.name),
+				)
+				self.asset_doc.flags.ignore_validate_update_after_submit = True
+				make_new_active_asset_depr_schedules_and_cancel_current_ones(
+					self.asset_doc, notes, ignore_booked_entry=True
+				)
+				self.asset_doc.save()
+
+				add_asset_activity(
+					self.asset,
+					_("Asset updated after cancellation of Asset Repair {0}").format(
+						get_link_to_form("Asset Repair", self.name)
+					),
+				)
+
+		self.cancel_sabb()
 
 	def after_delete(self):
 		frappe.get_doc("Asset", self.asset).set_status()
@@ -113,11 +215,6 @@ class AssetRepair(AccountsController):
 	def check_for_stock_items_and_warehouse(self):
 		if not self.get("stock_items"):
 			frappe.throw(_("Please enter Stock Items consumed during the Repair."), title=_("Missing Items"))
-		if not self.warehouse:
-			frappe.throw(
-				_("Please enter Warehouse from which Stock Items consumed during the Repair were taken."),
-				title=_("Missing Warehouse"),
-			)
 
 	def increase_asset_value(self):
 		total_value_of_stock_consumed = self.get_total_value_of_stock_consumed()
@@ -151,31 +248,48 @@ class AssetRepair(AccountsController):
 		stock_entry = frappe.get_doc(
 			{"doctype": "Stock Entry", "stock_entry_type": "Material Issue", "company": self.company}
 		)
+		stock_entry.asset_repair = self.name
+
+		accounting_dimensions = {
+			"cost_center": self.cost_center,
+			"project": self.project,
+			**{dimension: self.get(dimension) for dimension in get_accounting_dimensions()},
+		}
 
 		for stock_item in self.get("stock_items"):
+			self.validate_serial_no(stock_item)
+
 			stock_entry.append(
 				"items",
 				{
-					"s_warehouse": self.warehouse,
+					"s_warehouse": stock_item.warehouse,
 					"item_code": stock_item.item_code,
 					"qty": stock_item.consumed_quantity,
 					"basic_rate": stock_item.valuation_rate,
-					"serial_no": stock_item.serial_no,
-					"cost_center": self.cost_center,
-					"project": self.project,
+					"serial_and_batch_bundle": stock_item.serial_and_batch_bundle,
+					**accounting_dimensions,
 				},
 			)
 
 		stock_entry.insert()
 		stock_entry.submit()
 
-		self.db_set("stock_entry", stock_entry.name)
+	def validate_serial_no(self, stock_item):
+		if not stock_item.serial_and_batch_bundle and frappe.get_cached_value(
+			"Item", stock_item.item_code, "has_serial_no"
+		):
+			msg = f"Serial No Bundle is mandatory for Item {stock_item.item_code}"
+			frappe.throw(msg, title=_("Missing Serial No Bundle"))
 
-	def increase_stock_quantity(self):
-		if self.stock_entry:
-			stock_entry = frappe.get_doc("Stock Entry", self.stock_entry)
-			stock_entry.flags.ignore_links = True
-			stock_entry.cancel()
+		if stock_item.serial_and_batch_bundle:
+			values_to_update = {
+				"type_of_transaction": "Outward",
+				"voucher_type": "Stock Entry",
+			}
+
+			frappe.db.set_value(
+				"Serial and Batch Bundle", stock_item.serial_and_batch_bundle, values_to_update
+			)
 
 	def make_gl_entries(self, cancel=False):
 		if flt(self.total_repair_cost) > 0:
@@ -195,9 +309,14 @@ class AssetRepair(AccountsController):
 		if flt(self.repair_cost) <= 0:
 			return
 
-		pi_expense_account = (
-			frappe.get_doc("Purchase Invoice", self.purchase_invoice).items[0].expense_account
-		)
+		expense_accounts = _get_expense_accounts_for_purchase_invoice(self.purchase_invoice)
+
+		if not expense_accounts:
+			frappe.throw(
+				_("No expense accounts found for Purchase Invoice {0}").format(self.purchase_invoice)
+			)
+
+		pi_expense_account = expense_accounts[0]
 
 		gl_entries.append(
 			self.get_gl_dict(
@@ -210,8 +329,8 @@ class AssetRepair(AccountsController):
 					"voucher_no": self.name,
 					"cost_center": self.cost_center,
 					"posting_date": self.completion_date,
-					"against_voucher_type": "Purchase Invoice",
-					"against_voucher": self.purchase_invoice,
+					"against_voucher_type": "Asset",
+					"against_voucher": self.asset,
 					"company": self.company,
 				},
 				item=self,
@@ -240,7 +359,7 @@ class AssetRepair(AccountsController):
 			return
 
 		# creating GL Entries for each row in Stock Items based on the Stock Entry created for it
-		stock_entry = frappe.get_doc("Stock Entry", self.stock_entry)
+		stock_entry = frappe.get_doc("Stock Entry", {"asset_repair": self.name})
 
 		default_expense_account = None
 		if not erpnext.is_perpetual_inventory_enabled(self.company):
@@ -281,7 +400,7 @@ class AssetRepair(AccountsController):
 							"cost_center": self.cost_center,
 							"posting_date": self.completion_date,
 							"against_voucher_type": "Stock Entry",
-							"against_voucher": self.stock_entry,
+							"against_voucher": stock_entry.name,
 							"company": self.company,
 						},
 						item=self,
@@ -301,11 +420,13 @@ class AssetRepair(AccountsController):
 	def calculate_last_schedule_date(self, asset, row, extra_months):
 		asset.flags.increase_in_asset_life = True
 		number_of_pending_depreciations = cint(row.total_number_of_depreciations) - cint(
-			asset.number_of_depreciations_booked
+			asset.opening_number_of_booked_depreciations
 		)
 
+		depr_schedule = get_depr_schedule(asset.name, "Active", row.finance_book)
+
 		# the Schedule Date in the final row of the old Depreciation Schedule
-		last_schedule_date = asset.schedules[len(asset.schedules) - 1].schedule_date
+		last_schedule_date = depr_schedule[len(depr_schedule) - 1].schedule_date
 
 		# the Schedule Date in the final row of the new Depreciation Schedule
 		asset.to_date = add_months(last_schedule_date, extra_months)
@@ -332,11 +453,13 @@ class AssetRepair(AccountsController):
 	def calculate_last_schedule_date_before_modification(self, asset, row, extra_months):
 		asset.flags.increase_in_asset_life = True
 		number_of_pending_depreciations = cint(row.total_number_of_depreciations) - cint(
-			asset.number_of_depreciations_booked
+			asset.opening_number_of_booked_depreciations
 		)
 
+		depr_schedule = get_depr_schedule(asset.name, "Active", row.finance_book)
+
 		# the Schedule Date in the final row of the modified Depreciation Schedule
-		last_schedule_date = asset.schedules[len(asset.schedules) - 1].schedule_date
+		last_schedule_date = depr_schedule[len(depr_schedule) - 1].schedule_date
 
 		# the Schedule Date in the final row of the original Depreciation Schedule
 		asset.to_date = add_months(last_schedule_date, -extra_months)
@@ -356,3 +479,84 @@ class AssetRepair(AccountsController):
 def get_downtime(failure_date, completion_date):
 	downtime = time_diff_in_hours(completion_date, failure_date)
 	return round(downtime, 2)
+
+
+@frappe.whitelist()
+def get_repair_cost_for_purchase_invoice(purchase_invoice: str) -> float:
+	"""
+	Get the total repair cost from GL entries for a purchase invoice.
+	Only considers expense accounts for non-stock, non-fixed-asset items.
+	"""
+	if not purchase_invoice:
+		return 0.0
+
+	frappe.has_permission("Purchase Invoice", "read", purchase_invoice, throw=True)
+
+	expense_accounts = _get_expense_accounts_for_purchase_invoice(purchase_invoice)
+
+	if not expense_accounts:
+		return 0.0
+
+	return _get_total_expense_amount(purchase_invoice, expense_accounts)
+
+
+def _get_expense_accounts_for_purchase_invoice(purchase_invoice: str) -> list[str]:
+	"""
+	Get expense accounts for non-stock items from the purchase invoice.
+	"""
+	pi_items = frappe.get_all(
+		"Purchase Invoice Item",
+		filters={"parent": purchase_invoice},
+		fields=["item_code", "expense_account", "is_fixed_asset"],
+	)
+
+	if not pi_items:
+		return []
+
+	# Get list of stock item codes from the invoice
+	item_codes = {item.item_code for item in pi_items if item.item_code}
+	stock_items = set()
+	if item_codes:
+		stock_items = set(
+			frappe.db.get_all(
+				"Item", filters={"name": ["in", list(item_codes)], "is_stock_item": 1}, pluck="name"
+			)
+		)
+
+	expense_accounts = set()
+
+	for item in pi_items:
+		# Skip stock items - they use warehouse accounts
+		if item.item_code and item.item_code in stock_items:
+			continue
+
+		# Skip fixed assets - they use asset accounts
+		if item.is_fixed_asset:
+			continue
+
+		# Use expense account from Purchase Invoice Item
+		if item.expense_account:
+			expense_accounts.add(item.expense_account)
+
+	return list(expense_accounts)
+
+
+def _get_total_expense_amount(purchase_invoice: str, expense_accounts: list[str]) -> float:
+	"""Get the total expense amount from GL entries for a purchase invoice and accounts."""
+	if not expense_accounts:
+		return 0.0
+
+	gl_entry = frappe.qb.DocType("GL Entry")
+
+	result = (
+		frappe.qb.from_(gl_entry)
+		.select((Sum(gl_entry.debit) - Sum(gl_entry.credit)).as_("total"))
+		.where(
+			(gl_entry.voucher_type == "Purchase Invoice")
+			& (gl_entry.voucher_no == purchase_invoice)
+			& (gl_entry.account.isin(expense_accounts))
+			& (gl_entry.is_cancelled == 0)
+		)
+	).run(as_dict=True)
+
+	return flt(result[0].total) if result else 0.0

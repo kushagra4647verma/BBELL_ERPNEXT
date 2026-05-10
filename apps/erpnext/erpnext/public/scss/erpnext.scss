@@ -497,6 +497,107 @@ body[data-route="pos"] {
 	padding: 10px;
 }
 
+.plant-floor,
+.workstation-wrapper,
+.workstation-card p {
+	border-radius: var(--border-radius-md);
+	border: 1px solid var(--border-color);
+	box-shadow: none;
+	background-color: var(--card-bg);
+	position: relative;
+}
+
+.ring-container {
+	position: relative;
+}
+
+.circle {
+	width: 9px;
+	height: 9px;
+	background-color: #278f5e;
+	border-radius: 50%;
+	position: absolute;
+	left: 9px;
+	top: 8px;
+}
+
+@keyframes pulsate {
+	0% {
+		-webkit-transform: scale(0.1, 0.1);
+		opacity: 0;
+	}
+	50% {
+		opacity: 1;
+	}
+	100% {
+		-webkit-transform: scale(1.2, 1.2);
+		opacity: 0;
+	}
+}
+
+.ringring {
+	border: 2px solid #62bd19;
+	-webkit-border-radius: 40px;
+	height: 15px;
+	width: 15px;
+	position: absolute;
+	left: 6px;
+	top: 5px;
+	-webkit-animation: pulsate 3s ease-out;
+	-webkit-animation-iteration-count: infinite;
+	opacity: 0;
+}
+
+.plant-floor {
+	padding-bottom: 25px;
+}
+
+.plant-floor-filter {
+	padding-top: 10px;
+	display: flex;
+	flex-wrap: wrap;
+}
+
+.plant-floor-container {
+	display: grid;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	gap: var(--margin-xl);
+}
+
+@media screen and (max-width: 620px) {
+	.plant-floor-container {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+.plant-floor-container .workstation-card {
+	padding: 5px;
+}
+
+.plant-floor-container .workstation-image-link {
+	width: 100%;
+	font-size: 50px;
+	margin: var(--margin-sm);
+	min-height: 9rem;
+}
+
+.workstation-abbr {
+	display: flex;
+	background-color: var(--control-bg);
+	height: 100%;
+	width: 100%;
+	align-items: center;
+	justify-content: center;
+}
+
 .frappe-control[data-fieldname="other_charges_calculation"] .ql-editor {
 	white-space: normal;
+}
+
+.btn-clear-last-scanned-warehouse {
+	position: absolute;
+	right: 8px;
+	top: 50%;
+	transform: translateY(-50%);
+	z-index: 1;
 }

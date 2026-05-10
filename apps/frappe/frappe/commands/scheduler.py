@@ -80,7 +80,6 @@ def disable_scheduler(context):
 def scheduler(context, state: str, format: str, verbose: bool = False, site: str | None = None):
 	"""Control scheduler state."""
 	import frappe
-	import frappe.utils.scheduler
 	from frappe.utils.scheduler import is_scheduler_inactive, toggle_scheduler
 
 	site = site or get_site(context)
@@ -113,6 +112,7 @@ def scheduler(context, state: str, format: str, verbose: bool = False, site: str
 @click.argument("state", type=click.Choice(["on", "off"]))
 @pass_context
 def set_maintenance_mode(context, state, site=None):
+	"""Put the site in maintenance mode for upgrades."""
 	from frappe.installer import update_site_config
 
 	if not site:
@@ -173,8 +173,12 @@ def purge_jobs(site=None, queue=None, event=None):
 
 @click.command("schedule")
 def start_scheduler():
+	"""Start scheduler process which is responsible for enqueueing the scheduled job types."""
+	import time
+
 	from frappe.utils.scheduler import start_scheduler
 
+	time.sleep(0.5)  # Delayed start. TODO: find better way to handle this.
 	start_scheduler()
 
 
@@ -195,6 +199,7 @@ def start_scheduler():
 	help="Dequeuing strategy to use",
 )
 def start_worker(queue, quiet=False, rq_username=None, rq_password=None, burst=False, strategy=None):
+	"""Start a background worker"""
 	from frappe.utils.background_jobs import start_worker
 
 	start_worker(
@@ -205,6 +210,22 @@ def start_worker(queue, quiet=False, rq_username=None, rq_password=None, burst=F
 		burst=burst,
 		strategy=strategy,
 	)
+
+
+@click.command("worker-pool")
+@click.option(
+	"--queue",
+	type=str,
+	help="Queue to consume from. Multiple queues can be specified using comma-separated string. If not specified all queues are consumed.",
+)
+@click.option("--num-workers", type=int, default=2, help="Number of workers to spawn in pool.")
+@click.option("--quiet", is_flag=True, default=False, help="Hide Log Outputs")
+@click.option("--burst", is_flag=True, default=False, help="Run Worker in Burst mode.")
+def start_worker_pool(queue, quiet=False, num_workers=2, burst=False):
+	"""Start a pool of background workers"""
+	from frappe.utils.background_jobs import start_worker_pool
+
+	start_worker_pool(queue=queue, quiet=quiet, burst=burst, num_workers=num_workers)
 
 
 @click.command("ready-for-migration")
@@ -252,5 +273,6 @@ commands = [
 	show_pending_jobs,
 	start_scheduler,
 	start_worker,
+	start_worker_pool,
 	trigger_scheduler_event,
 ]

@@ -2,7 +2,14 @@ frappe.require("assets/india_compliance/js/quick_entry.js");
 update_erpnext_slides_settings();
 
 frappe.setup.on("before_load", function () {
-    if (!frappe.setup.slides.length) return;
+    // if setup wizard is already completed for ERPNext, skip the setup wizard
+    if (
+        frappe.boot.setup_wizard_completed_apps?.length &&
+        frappe.boot.setup_wizard_completed_apps.includes("erpnext")
+    ) {
+        complete_setup_wizard();
+        return;
+    }
 
     const first_slide = frappe.setup.slides[0];
     const _onload = first_slide.onload;
@@ -12,26 +19,31 @@ frappe.setup.on("before_load", function () {
 
         const country_input = frappe.wizard?.slide_dict[0].get_input("country");
         if (country_input) {
-            country_input.on("change", event => {
+            country_input.on("change", (event) => {
                 toggle_india_specific_fields(event.target.value);
             });
         }
     };
 });
 
+function complete_setup_wizard() {
+    frappe.call({
+        method: "india_compliance.setup_wizard.enable_setup_wizard_complete",
+        callback: function (r) {
+            frappe.ui.toolbar.clear_cache();
+        },
+    });
+}
+
 function toggle_india_specific_fields(country) {
     if (!country) return;
 
-    const india_specific_fields = [
-        "company_gstin",
-        "default_gst_rate",
-        "enable_audit_trail",
-    ];
+    const india_specific_fields = ["company_gstin", "default_gst_rate", "enable_audit_trail"];
 
     const hide_field = country && country.toLowerCase() !== "india" ? 1 : 0;
 
-    Object.values(frappe.wizard.slide_dict || {}).forEach(slide => {
-        slide.form?.fields_list?.forEach(fieldobj => {
+    Object.values(frappe.wizard.slide_dict || {}).forEach((slide) => {
+        slide.form?.fields_list?.forEach((fieldobj) => {
             if (india_specific_fields.includes(fieldobj.df.fieldname)) {
                 fieldobj.df.hidden = hide_field;
                 fieldobj.refresh();
@@ -41,40 +53,47 @@ function toggle_india_specific_fields(country) {
 }
 
 function update_erpnext_slides_settings() {
-    const slide =
-        erpnext.setup?.slides_settings && erpnext.setup.slides_settings.slice(-1)[0];
+    const slide = erpnext.setup?.slides_settings && erpnext.setup.slides_settings.slice(-1)[0];
     if (!slide) return;
 
-    company_gstin_field = {
-        fieldname: "company_gstin",
-        fieldtype: "Data",
-        label: __("Company GSTIN"),
-    };
+    const gstin_section = [
+        {
+            fieldname: "company_gstin",
+            fieldtype: "Data",
+            label: __("Company GSTIN"),
+        },
+        {
+            fieldtype: "Column Break",
+        },
+        {
+            fieldname: "default_gst_rate",
+            fieldtype: "Select",
+            label: __("Default GST Rate"),
+            options: [
+                "0.0",
+                "0.1",
+                "0.25",
+                "1.0",
+                "1.5",
+                "3.0",
+                "5.0",
+                "6.0",
+                "7.5",
+                "12.0",
+                "18.0",
+                "28.0",
+                "40.0",
+            ],
+            default: "18.0",
+        },
+        {
+            fieldtype: "Section Break",
+        },
+    ];
 
-    const _index = can_fetch_gstin_info() ? 0 : 1;
+    const _index = can_fetch_gstin_info() ? 0 : 4;
 
-    slide.fields.splice(_index, 0, company_gstin_field);
-
-    slide.fields.splice(4, 0, {
-        fieldname: "default_gst_rate",
-        fieldtype: "Select",
-        label: __("Default GST Rate"),
-        options: [
-            "0.0",
-            "0.1",
-            "0.25",
-            "1.0",
-            "1.5",
-            "3.0",
-            "5.0",
-            "6.0",
-            "7.5",
-            "12.0",
-            "18.0",
-            "28.0",
-        ],
-        default: "18.0",
-    });
+    slide.fields.splice(_index, 0, ...gstin_section);
 
     slide.fields.push({
         fieldname: "enable_audit_trail",
@@ -82,10 +101,10 @@ function update_erpnext_slides_settings() {
         label: __("Enable Audit Trail"),
         description: __(
             `In accordance with <a
-              href='https://www.mca.gov.in/Ministry/pdf/AccountsAmendmentRules_24032021.pdf'
+              href='https://egazette.gov.in/WriteReadData/2021/226081.pdf'
               target='_blank'
             > MCA Notification dated 24-03-2021</a>.<br>
-            Once enabled, Audit Trail cannot be disabled.`
+            Once enabled, Audit Trail cannot be disabled.`,
         ),
     });
 
@@ -114,7 +133,7 @@ async function autofill_company_info(slide) {
 
     if (!can_fetch_gstin_info()) return;
 
-    const gstin_info = await get_gstin_info(gstin, false);
+    const gstin_info = await get_gstin_info(gstin, null, false);
 
     if (gstin_info.business_name) {
         await slide.get_field("company_name").set_value(gstin_info.business_name);

@@ -64,6 +64,10 @@ frappe.ui.form.on("Bank Reconciliation Tool", {
 		);
 
 		frm.add_custom_button(__("Auto Reconcile"), function () {
+			if (!frm.doc.bank_account) {
+				frappe.msgprint(__("Please select Bank Account"));
+				return;
+			}
 			frappe.call({
 				method: "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.auto_reconcile_vouchers",
 				args: {
@@ -80,7 +84,7 @@ frappe.ui.form.on("Bank Reconciliation Tool", {
 		frm.add_custom_button(__("Get Unreconciled Entries"), function () {
 			frm.trigger("make_reconciliation_tool");
 		});
-		frm.change_custom_button_type("Get Unreconciled Entries", null, "primary");
+		frm.change_custom_button_type(__("Get Unreconciled Entries"), null, "primary");
 	},
 
 	bank_account: function (frm) {
@@ -121,6 +125,7 @@ frappe.ui.form.on("Bank Reconciliation Tool", {
 				args: {
 					bank_account: frm.doc.bank_account,
 					till_date: frappe.datetime.add_days(frm.doc.bank_statement_from_date, -1),
+					company: frm.doc.company,
 				},
 				callback: (response) => {
 					frm.set_value("account_opening_balance", response.message);
@@ -136,6 +141,7 @@ frappe.ui.form.on("Bank Reconciliation Tool", {
 				args: {
 					bank_account: frm.doc.bank_account,
 					till_date: frm.doc.bank_statement_to_date,
+					company: frm.doc.company,
 				},
 				callback: (response) => {
 					frm.cleared_balance = response.message;

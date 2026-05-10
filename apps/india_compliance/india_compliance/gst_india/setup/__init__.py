@@ -1,27 +1,29 @@
 import click
-
 import frappe
-from frappe.custom.doctype.custom_field.custom_field import (
-    create_custom_fields as _create_custom_fields,
-)
-from frappe.utils import now_datetime, nowdate
 from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
     make_dimension_in_accounting_doctypes,
 )
+from frappe.utils import now_datetime, nowdate
 
 from india_compliance.gst_india.constants import GST_UOMS
 from india_compliance.gst_india.constants.custom_fields import (
     CUSTOM_FIELDS,
     E_INVOICE_FIELDS,
     E_WAYBILL_FIELDS,
+    EDUCATION_CUSTOM_FIELDS,
+    HEALTHCARE_CUSTOM_FIELDS,
     HRMS_CUSTOM_FIELDS,
     SALES_REVERSE_CHARGE_FIELDS,
 )
 from india_compliance.gst_india.setup.property_setters import get_property_setters
 from india_compliance.gst_india.utils import get_data_file_path
-from india_compliance.gst_india.utils.custom_fields import toggle_custom_fields
+from india_compliance.utils.custom_fields import (
+    get_custom_fields_creator,
+    toggle_custom_fields,
+)
 
 ITEM_VARIANT_FIELDNAMES = frozenset(("gst_hsn_code",))
+_create_custom_fields = get_custom_fields_creator("GST India")
 
 
 def after_install():
@@ -32,6 +34,7 @@ def after_install():
     create_email_template()
     set_default_gst_settings()
     set_default_accounts_settings()
+    set_default_print_settings()
     create_hsn_codes()
     add_fields_to_item_variant_settings()
 
@@ -41,12 +44,28 @@ def create_custom_fields():
     # Will not fail if a core field with same name already exists (!)
     # Will update a custom field if it already exists
     _create_custom_fields(get_all_custom_fields(), ignore_validate=True)
-    if "hrms" in frappe.get_installed_apps():
+    installed_apps = frappe.get_installed_apps()
+
+    if "hrms" in installed_apps:
         create_hrms_custom_fields()
+
+    if "education" in installed_apps:
+        create_education_custom_fields()
+
+    if "healthcare" in installed_apps:
+        create_healthcare_custom_fields()
 
 
 def create_hrms_custom_fields():
     _create_custom_fields(HRMS_CUSTOM_FIELDS, ignore_validate=True)
+
+
+def create_education_custom_fields():
+    _create_custom_fields(EDUCATION_CUSTOM_FIELDS, ignore_validate=True)
+
+
+def create_healthcare_custom_fields():
+    _create_custom_fields(HEALTHCARE_CUSTOM_FIELDS, ignore_validate=True)
 
 
 def create_accounting_dimension_fields():
@@ -74,9 +93,7 @@ def create_address_template():
     if frappe.db.exists("Address Template", "India"):
         return
 
-    address_html = frappe.read_file(
-        get_data_file_path("address_template.html"), raise_not_found=True
-    )
+    address_html = frappe.read_file(get_data_file_path("address_template.html"), raise_not_found=True)
 
     frappe.get_doc(
         {
@@ -175,9 +192,7 @@ def _create_hsn_codes():
 
 def add_fields_to_item_variant_settings():
     settings = frappe.get_doc("Item Variant Settings")
-    fields_to_add = ITEM_VARIANT_FIELDNAMES - {
-        row.field_name for row in settings.fields
-    }
+    fields_to_add = ITEM_VARIANT_FIELDNAMES - {row.field_name for row in settings.fields}
 
     for fieldname in fields_to_add:
         settings.append("fields", {"field_name": fieldname})
@@ -203,9 +218,11 @@ def set_default_gst_settings():
         "auto_generate_e_invoice": 1,
         "generate_e_waybill_with_e_invoice": 1,
         "e_invoice_applicable_from": nowdate(),
+        "fetch_e_invoice_details_from_gst_portal": 1,
+        "e_invoice_reporting_time_limit_days": 30,
         "autofill_party_info": 1,
         "archive_party_info_days": 7,
-        "validate_gstin_status": 1,
+        "validate_gstin_status": 0,
         "gstin_status_refresh_interval": 30,
         "enable_retry_einv_ewb_generation": 1,
         # Auto - Reconciliation
@@ -216,9 +233,9 @@ def set_default_gst_settings():
         "reconcile_for_b2b": 1,
         "reconcile_for_cdnr": 1,
         # GSTR-1
-        "compare_gstr_1_data": 1,
+        "enable_gstr_1_api": 1,
+        "compare_unfiled_data": 1,
         "freeze_transactions": 1,
-        "filing_frequency": "Monthly",
     }
 
     if frappe.conf.developer_mode:
@@ -237,10 +254,6 @@ def set_default_accounts_settings():
     """
     Accounts Settings overridden by India Compliance
 
-    - Determine Address Tax Category From:
-        This is overriden to be Billing Address, since that's the correct
-        address for determining GST applicablility
-
     - Automatically Add Taxes and Charges from Item Tax Template:
         This is overriden to be "No". Item Tax Templates are designed to have
         all GST Accounts and are primarily used for selection of tax rate.
@@ -249,15 +262,31 @@ def set_default_accounts_settings():
 
     show_accounts_settings_override_warning()
 
-    frappe.db.set_single_value(
-        "Accounts Settings",
-        {
-            "determine_address_tax_category_from": "Billing Address",
-            "add_taxes_from_item_tax_template": 0,
-        },
-    )
+    frappe.db.set_single_value("Accounts Settings", "add_taxes_from_item_tax_template", 0)
 
     frappe.db.set_default("add_taxes_from_item_tax_template", 0)
+
+
+def set_default_print_settings():
+    sales_invoice_format = frappe.get_meta("Sales Invoice").default_print_format
+
+    if sales_invoice_format:
+        return
+
+    # print style
+    frappe.db.set_single_value("Print Settings", "print_style", "Modern")
+
+    # print format
+    frappe.make_property_setter(
+        {
+            "doctype": "Sales Invoice",
+            "doctype_or_field": "DocType",
+            "property": "default_print_format",
+            "value": "GST Tax Invoice",
+        },
+        validate_fields_for_doctype=False,
+        is_system_generated=False,
+    )
 
 
 def show_accounts_settings_override_warning():
@@ -270,8 +299,7 @@ def show_accounts_settings_override_warning():
     since it defaults to `1`
     """
 
-    address_for_tax_category = frappe.db.get_value(
-        "Accounts Settings",
+    address_for_tax_category = frappe.db.get_single_value(
         "Accounts Settings",
         "determine_address_tax_category_from",
     )

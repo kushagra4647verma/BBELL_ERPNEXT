@@ -1,12 +1,10 @@
 # Copyright (c) 2020, Frappe Technologies Pvt. Ltd. and Contributors
 # License: MIT. See LICENSE
 
-import io
 import json
 import os
 import re
 import timeit
-import typing
 from datetime import date, datetime, time
 
 import frappe
@@ -15,6 +13,7 @@ from frappe.core.doctype.version.version import get_diff
 from frappe.model import no_value_fields
 from frappe.utils import cint, cstr, duration_to_seconds, flt, update_progress_bar
 from frappe.utils.csvutils import get_csv_content_from_google_sheets, read_csv_content
+from frappe.utils.data import escape_html
 from frappe.utils.xlsxutils import (
 	read_xls_file_from_attached_file,
 	read_xlsx_file_from_attached_file,
@@ -46,6 +45,7 @@ class Importer:
 			file_path or data_import.google_sheets_url or data_import.import_file,
 			self.template_options,
 			self.import_type,
+			console=self.console,
 		)
 
 	def get_data_for_import_preview(self):
@@ -63,7 +63,7 @@ class Importer:
 
 	def before_import(self):
 		# set user lang for translations
-		frappe.cache().hdel("lang", frappe.session.user)
+		frappe.cache.hdel("lang", frappe.session.user)
 		frappe.set_user_lang(frappe.session.user)
 
 		# set flags
@@ -403,12 +403,13 @@ class Importer:
 
 
 class ImportFile:
-	def __init__(self, doctype, file, template_options=None, import_type=None):
+	def __init__(self, doctype, file, template_options=None, import_type=None, *, console=False):
 		self.doctype = doctype
 		self.template_options = template_options or frappe._dict(column_to_field_map=frappe._dict())
 		self.column_to_field_map = self.template_options.column_to_field_map
 		self.import_type = import_type
 		self.warnings = []
+		self.console = console
 
 		self.file_doc = self.file_path = self.google_sheets_url = None
 		if isinstance(file, str):
@@ -536,7 +537,6 @@ class ImportFile:
 			# subsequent rows that have blank values in parent columns
 			# are considered as child rows
 			parent_column_indexes = self.header.get_column_indexes(self.doctype)
-			first_row.get_values(parent_column_indexes)
 
 			data_without_first_row = data[1:]
 			for row in data_without_first_row:
@@ -589,6 +589,10 @@ class ImportFile:
 
 		file_content = None
 
+		if self.console:
+			file_content = frappe.read_file(file_path, True)
+			return file_content, extn
+
 		file_name = frappe.db.get_value("File", {"file_url": file_path})
 		if file_name:
 			file = frappe.get_doc("File", file_name)
@@ -607,7 +611,6 @@ class ImportFile:
 			data = read_xlsx_file_from_attached_file(fcontent=content)
 		elif extension == "xls":
 			data = read_xls_file_from_attached_file(content)
-
 		return data
 
 
@@ -646,8 +649,7 @@ class Row:
 			return None
 
 		columns = self.header.get_columns(col_indexes)
-		doc = self._parse_doc(doctype, columns, values, parent_doc, table_df)
-		return doc
+		return self._parse_doc(doctype, columns, values, parent_doc, table_df)
 
 	def _parse_doc(self, doctype, columns, values, parent_doc=None, table_df=None):
 		doc = frappe._dict()
@@ -715,7 +717,9 @@ class Row:
 		elif df.fieldtype == "Link":
 			exists = self.link_exists(value, df)
 			if not exists:
-				msg = _("Value {0} missing for {1}").format(frappe.bold(value), frappe.bold(df.options))
+				msg = _("Value {0} missing for {1}").format(
+					frappe.bold(escape_html(cstr(value))), frappe.bold(df.options)
+				)
 				self.warnings.append(
 					{
 						"row": self.row_number,
@@ -734,7 +738,8 @@ class Row:
 						"col": col.column_number,
 						"field": df_as_json(df),
 						"message": _("Value {0} must in {1} format").format(
-							frappe.bold(value), frappe.bold(get_user_format(col.date_format))
+							frappe.bold(escape_html(cstr(value))),
+							frappe.bold(get_user_format(col.date_format)),
 						),
 					}
 				)
@@ -747,7 +752,7 @@ class Row:
 						"col": col.column_number,
 						"field": df_as_json(df),
 						"message": _("Value {0} must be in the valid duration format: d h m s").format(
-							frappe.bold(value)
+							frappe.bold(escape_html(cstr(value)))
 						),
 					}
 				)
@@ -1002,7 +1007,7 @@ class Column:
 			]
 			not_exists = list(set(values) - set(exists))
 			if not_exists:
-				missing_values = ", ".join(not_exists)
+				missing_values = ", ".join(escape_html(v) for v in not_exists)
 				message = _("The following values do not exist for {0}: {1}")
 				self.warnings.append(
 					{
@@ -1039,7 +1044,7 @@ class Column:
 				invalid = values - set(options)
 				if invalid:
 					valid_values = ", ".join(frappe.bold(o) for o in options)
-					invalid_values = ", ".join(frappe.bold(i) for i in invalid)
+					invalid_values = ", ".join(frappe.bold(escape_html(i)) for i in invalid)
 					message = _("The following values are invalid: {0}. Values must be one of {1}")
 					self.warnings.append(
 						{
@@ -1108,7 +1113,8 @@ def build_fields_dict_for_column_matching(parent_doctype):
 	doctypes = [(parent_doctype, None)] + [(df.options, df) for df in parent_meta.get_table_fields()]
 
 	for doctype, table_df in doctypes:
-		translated_table_label = _(table_df.label) if table_df else None
+		table_ref = (table_df.label or table_df.fieldname) if table_df else None
+		translated_table_label = _(table_ref) if table_ref else None
 
 		# name field
 		name_df = frappe._dict(
@@ -1130,7 +1136,7 @@ def build_fields_dict_for_column_matching(parent_doctype):
 		else:
 			name_headers = (
 				f"{table_df.fieldname}.name",  # fieldname
-				f"ID ({table_df.label})",  # label
+				f"ID ({table_ref})",  # label
 				"{} ({})".format(_("ID"), translated_table_label),  # translated label
 			)
 
@@ -1184,7 +1190,7 @@ def build_fields_dict_for_column_matching(parent_doctype):
 					# fieldname
 					f"{table_df.fieldname}.{df.fieldname}",
 					# label
-					f"{label} ({table_df.label})",
+					f"{label} ({table_ref})",
 					# translated label
 					f"{translated_label} ({translated_table_label})",
 				):
@@ -1211,7 +1217,7 @@ def get_df_for_column_header(doctype, header):
 	def build_fields_dict_for_doctype():
 		return build_fields_dict_for_column_matching(doctype)
 
-	df_by_labels_and_fieldname = frappe.cache().hget(
+	df_by_labels_and_fieldname = frappe.cache.hget(
 		"data_import_column_header_map", doctype, generator=build_fields_dict_for_doctype
 	)
 	return df_by_labels_and_fieldname.get(header)

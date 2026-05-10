@@ -29,7 +29,9 @@
   "paid_amount",
   "discounted_amount",
   "column_break_3",
-  "base_payment_amount"
+  "base_payment_amount",
+  "base_outstanding",
+  "base_paid_amount"
  ],
  "fields": [
   {
@@ -162,6 +164,21 @@
    "options": "Company:company:default_currency"
   },
   {
+   "fieldname": "base_outstanding",
+   "fieldtype": "Currency",
+   "label": "Outstanding (Company Currency)",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
+   "depends_on": "base_paid_amount",
+   "fieldname": "base_paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid Amount (Company Currency)",
+   "options": "Company:company:default_currency",
+   "read_only": 1
+  },
+  {
    "fieldname": "due_date_based_on",
    "fieldtype": "Select",
    "label": "Due Date Based On",
@@ -210,7 +227,8 @@
  "owner": "Administrator",
  "permissions": [],
  "quick_entry": 1,
- "sort_field": "modified",
+ "row_format": "Dynamic",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1

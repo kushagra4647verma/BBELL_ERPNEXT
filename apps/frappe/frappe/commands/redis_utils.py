@@ -3,7 +3,6 @@ import os
 import click
 
 import frappe
-from frappe.utils.redis_queue import RedisQueue
 
 
 @click.command("create-rq-users")
@@ -21,6 +20,7 @@ def create_rq_users(set_admin_password=False, use_rq_auth=False):
 	and app config is used by app while connecting to redis server.
 	"""
 	from frappe.installer import update_site_config
+	from frappe.utils.redis_queue import RedisQueue
 
 	acl_file_path = os.path.abspath("../config/redis_queue.acl")
 
@@ -61,7 +61,7 @@ def create_rq_users(set_admin_password=False, use_rq_auth=False):
 		)
 		click.secho(f"`export {env_key}={user_credentials['default'][1]}`")
 		click.secho(
-			"NOTE: Please save the admin password as you " "can not access redis server without the password",
+			"NOTE: Please save the admin password as you can not access redis server without the password",
 			fg="yellow",
 		)
 

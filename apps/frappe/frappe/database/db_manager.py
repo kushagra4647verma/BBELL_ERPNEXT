@@ -1,4 +1,5 @@
 import frappe
+from frappe import _
 
 
 class DbManager:
@@ -49,37 +50,56 @@ class DbManager:
 		return self.db.sql("SHOW DATABASES", pluck=True)
 
 	@staticmethod
-	def restore_database(target, source, user, password):
-		import os
-		from distutils.spawn import find_executable
+	def restore_database(verbose: bool, target: str, source: str, user: str, password: str) -> None:
+		"""
+		Function to restore the given SQL file to the target database.
+		:param target: The database to restore to.
+		:param source: The SQL dump to restore
+		:param user: The database username
+		:param password: The database password
+		:return: Nothing
+		"""
 
-		from frappe.utils import make_esc
+		import shlex
+		from shutil import which
 
-		esc = make_esc("$ ")
-		pv = find_executable("pv")
+		from frappe.database import get_command
+		from frappe.utils import execute_in_shell
 
-		if pv:
-			pipe = f"{pv} {source} | " + r"sed '/\/\*M\{0,1\}!999999\\- enable the sandbox mode \*\//d' |"
+		# Ensure that the entire process fails if any part of the pipeline fails
+		command: list[str] = ["set -o pipefail;"]
+
+		# Handle gzipped backups
+		if source.endswith(".gz"):
+			if gzip := which("gzip"):
+				command.extend([gzip, "-cd", source, "|"])
+			else:
+				raise Exception("`gzip` not installed")
 		else:
-			pipe = f"cat {source} | " + r"sed '/\/\*M\{0,1\}!999999\\- enable the sandbox mode \*\//d' |"
+			command.extend(["cat", source, "|"])
 
-		if pipe:
-			print("Restoring Database file...")
+		# Newer versions of MariaDB add in a line that'll break on older versions, so remove it
+		command.extend(["sed", r"'/\/\*M\{0,1\}!999999\\- enable the sandbox mode \*\//d'", "|"])
 
-		command = (
-			"{pipe} mysql -u {user} -p{password} -h{host} "
-			+ ("-P{port}" if frappe.db.port else "")
-			+ " {target}"
+		# Remove view security definers
+		command.extend(["sed", r"'/\/\*![0-9]* DEFINER=[^ ]* SQL SECURITY DEFINER \*\//d'", "|"])
+
+		# Generate the restore command
+		bin, args, bin_name = get_command(
+			socket=frappe.conf.db_socket,
+			host=frappe.conf.db_host,
+			port=frappe.conf.db_port,
+			user=user,
+			password=password,
+			db_name=target,
 		)
+		if not bin:
+			return frappe.throw(
+				_("{} not found in PATH! This is required to restore the database.").format(bin_name),
+				exc=frappe.ExecutableNotFound,
+			)
+		command.append(bin)
+		command.append(shlex.join(args))
 
-		command = command.format(
-			pipe=pipe,
-			user=esc(user),
-			password=esc(password),
-			host=esc(frappe.db.host),
-			target=esc(target),
-			port=frappe.db.port,
-		)
-
-		os.system(command)
-		frappe.cache().delete_keys("")  # Delete all keys associated with this site.
+		execute_in_shell(" ".join(command), check_exit_code=True, verbose=verbose)
+		frappe.cache.delete_keys("")  # Delete all keys associated with this site.

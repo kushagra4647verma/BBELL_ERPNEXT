@@ -7,21 +7,69 @@ import os
 import frappe
 from frappe import _, scrub
 from frappe.core.api.file import get_max_file_size
-from frappe.core.doctype.file import remove_file_by_url
+from frappe.core.doctype.doctype.doctype import HiddenAndMandatoryWithoutDefaultError
+from frappe.core.doctype.file.utils import remove_file_by_url
 from frappe.desk.form.meta import get_code_files_via_hooks
 from frappe.modules.utils import export_module_json, get_doc_module
 from frappe.permissions import check_doctype_permission
 from frappe.rate_limiter import rate_limit
 from frappe.utils import dict_with_keys, strip_html
+from frappe.utils.caching import redis_cache
 from frappe.website.utils import get_boot_data, get_comment_list, get_sidebar_items
 from frappe.website.website_generator import WebsiteGenerator
 
 
 class WebForm(WebsiteGenerator):
-	website = frappe._dict(no_cache=1)
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
 
-	def onload(self):
-		super().onload()
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+		from frappe.website.doctype.web_form_field.web_form_field import WebFormField
+		from frappe.website.doctype.web_form_list_column.web_form_list_column import WebFormListColumn
+
+		allow_comments: DF.Check
+		allow_delete: DF.Check
+		allow_edit: DF.Check
+		allow_incomplete: DF.Check
+		allow_multiple: DF.Check
+		allow_print: DF.Check
+		allowed_embedding_domains: DF.SmallText | None
+		anonymous: DF.Check
+		apply_document_permissions: DF.Check
+		banner_image: DF.AttachImage | None
+		breadcrumbs: DF.Code | None
+		button_label: DF.Data | None
+		client_script: DF.Code | None
+		condition: DF.Code | None
+		custom_css: DF.Code | None
+		doc_type: DF.Link
+		introduction_text: DF.TextEditor | None
+		is_standard: DF.Check
+		list_columns: DF.Table[WebFormListColumn]
+		list_title: DF.Data | None
+		login_required: DF.Check
+		max_attachment_size: DF.Int
+		meta_description: DF.SmallText | None
+		meta_image: DF.AttachImage | None
+		meta_title: DF.Data | None
+		module: DF.Link | None
+		print_format: DF.Link | None
+		published: DF.Check
+		route: DF.Data | None
+		show_attachments: DF.Check
+		show_list: DF.Check
+		show_sidebar: DF.Check
+		success_message: DF.Text | None
+		success_title: DF.Data | None
+		success_url: DF.Data | None
+		title: DF.Data
+		web_form_fields: DF.Table[WebFormField]
+		website_sidebar: DF.Link | None
+	# end: auto-generated types
+	website = frappe._dict(no_cache=1)
 
 	def validate(self):
 		super().validate()
@@ -47,18 +95,33 @@ class WebForm(WebsiteGenerator):
 		if not frappe.flags.in_import:
 			self.validate_fields()
 
+		self.validate_hidden_and_mandatory()
+
 	def validate_fields(self):
 		"""Validate all fields are present"""
 		from frappe.model import no_value_fields
 
-		missing = []
 		meta = frappe.get_meta(self.doc_type)
-		for df in self.web_form_fields:
-			if df.fieldname and (df.fieldtype not in no_value_fields and not meta.has_field(df.fieldname)):
-				missing.append(df.fieldname)
+		missing = [
+			df.fieldname
+			for df in self.web_form_fields
+			if df.fieldname and (df.fieldtype not in no_value_fields and not meta.has_field(df.fieldname))
+		]
 
 		if missing:
 			frappe.throw(_("Following fields are missing:") + "<br>" + "<br>".join(missing))
+
+	def validate_hidden_and_mandatory(self):
+		if self.allow_incomplete:
+			return
+		for d in self.web_form_fields:
+			if (d.hidden and d.reqd) and not (d.default or frappe.flags.in_migrate):
+				frappe.throw(
+					_("{0}: Field {1} in row {2} cannot be hidden and mandatory without default").format(
+						self.name, d.label, d.idx
+					),
+					HiddenAndMandatoryWithoutDefaultError,
+				)
 
 	def reset_field_parent(self):
 		"""Convert link fields to select with names as options"""
@@ -210,7 +273,7 @@ def get_context(context):
 		context.boot = get_boot_data()
 		context.boot["link_title_doctypes"] = frappe.boot.get_link_title_doctypes()
 
-		context.webform_banner_image = self.banner_image
+		context.webform_banner_image = context.get("banner_image") or self.banner_image
 		context.pop("banner_image", None)
 
 	def add_metatags(self, context):
@@ -220,16 +283,115 @@ def get_context(context):
 			description = self.introduction_text[:140]
 
 		context.metatags = {
-			"name": self.meta_title or self.title,
+			"title": self.meta_title or self.title,
 			"description": description,
 			"image": self.meta_image,
 		}
 
 	def load_translations(self, context):
-		translated_messages = frappe.translate.get_dict("doctype", self.doc_type)
-		# Sr is not added by default, had to be added manually
-		translated_messages["Sr"] = _("Sr")
-		context.translated_messages = frappe.as_json(translated_messages)
+		messages = [
+			"Sr",
+			"Attach",
+			"Next",
+			"Previous",
+			"Discard?",
+			"Cancel",
+			"Discard:Button in web form",
+			"Edit:Button in web form",
+			"See previous responses::Button in web form",
+			"Edit your response::Button in web form",
+			"Are you sure you want to discard the changes?",
+			"Mandatory fields required::Error message in web form",
+			"Invalid values for fields::Error message in web form",
+			"Error:Title of error message in web form",
+			"Page {0} of {1}",
+			"Couldn't save, please check the data you have entered",
+			"Validation Error",
+			"No {0} found",
+			"Create a new {0}",
+			"Drag and drop files here or upload from",
+			"My Device",
+			"Link",
+			"Camera",
+			"Upload",
+			"Set all public",
+			"Set all private",
+			"Public",
+			"Private",
+			"Optimize",
+			"Drop files here",
+			"Take Photo",
+			"No Images",
+			"Total Images",
+			"Preview",
+			"Submit",
+			"Capture",
+			"Attach a web link",
+			"← Back to upload files",
+			self.title,
+			self.introduction_text,
+			self.success_title,
+			self.success_message,
+			self.list_title,
+			self.button_label,
+			self.meta_title,
+			self.meta_description,
+		]
+
+		for field in self.web_form_fields:
+			messages.extend([field.label, field.description])
+			if field.fieldtype == "Select" and field.options:
+				messages.extend(field.options.split("\n"))
+
+		# When at least one field in self.web_form_fields has fieldtype "Table" then add "No data" to messages
+		if any(field.fieldtype == "Table" for field in self.web_form_fields):
+			messages.append("Move")
+			messages.append("Insert Above")
+			messages.append("Insert Below")
+			messages.append("Duplicate")
+			messages.append("Shortcuts")
+			messages.append("Ctrl + Up")
+			messages.append("Ctrl + Down")
+			messages.append("ESC")
+			messages.append("Editing Row")
+			messages.append("Add / Remove Columns")
+			messages.append("Fieldname")
+			messages.append("Column Width")
+			messages.append("Configure Columns")
+			messages.append("Select Fields")
+			messages.append("Select All")
+			messages.append("Update")
+			messages.append("Reset to default")
+			messages.append("No Data")
+			messages.append("Delete")
+			messages.append("Delete All")
+			messages.append("Add Row")
+			messages.append("Add Multiple")
+			messages.append("Download")
+			messages.append("of")
+			messages.append("Upload")
+			messages.append("Last")
+			messages.append("First")
+			messages.append("No.")
+
+		# Phone Picker
+		if any(field.fieldtype == "Phone" for field in self.web_form_fields):
+			messages.append("Search for countries...")
+
+		# Dates
+		if any(field.fieldtype == "Date" for field in self.web_form_fields):
+			messages.append("Now")
+			messages.append("Today")
+			messages.append("Date {0} must be in format: {1}")
+			messages.append("{0} to {1}")
+
+		# Time
+		if any(field.fieldtype == "Time" for field in self.web_form_fields):
+			messages.append("Now")
+
+		messages.extend(col.get("label") if col else "" for col in self.list_columns)
+
+		context.translated_messages = frappe.as_json({message: _(message) for message in messages if message})
 
 	def load_list_data(self, context):
 		if not self.list_columns:
@@ -253,7 +415,7 @@ def get_context(context):
 			context.parents = frappe.safe_eval(self.breadcrumbs, {"_": _})
 
 		if self.show_list and frappe.form_dict.is_new:
-			context.title = _("New {0}").format(context.title)
+			context.title = _("New {0}").format(_(context.title))
 
 		context.has_header = (frappe.form_dict.name or frappe.form_dict.is_new) and (
 			frappe.session.user != "Guest" or not self.login_required
@@ -296,15 +458,7 @@ def get_context(context):
 			context.reference_name = context.reference_doc.name
 
 			if self.show_attachments:
-				context.attachments = frappe.get_all(
-					"File",
-					filters={
-						"attached_to_name": context.reference_name,
-						"attached_to_doctype": context.reference_doctype,
-						"is_private": 0,
-					},
-					fields=["file_name", "file_url", "file_size"],
-				)
+				context.attachments = self.get_webform_attachments(context)
 
 			if self.allow_comments:
 				context.comment_list = get_comment_list(
@@ -354,11 +508,7 @@ def get_context(context):
 
 	def validate_mandatory(self, doc):
 		"""Validate mandatory web form fields"""
-		missing = []
-		for f in self.web_form_fields:
-			if f.reqd and doc.get(f.fieldname) in (None, [], ""):
-				missing.append(f)
-
+		missing = [f for f in self.web_form_fields if f.reqd and doc.get(f.fieldname) in (None, [], "")]
 		if missing:
 			frappe.throw(
 				_("Mandatory Information missing:")
@@ -388,6 +538,51 @@ def get_context(context):
 
 		else:
 			return False
+
+	def get_webform_attachments(self, context):
+		"""
+		Returns permitted attachments for the webform.
+		NOTE: At this point, `self.login_required` is True.
+		"""
+		from frappe.core.doctype.file.file import has_permission as has_file_permission
+
+		def _add_attachment(attachment):
+			"""Add attachment to the list."""
+			return {
+				"file_name": attachment.file_name,
+				"file_url": attachment.file_url,
+				"file_size": attachment.file_size,
+			}
+
+		attachments = frappe.get_all(
+			"File",
+			filters={
+				"attached_to_name": context.reference_name,
+				"attached_to_doctype": context.reference_doctype,
+			},
+			fields=[
+				"is_private",
+				"file_name",
+				"file_url",
+				"file_size",
+				"owner",
+				"attached_to_doctype",
+				"attached_to_name",
+			],
+		)
+
+		permitted_attachments = []
+		for attachment in attachments:
+			if not attachment.is_private:
+				# Public attachments are always permitted
+				permitted_attachments.append(_add_attachment(attachment))
+				continue
+
+			# Attachment is private. Check for file permission
+			if has_file_permission(attachment, "read"):
+				permitted_attachments.append(_add_attachment(attachment))
+
+		return permitted_attachments
 
 
 def get_web_form_module(doc):
@@ -424,6 +619,10 @@ def accept(web_form, data):
 		# insert
 		doc = frappe.new_doc(doctype)
 
+	# Set ignore_mandatory flag if allow_incomplete is enabled
+	if web_form.allow_incomplete:
+		doc.flags.ignore_mandatory = True
+
 	# set values
 	for field in web_form.web_form_fields:
 		fieldname = field.fieldname
@@ -454,7 +653,7 @@ def accept(web_form, data):
 		if web_form.login_required and frappe.session.user == "Guest":
 			frappe.throw(_("You must login to submit this form"))
 
-		ignore_mandatory = True if files else False
+		ignore_mandatory = True if (files or web_form.allow_incomplete) else False
 
 		doc.insert(ignore_permissions=True, ignore_mandatory=ignore_mandatory)
 
@@ -500,8 +699,6 @@ def accept(web_form, data):
 
 @frappe.whitelist()
 def delete(web_form_name: str, docname: str | int):
-	assert isinstance(web_form_name, str) and isinstance(docname, str | int)
-
 	web_form = frappe.get_doc("Web Form", web_form_name)
 
 	owner = frappe.db.get_value(web_form.doc_type, docname, "owner")
@@ -513,8 +710,6 @@ def delete(web_form_name: str, docname: str | int):
 
 @frappe.whitelist()
 def delete_multiple(web_form_name: str, docnames):
-	assert isinstance(web_form_name, str)
-
 	web_form = frappe.get_doc("Web Form", web_form_name)
 
 	docnames = json.loads(docnames)
@@ -548,13 +743,13 @@ def check_webform_perm(doctype, name):
 
 
 @frappe.whitelist(allow_guest=True)
-def get_web_form_filters(web_form_name):
+def get_web_form_filters(web_form_name: str):
 	web_form = frappe.get_doc("Web Form", web_form_name)
 	return [field for field in web_form.web_form_fields if field.show_in_filter]
 
 
 @frappe.whitelist(allow_guest=True)
-def get_form_data(doctype, docname=None, web_form_name=None):
+def get_form_data(doctype: str, docname: str | None = None, web_form_name: str | None = None):
 	web_form = frappe.get_doc("Web Form", web_form_name)
 
 	if web_form.login_required and frappe.session.user == "Guest":
@@ -629,12 +824,28 @@ def get_link_options(web_form_name, doctype, allow_read_on_all_link_options=Fals
 	fields = ["name as value"]
 
 	meta = frappe.get_meta(doctype)
-	if meta.title_field and meta.show_title_field_in_link:
+	show_title_field = meta.title_field and meta.show_title_field_in_link
+
+	if show_title_field:
 		fields.append(f"{meta.title_field} as label")
 
 	link_options = frappe.get_all(doctype, filters, fields)
 
-	if meta.title_field and meta.show_title_field_in_link:
+	if show_title_field:
+		if meta.translated_doctype:
+			# Translate the labels if "Translate Link Fields" is enabled
+			link_options = [{"value": row.value, "label": _(row.label)} for row in link_options]
+
 		return json.dumps(link_options, default=str)
 	else:
+		if meta.translated_doctype:
+			# Add `label` as the translated name if "Translate Link Fields" is enabled
+			return [{"value": row.value, "label": _(row.value)} for row in link_options]
+
+		# Use the actual names as options without labels
 		return "\n".join([str(doc.value) for doc in link_options])
+
+
+@redis_cache(ttl=60 * 60)
+def get_published_web_forms() -> dict[str, str]:
+	return frappe.get_all("Web Form", ["name", "route", "modified"], {"published": 1})

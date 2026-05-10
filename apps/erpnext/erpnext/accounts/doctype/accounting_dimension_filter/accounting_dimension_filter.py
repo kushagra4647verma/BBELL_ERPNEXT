@@ -8,7 +8,38 @@ from frappe.model.document import Document
 
 
 class AccountingDimensionFilter(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.accounts.doctype.allowed_dimension.allowed_dimension import AllowedDimension
+		from erpnext.accounts.doctype.applicable_on_account.applicable_on_account import ApplicableOnAccount
+
+		accounting_dimension: DF.Literal[None]
+		accounts: DF.Table[ApplicableOnAccount]
+		allow_or_restrict: DF.Literal["Allow", "Restrict"]
+		apply_restriction_on_values: DF.Check
+		company: DF.Link
+		dimensions: DF.Table[AllowedDimension]
+		disabled: DF.Check
+		fieldname: DF.Data | None
+	# end: auto-generated types
+
+	def before_save(self):
+		# If restriction is not applied on values, then remove all the dimensions and set allow_or_restrict to Restrict
+		if not self.apply_restriction_on_values:
+			self.allow_or_restrict = "Restrict"
+			self.set("dimensions", [])
+
 	def validate(self):
+		self.fieldname = frappe.db.get_value(
+			"Accounting Dimension", {"document_type": self.accounting_dimension}, "fieldname"
+		) or frappe.scrub(self.accounting_dimension)  # scrub to handle default accounting dimension
+
 		self.validate_applicable_accounts()
 
 	def validate_applicable_accounts(self):
@@ -44,14 +75,14 @@ def get_dimension_filter_map():
 			"""
 			SELECT
 				a.applicable_on_account, d.dimension_value, p.accounting_dimension,
-				p.allow_or_restrict, a.is_mandatory
+				p.allow_or_restrict, p.fieldname, a.is_mandatory
 			FROM
-				`tabApplicable On Account` a, `tabAllowed Dimension` d,
+				`tabApplicable On Account` a,
 				`tabAccounting Dimension Filter` p
+			LEFT JOIN `tabAllowed Dimension` d ON d.parent = p.name
 			WHERE
 				p.name = a.parent
 				AND p.disabled = 0
-				AND p.name = d.parent
 		""",
 			as_dict=1,
 		)
@@ -59,8 +90,6 @@ def get_dimension_filter_map():
 		dimension_filter_map = {}
 
 		for f in filters:
-			f.fieldname = scrub(f.accounting_dimension)
-
 			build_map(
 				dimension_filter_map,
 				f.fieldname,
@@ -69,7 +98,6 @@ def get_dimension_filter_map():
 				f.allow_or_restrict,
 				f.is_mandatory,
 			)
-
 		frappe.flags.dimension_filter_map = dimension_filter_map
 
 	return frappe.flags.dimension_filter_map
@@ -80,4 +108,5 @@ def build_map(map_object, dimension, account, filter_value, allow_or_restrict, i
 		(dimension, account),
 		{"allowed_dimensions": [], "is_mandatory": is_mandatory, "allow_or_restrict": allow_or_restrict},
 	)
-	map_object[(dimension, account)]["allowed_dimensions"].append(filter_value)
+	if filter_value:
+		map_object[(dimension, account)]["allowed_dimensions"].append(filter_value)

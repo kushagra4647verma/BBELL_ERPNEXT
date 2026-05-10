@@ -87,9 +87,7 @@ class TestTransactionData(FrappeTestCase):
 
         self.assertRaisesRegex(
             frappe.exceptions.ValidationError,
-            re.compile(
-                r"^(Postal Code for Address.* must be a 6-digit number and cannot start with 0)$"
-            ),
+            re.compile(r"^(Postal Code for Address.* must be a 6-digit number and cannot start with 0)$"),
             GSTTransactionData(doc).check_missing_address_fields,
             address,
         )
@@ -97,8 +95,11 @@ class TestTransactionData(FrappeTestCase):
     def test_get_address_details(self):
         doc = create_sales_invoice()
 
+        transaction_data = GSTTransactionData(doc)
+        transaction_data.set_address_gstin_map()
+
         self.assertDictEqual(
-            GSTTransactionData(doc).get_address_details(doc.customer_address),
+            transaction_data.get_address_details(doc.customer_address),
             {
                 "gstin": "24AANFA2641L1ZF",
                 "state_number": "24",
@@ -108,15 +109,14 @@ class TestTransactionData(FrappeTestCase):
                 "city": "Test City",
                 "pincode": 380015,
                 "country_code": None,
+                "gst_category": "Registered Regular",
             },
         )
 
     def test_validate_transaction(self):
         post_date = add_to_date(getdate(), days=1)
 
-        doc = create_sales_invoice(
-            posting_date=post_date, set_posting_time=True, do_not_submit=True
-        )
+        doc = create_sales_invoice(posting_date=post_date, set_posting_time=True, do_not_submit=True)
 
         self.assertRaisesRegex(
             frappe.exceptions.ValidationError,
@@ -169,6 +169,7 @@ class TestTransactionData(FrappeTestCase):
                 "total_cess_amount": 0,
                 "total_cess_non_advol_amount": 0,
                 "other_charges": 0.0,
+                "pos_state_code": doc.place_of_supply.split("-")[0],
             },
         )
 
@@ -212,6 +213,7 @@ class TestTransactionData(FrappeTestCase):
                 "total_igst_amount": 0,
                 "total_cess_amount": 0,
                 "total_cess_non_advol_amount": 0,
+                "pos_state_code": doc.place_of_supply.split("-")[0],
             },
         )
 

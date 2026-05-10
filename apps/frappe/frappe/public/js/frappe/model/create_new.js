@@ -47,6 +47,8 @@ $.extend(frappe.model, {
 			// set title field / name as name
 			if (meta.autoname && meta.autoname.indexOf("field:") !== -1) {
 				doc[meta.autoname.substr(6)] = frappe.route_options.name_field;
+			} else if (meta.autoname && meta.autoname === "prompt") {
+				doc.__newname = frappe.route_options.name_field;
 			} else if (meta.title_field) {
 				doc[meta.title_field] = frappe.route_options.name_field;
 			}
@@ -78,30 +80,39 @@ $.extend(frappe.model, {
 	},
 
 	set_default_values: function (doc, parent_doc) {
-		var doctype = doc.doctype;
-		var docfields = frappe.meta.get_docfields(doctype);
-		var updated = [];
-		for (var fid = 0; fid < docfields.length; fid++) {
-			var f = docfields[fid];
-			if (!in_list(frappe.model.no_value_type, f.fieldtype) && doc[f.fieldname] == null) {
-				if (f.no_default) continue;
-				var v = frappe.model.get_default_value(f, doc, parent_doc);
-				if (v) {
-					if (in_list(["Int", "Check"], f.fieldtype)) v = cint(v);
-					else if (in_list(["Currency", "Float"], f.fieldtype)) v = flt(v);
+		let doctype = doc.doctype;
+		let docfields = frappe.meta.get_docfields(doctype);
+		let updated = [];
 
-					doc[f.fieldname] = v;
-					updated.push(f.fieldname);
-				} else if (
-					f.fieldtype == "Select" &&
-					f.options &&
-					typeof f.options === "string" &&
-					!in_list(["[Select]", "Loading..."], f.options)
-				) {
-					doc[f.fieldname] = f.options.split("\n")[0];
-				}
+		// Table types should be initialized
+		let fieldtypes_without_default = frappe.model.no_value_type.filter(
+			(fieldtype) => !frappe.model.table_fields.includes(fieldtype)
+		);
+		docfields.forEach((f) => {
+			if (
+				fieldtypes_without_default.includes(f.fieldtype) ||
+				doc[f.fieldname] != null ||
+				f.no_default
+			) {
+				return;
 			}
-		}
+
+			let v = frappe.model.get_default_value(f, doc, parent_doc);
+			if (v) {
+				if (["Int", "Check"].includes(f.fieldtype)) v = cint(v);
+				else if (["Currency", "Float"].includes(f.fieldtype)) v = flt(v);
+
+				doc[f.fieldname] = v;
+				updated.push(f.fieldname);
+			} else if (
+				f.fieldtype == "Select" &&
+				f.options &&
+				typeof f.options === "string" &&
+				!["[Select]", "Loading..."].includes(f.options)
+			) {
+				doc[f.fieldname] = f.options.split("\n")[0];
+			}
+		});
 		return updated;
 	},
 
@@ -155,7 +166,6 @@ $.extend(frappe.model, {
 				if (!user_default) {
 					user_default = frappe.defaults.get_user_default(df.fieldname);
 				}
-
 				if (
 					!user_default &&
 					df.remember_last_selected_value &&
@@ -212,6 +222,10 @@ $.extend(frappe.model, {
 			}
 		} else if (df.fieldtype == "Time") {
 			value = frappe.datetime.now_time();
+		}
+
+		if (frappe.model.table_fields.includes(df.fieldtype)) {
+			value = [];
 		}
 
 		// set it here so we know it was set as a default

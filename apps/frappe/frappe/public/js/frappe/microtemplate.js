@@ -2,6 +2,8 @@
 // Adapted from John Resig - http://ejohn.org/ - MIT Licensed
 
 frappe.template = { compiled: {}, debug: {} };
+
+/* eslint-disable */
 frappe.template.compile = function (str, name) {
 	var key = name || str;
 
@@ -96,14 +98,17 @@ frappe.template.compile = function (str, name) {
 
 	return frappe.template.compiled[key];
 };
+/* eslint-enable */
+
 frappe.render = function (str, data, name) {
 	return frappe.template.compile(str, name)(data);
 };
 frappe.render_template = function (name, data) {
+	let template;
 	if (name.indexOf(" ") !== -1) {
-		var template = name;
+		template = name;
 	} else {
-		var template = frappe.templates[name];
+		template = frappe.templates[name];
 	}
 	if (data === undefined) {
 		data = {};
@@ -158,6 +163,21 @@ frappe.render_template = function (name, data) {
 	}
 
 	w.document.write(html);
+
+	// show footer on print
+	const footer = w.document.getElementById("footer-html");
+	if (footer) {
+		footer.classList.remove("visible-pdf");
+		footer.style.marginTop = "auto";
+
+		const print_format = w.document.querySelector(".print-format");
+		if (print_format) {
+			print_format.style.display = "flex";
+			print_format.style.flexDirection = "column";
+			print_format.style.minHeight = "100vh";
+		}
+	}
+
 	w.document.close();
 }),
 	(frappe.render_tree = function (opts) {

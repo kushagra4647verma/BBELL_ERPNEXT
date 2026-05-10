@@ -96,7 +96,7 @@ def execute(filters=None):
 		filters.periodicity, period_list, filters.accumulated_values, company=filters.company
 	)
 
-	chart = get_chart_data(filters, columns, asset, liability, equity, currency)
+	chart = get_chart_data(filters, period_list, asset, liability, equity, currency)
 
 	report_summary, primitive_summary = get_report_summary(
 		period_list, asset, liability, equity, provisional_profit_loss, currency, filters
@@ -113,7 +113,7 @@ def get_provisional_profit_loss(
 ):
 	provisional_profit_loss = {}
 	total_row = {}
-	if asset and (liability or equity):
+	if asset:
 		total = total_row_total = 0
 		currency = currency or frappe.get_cached_value("Company", company, "default_currency")
 		total_row = {
@@ -126,14 +126,16 @@ def get_provisional_profit_loss(
 
 		for period in period_list:
 			key = period if consolidated else period.key
-			effective_liability = 0.0
-			if liability:
+			total_assets = flt(asset[-2].get(key))
+			effective_liability = 0.00
+
+			if liability and liability[-1] == {}:
 				effective_liability += flt(liability[-2].get(key))
-			if equity:
+			if equity and equity[-1] == {}:
 				effective_liability += flt(equity[-2].get(key))
 
-			provisional_profit_loss[key] = flt(asset[-2].get(key)) - effective_liability
-			total_row[key] = effective_liability + provisional_profit_loss[key]
+			provisional_profit_loss[key] = total_assets - effective_liability
+			total_row[key] = provisional_profit_loss[key] + effective_liability
 
 			if provisional_profit_loss[key]:
 				has_value = True
@@ -197,9 +199,9 @@ def get_report_summary(
 		key = period if consolidated else period.key
 		if asset:
 			net_asset += asset[-2].get(key)
-		if liability:
+		if liability and liability[-1] == {}:
 			net_liability += liability[-2].get(key)
-		if equity:
+		if equity and equity[-1] == {}:
 			net_equity += equity[-2].get(key)
 		if provisional_profit_loss:
 			net_provisional_profit_loss += provisional_profit_loss.get(key)
@@ -223,18 +225,19 @@ def get_report_summary(
 	], (net_asset - net_liability + net_equity)
 
 
-def get_chart_data(filters, columns, asset, liability, equity, currency):
-	labels = [d.get("label") for d in columns[2:]]
+def get_chart_data(filters, chart_columns, asset, liability, equity, currency):
+	labels = [col.get("label") for col in chart_columns]
 
 	asset_data, liability_data, equity_data = [], [], []
 
-	for p in columns[2:]:
+	for col in chart_columns:
+		key = col.get("key") or col.get("fieldname")
 		if asset:
-			asset_data.append(asset[-2].get(p.get("fieldname")))
+			asset_data.append(asset[-2].get(key))
 		if liability:
-			liability_data.append(liability[-2].get(p.get("fieldname")))
+			liability_data.append(liability[-2].get(key))
 		if equity:
-			equity_data.append(equity[-2].get(p.get("fieldname")))
+			equity_data.append(equity[-2].get(key))
 
 	datasets = []
 	if asset_data:

@@ -2,16 +2,17 @@ import base64
 import json
 from datetime import datetime
 from io import BytesIO
+from typing import ClassVar
 
+import frappe
 import pyqrcode
 from barcode import Code128
 from barcode.writer import ImageWriter
-
-import frappe
 from frappe import scrub
 from frappe.utils import flt
 
 from india_compliance.gst_india.constants.e_waybill import (
+    DOCUMENT_TYPES,
     SUB_SUPPLY_TYPES,
     SUPPLY_TYPES,
     TRANSPORT_MODES,
@@ -81,6 +82,12 @@ def get_transport_type(code):
     return TRANSPORT_TYPES[int(code)]
 
 
+def get_e_waybill_document_type(short_document_type):
+    for full_document_type, document_type in DOCUMENT_TYPES.items():
+        if short_document_type == document_type:
+            return full_document_type
+
+
 def get_e_waybill_qr_code(e_waybill, gstin, ewaybill_date):
     e_waybill_date = as_ist(ewaybill_date)
     qr_text = "/".join(
@@ -135,9 +142,7 @@ def get_fields_to_display(data, field_map, mandatory_fields=None):
     if mandatory_fields:
         fields_to_display.update(mandatory_fields)
 
-    return {
-        field: label for field, label in field_map.items() if field in fields_to_display
-    }
+    return {field: label for field, label in field_map.items() if field in fields_to_display}
 
 
 def get_e_invoice_item_fields(data):
@@ -181,7 +186,7 @@ class GSTBreakup:
     ]
     """
 
-    CESS_HEADERS = ["CESS", "CESS Non Advol"]
+    CESS_HEADERS: ClassVar[list] = ["CESS", "CESS Non Advol"]
 
     def __init__(self, doc):
         self.doc = doc
@@ -210,9 +215,7 @@ class GSTBreakup:
                     },
                 )
 
-                tax_details["tax_amount"] += flt(
-                    item.get(f"{_tax_type}_amount", 0), self.precision
-                )
+                tax_details["tax_amount"] += flt(item.get(f"{_tax_type}_amount", 0), self.precision)
 
         return list(self.gst_breakup_data.values())
 
@@ -221,10 +224,7 @@ class GSTBreakup:
             return False
 
         return any(
-            any(
-                getattr(item, f"{scrub(tax_type)}_amount", 0) != 0
-                for tax_type in self.CESS_HEADERS
-            )
+            any(getattr(item, f"{scrub(tax_type)}_amount", 0) != 0 for tax_type in self.CESS_HEADERS)
             for item in self.doc.items
         )
 
@@ -240,9 +240,7 @@ class GSTBreakup:
 
         else:
             item_code = item.item_code or item.item_name
-            return self.gst_breakup_data.setdefault(
-                item_code, {"Item": item_code, "Taxable Amount": 0}
-            )
+            return self.gst_breakup_data.setdefault(item_code, {"Item": item_code, "Taxable Amount": 0})
 
     def is_hsn_wise_breakup_needed(self):
         if not frappe.get_meta(self.doc.doctype + " Item").has_field("gst_hsn_code"):

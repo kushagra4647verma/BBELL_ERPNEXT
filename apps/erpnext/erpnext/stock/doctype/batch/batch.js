@@ -3,7 +3,7 @@
 
 frappe.ui.form.on("Batch", {
 	setup: (frm) => {
-		frm.fields_dict["item"].get_query = function (doc, cdt, cdn) {
+		frm.set_query("item", () => {
 			return {
 				query: "erpnext.controllers.queries.item_query",
 				filters: {
@@ -11,7 +11,7 @@ frappe.ui.form.on("Batch", {
 					has_batch_no: 1,
 				},
 			};
-		};
+		});
 	},
 	refresh: (frm) => {
 		if (!frm.is_new()) {
@@ -22,6 +22,17 @@ frappe.ui.form.on("Batch", {
 				frappe.set_route("query-report", "Stock Ledger");
 			});
 			frm.trigger("make_dashboard");
+
+			frm.add_custom_button(__("Recalculate Batch Qty"), () => {
+				frm.call({
+					method: "recalculate_batch_qty",
+					doc: frm.doc,
+					freeze: true,
+					callback: () => {
+						frm.reload_doc();
+					},
+				});
+			});
 		}
 	},
 	item: (frm) => {
@@ -47,9 +58,19 @@ frappe.ui.form.on("Batch", {
 	},
 	make_dashboard: (frm) => {
 		if (!frm.is_new()) {
+			let for_stock_levels = 0;
+			if (!frm.doc.batch_qty && frm.doc.expiry_date) {
+				for_stock_levels = 1;
+			}
+
 			frappe.call({
 				method: "erpnext.stock.doctype.batch.batch.get_batch_qty",
-				args: { batch_no: frm.doc.name },
+				args: {
+					batch_no: frm.doc.name,
+					item_code: frm.doc.item,
+					for_stock_levels: for_stock_levels,
+					consider_negative_batches: 1,
+				},
 				callback: (r) => {
 					if (!r.message) {
 						return;
@@ -66,7 +87,7 @@ frappe.ui.form.on("Batch", {
 
 					// show
 					(r.message || []).forEach(function (d) {
-						if (d.qty > 0) {
+						if (d.qty != 0) {
 							$(`<div class='row' style='margin-bottom: 10px;'>
 								<div class='col-sm-3 small' style='padding-top: 3px;'>${d.warehouse}</div>
 								<div class='col-sm-3 small text-right' style='padding-top: 3px;'>${d.qty}</div>

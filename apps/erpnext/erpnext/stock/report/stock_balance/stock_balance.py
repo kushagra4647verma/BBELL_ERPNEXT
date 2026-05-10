@@ -8,7 +8,7 @@ from typing import Any, TypedDict
 import frappe
 from frappe import _
 from frappe.query_builder import Order
-from frappe.query_builder.functions import Coalesce
+from frappe.query_builder.functions import Coalesce, Count
 from frappe.utils import add_days, cint, date_diff, flt, getdate
 from frappe.utils.nestedset import get_descendants_of
 
@@ -24,8 +24,8 @@ class StockBalanceFilter(TypedDict):
 	from_date: str
 	to_date: str
 	item_group: str | None
-	item: str | None
-	warehouse: str | None
+	item: list[str] | None
+	warehouse: list[str] | None
 	warehouse_type: str | None
 	include_uom: str | None  # include extra info in converted UOM
 	show_stock_ageing_data: bool
@@ -100,6 +100,8 @@ class StockBalanceReport:
 
 		del self.sle_entries
 
+		sre_details = self.get_sre_reserved_qty_details()
+
 		variant_values = {}
 		if self.filters.get("show_variant_attributes"):
 			variant_values = self.get_variant_values_for()
@@ -132,6 +134,18 @@ class StockBalanceReport:
 
 				report_data.update(stock_ageing_data)
 
+			report_data.update(
+				{"reserved_stock": sre_details.get((report_data.item_code, report_data.warehouse), 0.0)}
+			)
+
+			if (
+				not self.filters.get("include_zero_stock_items")
+				and report_data
+				and report_data.bal_qty == 0
+				and report_data.bal_val == 0
+			):
+				continue
+
 			self.data.append(report_data)
 
 	def get_item_warehouse_map(self):
@@ -140,6 +154,8 @@ class StockBalanceReport:
 
 		if self.filters.get("show_stock_ageing_data"):
 			self.sle_entries = self.sle_query.run(as_dict=True)
+
+		self.prepare_stock_reco_voucher_wise_count()
 
 		# HACK: This is required to avoid causing db query in flt
 		_system_settings = frappe.get_cached_doc("System Settings")
@@ -167,13 +183,97 @@ class StockBalanceReport:
 
 		return item_warehouse_map
 
+	def prepare_stock_reco_voucher_wise_count(self):
+		self.stock_reco_voucher_wise_count = frappe._dict()
+
+		doctype = frappe.qb.DocType("Stock Ledger Entry")
+		item = frappe.qb.DocType("Item")
+
+		query = (
+			frappe.qb.from_(doctype)
+			.inner_join(item)
+			.on(doctype.item_code == item.name)
+			.select(doctype.voucher_detail_no, Count(doctype.name).as_("count"))
+			.where(
+				(doctype.voucher_type == "Stock Reconciliation")
+				& (doctype.docstatus < 2)
+				& (doctype.is_cancelled == 0)
+				& (item.has_serial_no == 1)
+			)
+			.groupby(doctype.voucher_detail_no)
+		)
+
+		if items := self.filters.item_code:
+			if isinstance(items, str):
+				items = [items]
+
+			query = query.where(item.name.isin(items))
+
+		if self.filters.item_group:
+			childrens = []
+			childrens.append(self.filters.item_group)
+			if item_group_childrens := get_descendants_of(
+				"Item Group", self.filters.item_group, ignore_permissions=True
+			):
+				childrens.extend(item_group_childrens)
+
+			if childrens:
+				query = query.where(item.item_group.isin(childrens))
+
+		if warehouses := self.filters.get("warehouse"):
+			if isinstance(warehouses, str):
+				warehouses = [warehouses]
+
+			childrens = []
+			for warehouse in warehouses:
+				childrens.append(warehouse)
+				if warehouse_childrens := get_descendants_of("Warehouse", warehouse, ignore_permissions=True):
+					childrens.extend(warehouse_childrens)
+
+			if childrens:
+				query = query.where(doctype.warehouse.isin(childrens))
+
+		data = query.run(as_dict=True)
+		if not data:
+			return
+
+		for row in data:
+			if row.count != 1:
+				continue
+
+			sr_item = frappe.db.get_value(
+				"Stock Reconciliation Item", row.voucher_detail_no, ["current_qty", "qty"], as_dict=True
+			)
+
+			if sr_item.qty and sr_item.current_qty:
+				self.stock_reco_voucher_wise_count[row.voucher_detail_no] = sr_item.current_qty
+
+	def get_sre_reserved_qty_details(self) -> dict:
+		from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+			get_sre_reserved_qty_for_items_and_warehouses as get_reserved_qty_details,
+		)
+
+		item_code_list, warehouse_list = [], []
+		for d in self.item_warehouse_map:
+			item_code_list.append(d[1])
+			warehouse_list.append(d[2])
+
+		return get_reserved_qty_details(item_code_list, warehouse_list)
+
 	def prepare_item_warehouse_map(self, item_warehouse_map, entry, group_by_key):
 		qty_dict = item_warehouse_map[group_by_key]
 		for field in self.inventory_dimensions:
 			qty_dict[field] = entry.get(field)
 
-		if entry.voucher_type == "Stock Reconciliation" and (not entry.batch_no or entry.serial_no):
-			qty_diff = flt(entry.qty_after_transaction) - flt(qty_dict.bal_qty)
+		if entry.voucher_type == "Stock Reconciliation" and (
+			not entry.batch_no or entry.serial_no or entry.serial_and_batch_bundle
+		):
+			if entry.serial_no and entry.voucher_detail_no in self.stock_reco_voucher_wise_count:
+				qty_dict.opening_qty -= self.stock_reco_voucher_wise_count.get(entry.voucher_detail_no, 0)
+				qty_dict.bal_qty = 0.0
+				qty_diff = flt(entry.actual_qty)
+			else:
+				qty_diff = flt(entry.qty_after_transaction) - flt(qty_dict.bal_qty)
 		else:
 			qty_diff = flt(entry.actual_qty)
 
@@ -188,9 +288,12 @@ class StockBalanceReport:
 		elif entry.posting_date >= self.from_date and entry.posting_date <= self.to_date:
 			if flt(qty_diff, self.float_precision) >= 0:
 				qty_dict.in_qty += qty_diff
-				qty_dict.in_val += value_diff
 			else:
 				qty_dict.out_qty += abs(qty_diff)
+
+			if flt(value_diff, self.float_precision) >= 0:
+				qty_dict.in_val += value_diff
+			else:
 				qty_dict.out_val += abs(value_diff)
 
 		qty_dict.val_rate = entry.valuation_rate
@@ -254,8 +357,11 @@ class StockBalanceReport:
 		)
 
 		for fieldname in ["warehouse", "item_code", "item_group", "warehouse_type"]:
-			if self.filters.get(fieldname):
-				query = query.where(table[fieldname] == self.filters.get(fieldname))
+			if value := self.filters.get(fieldname):
+				if isinstance(value, list | tuple):
+					query = query.where(table[fieldname].isin(value))
+				else:
+					query = query.where(table[fieldname] == value)
 
 		return query.run(as_dict=True)
 
@@ -282,6 +388,9 @@ class StockBalanceReport:
 				sle.stock_value,
 				sle.batch_no,
 				sle.serial_no,
+				sle.serial_and_batch_bundle,
+				sle.has_serial_no,
+				sle.voucher_detail_no,
 				item_table.item_group,
 				item_table.stock_uom,
 				item_table.item_name,
@@ -316,6 +425,7 @@ class StockBalanceReport:
 
 		if self.filters.get("warehouse"):
 			query = apply_warehouse_filter(query, sle, self.filters)
+
 		elif warehouse_type := self.filters.get("warehouse_type"):
 			query = (
 				query.join(warehouse_table)
@@ -330,13 +440,11 @@ class StockBalanceReport:
 			children = get_descendants_of("Item Group", item_group, ignore_permissions=True)
 			query = query.where(item_table.item_group.isin([*children, item_group]))
 
-		for field in ["item_code", "brand"]:
-			if not self.filters.get(field):
-				continue
-			elif field == "item_code":
-				query = query.where(item_table.name == self.filters.get(field))
-			else:
-				query = query.where(item_table[field] == self.filters.get(field))
+		if item_codes := self.filters.get("item_code"):
+			query = query.where(item_table.name.isin(item_codes))
+
+		if brand := self.filters.get("brand"):
+			query = query.where(item_table.brand == brand)
 
 		return query
 
@@ -375,16 +483,17 @@ class StockBalanceReport:
 			},
 		]
 
-		for dimension in get_inventory_dimensions():
-			columns.append(
-				{
-					"label": _(dimension.doctype),
-					"fieldname": dimension.fieldname,
-					"fieldtype": "Link",
-					"options": dimension.doctype,
-					"width": 110,
-				}
-			)
+		if self.filters.get("show_dimension_wise_stock"):
+			for dimension in get_inventory_dimensions():
+				columns.append(
+					{
+						"label": _(dimension.doctype),
+						"fieldname": dimension.fieldname,
+						"fieldtype": "Link",
+						"options": dimension.doctype,
+						"width": 110,
+					}
+				)
 
 		columns.extend(
 			[
@@ -448,6 +557,13 @@ class StockBalanceReport:
 					"options": "Company:company:default_currency"
 					if self.filters.valuation_field_type == "Currency"
 					else None,
+				},
+				{
+					"label": _("Reserved Stock"),
+					"fieldname": "reserved_stock",
+					"fieldtype": "Float",
+					"width": 80,
+					"convertible": "qty",
 				},
 				{
 					"label": _("Company"),

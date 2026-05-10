@@ -8,9 +8,9 @@ from frappe.permissions import (
 	get_doc_permissions,
 	has_permission,
 	remove_user_permission,
-	set_user_permission_if_allowed,
 )
 from frappe.utils import cstr, getdate, today, validate_email_address
+from frappe.utils.deprecations import deprecated
 from frappe.utils.nestedset import NestedSet
 
 from erpnext.utilities.transaction_base import delete_events
@@ -79,26 +79,26 @@ class Employee(NestedSet):
 
 	def on_update(self):
 		self.update_nsm_model()
+		frappe.clear_cache()
 		if self.user_id:
 			self.update_user()
 			self.update_user_permissions()
 		self.reset_employee_emails_cache()
 
 	def update_user_permissions(self):
-		if not self.create_user_permission:
-			return
-		if not has_permission("User Permission", ptype="write", raise_exception=False):
+		if not self.has_value_changed("user_id") and not self.has_value_changed("create_user_permission"):
 			return
 
 		employee_user_permission_exists = frappe.db.exists(
 			"User Permission", {"allow": "Employee", "for_value": self.name, "user": self.user_id}
 		)
 
-		if employee_user_permission_exists:
-			return
-
-		add_user_permission("Employee", self.name, self.user_id)
-		set_user_permission_if_allowed("Company", self.company, self.user_id)
+		if employee_user_permission_exists and not self.create_user_permission:
+			remove_user_permission("Employee", self.name, self.user_id)
+			remove_user_permission("Company", self.company, self.user_id)
+		elif not employee_user_permission_exists and self.create_user_permission:
+			add_user_permission("Employee", self.name, self.user_id)
+			add_user_permission("Company", self.company, self.user_id)
 
 	def update_user(self):
 		# add employee role if missing
@@ -147,33 +147,10 @@ class Employee(NestedSet):
 		if self.date_of_birth and getdate(self.date_of_birth) > getdate(today()):
 			throw(_("Date of Birth cannot be greater than today."))
 
-		if (
-			self.date_of_birth
-			and self.date_of_joining
-			and getdate(self.date_of_birth) >= getdate(self.date_of_joining)
-		):
-			throw(_("Date of Joining must be greater than Date of Birth"))
-
-		elif (
-			self.date_of_retirement
-			and self.date_of_joining
-			and (getdate(self.date_of_retirement) <= getdate(self.date_of_joining))
-		):
-			throw(_("Date Of Retirement must be greater than Date of Joining"))
-
-		elif (
-			self.relieving_date
-			and self.date_of_joining
-			and (getdate(self.relieving_date) < getdate(self.date_of_joining))
-		):
-			throw(_("Relieving Date must be greater than or equal to Date of Joining"))
-
-		elif (
-			self.contract_end_date
-			and self.date_of_joining
-			and (getdate(self.contract_end_date) <= getdate(self.date_of_joining))
-		):
-			throw(_("Contract End Date must be greater than Date of Joining"))
+		self.validate_from_to_dates("date_of_birth", "date_of_joining")
+		self.validate_from_to_dates("date_of_joining", "date_of_retirement")
+		self.validate_from_to_dates("date_of_joining", "relieving_date")
+		self.validate_from_to_dates("date_of_joining", "contract_end_date")
 
 	def validate_email(self):
 		if self.company_email:
@@ -208,13 +185,11 @@ class Employee(NestedSet):
 				throw(_("Please enter relieving date."))
 
 	def validate_for_enabled_user_id(self, enabled):
-		if not self.status == "Active":
-			return
-
 		if enabled is None:
 			frappe.throw(_("User {0} does not exist").format(self.user_id))
-		if enabled == 0:
-			frappe.throw(_("User {0} is disabled").format(self.user_id), EmployeeUserDisabledError)
+
+		if self.status != "Active" and enabled or self.status == "Active" and enabled == 0:
+			frappe.db.set_value("User", self.user_id, "enabled", not enabled)
 
 	def validate_duplicate_user_id(self):
 		Employee = frappe.qb.DocType("Employee")
@@ -272,8 +247,9 @@ def validate_employee_role(doc, method=None, ignore_emp_check=False):
 		doc.get("roles").remove(doc.get("roles", {"role": "Employee Self Service"})[0])
 
 
+@deprecated
 def update_user_permissions(doc, method):
-	# called via User hook
+	# formerly called via User hook
 	if "Employee" in [d.role for d in doc.get("roles")]:
 		if not has_permission("User Permission", ptype="write", raise_exception=False):
 			return
@@ -458,3 +434,59 @@ def has_upload_permission(doc, ptype="read", user=None):
 	if get_doc_permissions(doc, user=user, ptype=ptype).get(ptype):
 		return True
 	return doc.user_id == user
+
+
+@frappe.whitelist()
+def get_contact_details(employee: str) -> dict:
+	"""
+	Returns basic contact details for the given employee.
+
+	Email is selected based on the following priority:
+	1. Prefered Email
+	2. Company Email
+	3. Personal Email
+	4. User ID
+	"""
+	if not employee:
+		frappe.throw(msg=_("Employee is required"), title=_("Missing Parameter"))
+
+	frappe.has_permission("Employee", "read", employee, throw=True)
+
+	return _get_contact_details(employee)
+
+
+def _get_contact_details(employee: str) -> dict:
+	contact_data = frappe.db.get_value(
+		"Employee",
+		employee,
+		[
+			"employee_name",
+			"prefered_email",
+			"company_email",
+			"personal_email",
+			"user_id",
+			"cell_number",
+			"designation",
+			"department",
+		],
+		as_dict=True,
+	)
+
+	if not contact_data:
+		frappe.throw(msg=_("Employee {0} not found").format(employee), title=_("Not Found"))
+
+	# Email with priority
+	employee_email = (
+		contact_data.get("prefered_email")
+		or contact_data.get("company_email")
+		or contact_data.get("personal_email")
+		or contact_data.get("user_id")
+	)
+
+	return {
+		"contact_display": contact_data.get("employee_name"),
+		"contact_email": employee_email,
+		"contact_mobile": contact_data.get("cell_number"),
+		"contact_designation": contact_data.get("designation"),
+		"contact_department": contact_data.get("department"),
+	}

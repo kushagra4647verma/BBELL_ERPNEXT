@@ -1,17 +1,18 @@
 $white: #fff;
-$gray-900: #1f272e;
-$gray-800: #333c44;
-$gray-700: #505a62;
-$gray-600: #687178;
-$gray-500: #98a1a9;
-$gray-400: #c0c6cc;
-$gray-300: #dce0e3;
-$gray-200: #ebeef0;
-$gray-100: #f4f5f6;
-$gray-50: #f9fafa;
-$primary: #2490ef;
 
 $blue-500: #2d95f0;
+
+$gray-50: #f8f8f8;
+$gray-100: #f3f3f3;
+$gray-200: #ededed;
+$gray-300: #e2e2e2;
+$gray-400: #c7c7c7;
+$gray-500: #999999;
+$gray-600: #7c7c7c;
+$gray-700: #525252;
+$gray-800: #383838;
+$gray-900: #171717;
+$primary: $gray-900;
 
 $text-color: $gray-900;
 $border-color: $gray-100;
@@ -427,4 +428,33 @@ blockquote {
 }
 .ql-editor li.ql-indent-3:not(.ql-direction-rtl) {
 	padding-left: 10.5em;
+}
+
+.indicator {
+	display: inline-block;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	margin-right: 6px;
+	vertical-align: middle;
+}
+
+.indicator-red {
+	background-color: #dc2626;
+}
+
+.indicator-green {
+	background-color: #16a34a;
+}
+
+.indicator-orange {
+	background-color: #ea580c;
+}
+
+.indicator-blue {
+	background-color: #2563eb;
+}
+
+.indicator-gray {
+	background-color: #6b7280;
 }

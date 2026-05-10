@@ -4,7 +4,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, cstr, flt
 
-# This matches anything that isn't [a-zA-Z0-9_]
+# This matches anything that isn't Unicode Word Characters, Numbers and Underscore.
 SPECIAL_CHAR_PATTERN = re.compile(r"[\W]", flags=re.UNICODE)
 
 VARCHAR_CAST_PATTERN = re.compile(r"varchar\(([\d]+)\)")
@@ -46,7 +46,7 @@ class DBTable:
 		if self.is_new():
 			self.create()
 		else:
-			frappe.cache().hdel("table_columns", self.table_name)
+			frappe.cache.hdel("table_columns", self.table_name)
 			self.alter()
 
 	def create(self):
@@ -64,16 +64,16 @@ class DBTable:
 		return ret
 
 	def get_index_definitions(self):
-		ret = []
-		for key, col in self.columns.items():
+		return [
+			"index `" + key + "`(`" + key + "`)"
+			for key, col in self.columns.items()
 			if (
 				col.set_index
 				and not col.unique
 				and col.fieldtype in frappe.db.type_map
 				and frappe.db.type_map.get(col.fieldtype)[0] not in ("text", "longtext")
-			):
-				ret.append("index `" + key + "`(`" + key + "`)")
-		return ret
+			)
+		]
 
 	def get_columns_from_docfields(self):
 		"""
@@ -346,6 +346,9 @@ def get_definition(fieldtype, precision=None, length=None):
 
 		if length:
 			if coltype == "varchar":
+				# Reference: https://mariadb.com/docs/server/server-usage/storage-engines/innodb/innodb-row-formats/troubleshooting-row-size-too-large-errors-with-innodb
+				if cint(length) < 64:
+					length = 64
 				size = length
 			elif coltype == "int" and length < 11:
 				# allow setting custom length for int if length provided is less than 11

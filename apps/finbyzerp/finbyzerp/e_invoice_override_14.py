@@ -14,7 +14,7 @@ from india_compliance.gst_india.utils.e_waybill import (
 )
 from india_compliance.gst_india.utils.e_invoice import log_e_invoice
 from india_compliance.gst_india.utils.e_invoice import EInvoiceData
-from india_compliance.gst_india.api_classes.e_invoice import EInvoiceAPI
+from india_compliance.gst_india.api_classes.nic.e_invoice import EInvoiceAPI
 from frappe.utils.data import add_to_date
 from india_compliance.gst_india.utils import parse_datetime, send_updated_doc
 # from erpnext.regional.india.e_invoice.utils import (GSPConnector,raise_document_name_too_long_error,read_json,

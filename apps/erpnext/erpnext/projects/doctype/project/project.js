@@ -20,14 +20,12 @@ frappe.ui.form.on("Project", {
 	onload: function (frm) {
 		const so = frm.get_docfield("sales_order");
 		so.get_route_options_for_new_doc = () => {
-			if (frm.is_new()) return;
+			if (frm.is_new()) return {};
 			return {
 				customer: frm.doc.customer,
 				project_name: frm.doc.name,
 			};
 		};
-
-		frm.set_query("customer", "erpnext.controllers.queries.customer_query");
 
 		frm.set_query("user", "users", function () {
 			return {
@@ -90,9 +88,9 @@ frappe.ui.form.on("Project", {
 			);
 
 			frm.add_custom_button(
-				__("Update Total Purchase Cost"),
+				__("Update Costing and Billing"),
 				() => {
-					frm.events.update_total_purchase_cost(frm);
+					frm.events.update_costing_and_billing(frm);
 				},
 				__("Actions")
 			);
@@ -131,15 +129,15 @@ frappe.ui.form.on("Project", {
 		}
 	},
 
-	update_total_purchase_cost: function (frm) {
+	update_costing_and_billing: function (frm) {
 		frappe.call({
-			method: "erpnext.projects.doctype.project.project.recalculate_project_total_purchase_cost",
+			method: "erpnext.projects.doctype.project.project.update_costing_and_billing",
 			args: { project: frm.doc.name },
 			freeze: true,
-			freeze_message: __("Recalculating Purchase Cost against this Project..."),
+			freeze_message: __("Updating Costing and Billing fields against this Project..."),
 			callback: function (r) {
 				if (r && !r.exc) {
-					frappe.msgprint(__("Total Purchase Cost has been updated"));
+					frappe.msgprint(__("Costing and Billing fields has been updated"));
 					frm.refresh();
 				}
 			},
@@ -149,27 +147,30 @@ frappe.ui.form.on("Project", {
 	set_project_status_button: function (frm) {
 		frm.add_custom_button(
 			__("Set Project Status"),
-			() => {
-				let d = new frappe.ui.Dialog({
-					title: __("Set Project Status"),
-					fields: [
-						{
-							fieldname: "status",
-							fieldtype: "Select",
-							label: "Status",
-							reqd: 1,
-							options: "Completed\nCancelled",
-						},
-					],
-					primary_action: function () {
-						frm.events.set_status(frm, d.get_values().status);
-						d.hide();
-					},
-					primary_action_label: __("Set Project Status"),
-				}).show();
-			},
+			() => frm.events.get_project_status_dialog(frm).show(),
 			__("Actions")
 		);
+	},
+
+	get_project_status_dialog: function (frm) {
+		const dialog = new frappe.ui.Dialog({
+			title: __("Set Project Status"),
+			fields: [
+				{
+					fieldname: "status",
+					fieldtype: "Select",
+					label: "Status",
+					reqd: 1,
+					options: "Completed\nCancelled",
+				},
+			],
+			primary_action: function () {
+				frm.events.set_status(frm, dialog.get_values().status);
+				dialog.hide();
+			},
+			primary_action_label: __("Set Project Status"),
+		});
+		return dialog;
 	},
 
 	create_duplicate: function (frm) {
@@ -200,6 +201,12 @@ frappe.ui.form.on("Project", {
 					frm.reload_doc();
 				});
 		});
+	},
+
+	collect_progress: function (frm) {
+		if (frm.doc.collect_progress && !frm.doc.subject) {
+			frm.set_value("subject", __("For project {0}, update your status", [frm.doc.name]));
+		}
 	},
 });
 

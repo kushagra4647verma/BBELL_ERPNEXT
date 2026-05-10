@@ -133,6 +133,15 @@ class TestBOM(FrappeTestCase):
 		self.assertAlmostEqual(bom.base_total_cost, base_raw_material_cost + base_op_cost)
 
 	@timeout
+	def test_bom_no_operation_time_validation(self):
+		bom = frappe.copy_doc(test_records[2])
+		bom.docstatus = 0
+		for op_row in bom.operations:
+			op_row.time_in_mins = 0
+
+		self.assertRaises(frappe.ValidationError, bom.save)
+
+	@timeout
 	def test_bom_cost_with_batch_size(self):
 		bom = frappe.copy_doc(test_records[2])
 		bom.docstatus = 0
@@ -754,6 +763,19 @@ class TestBOM(FrappeTestCase):
 		self.assertTrue("_Test RM Item 1 Do Not Include In Manufacture" not in items)
 		self.assertTrue("_Test RM Item 2 Fixed Asset Item" not in items)
 		self.assertTrue("_Test RM Item 3 Manufacture Item" in items)
+
+	def test_get_scrap_items_from_sub_assemblies(self):
+		from erpnext.manufacturing.doctype.bom.bom import get_scrap_items_from_sub_assemblies
+
+		bom = frappe.copy_doc(test_records[1])
+		bom.insert(ignore_mandatory=True)
+
+		bom_scraped_items = [i.get("item_code") for i in bom.get("scrap_items", [])]
+
+		# get scrapted items for parent bom
+		scraped_items = get_scrap_items_from_sub_assemblies(bom.name, bom.company, 2, None)
+		for item_code in scraped_items.keys():
+			self.assertIn(item_code, bom_scraped_items, f"Item {item_code} not found in BOM scrap items")
 
 	def test_bom_raw_materials_stock_uom(self):
 		rm_item = make_item(

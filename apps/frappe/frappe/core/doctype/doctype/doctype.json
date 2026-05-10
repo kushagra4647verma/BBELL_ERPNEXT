@@ -8,6 +8,9 @@
  "document_type": "Document",
  "engine": "InnoDB",
  "field_order": [
+  "form_builder_tab",
+  "form_builder",
+  "settings_tab",
   "sb0",
   "module",
   "is_submittable",
@@ -17,6 +20,8 @@
   "is_calendar_and_gantt",
   "editable_grid",
   "quick_entry",
+  "grid_page_length",
+  "rows_threshold_for_grid_search",
   "cb01",
   "track_changes",
   "track_seen",
@@ -24,12 +29,10 @@
   "custom",
   "beta",
   "is_virtual",
-  "fields_section_break",
-  "fields",
+  "queue_in_background",
   "sb1",
   "naming_rule",
   "autoname",
-  "name_case",
   "allow_rename",
   "column_break_15",
   "description",
@@ -68,12 +71,14 @@
   "email_append_to",
   "sender_field",
   "sender_name_field",
+  "recipient_account_field",
   "subject_field",
   "sb2",
   "permissions",
   "restrict_to_domain",
   "read_only",
   "in_create",
+  "protect_attached_files",
   "actions_section",
   "actions",
   "links_section",
@@ -89,7 +94,11 @@
   "website_search_field",
   "advanced",
   "engine",
-  "migration_hash"
+  "migration_hash",
+  "fields_section",
+  "fields",
+  "row_format",
+  "connections_tab"
  ],
  "fields": [
   {
@@ -190,15 +199,10 @@
   },
   {
    "default": "0",
+   "depends_on": "eval:!doc.istable",
    "fieldname": "beta",
    "fieldtype": "Check",
    "label": "Beta"
-  },
-  {
-   "fieldname": "fields_section_break",
-   "fieldtype": "Section Break",
-   "label": "Fields",
-   "oldfieldtype": "Section Break"
   },
   {
    "fieldname": "fields",
@@ -220,15 +224,6 @@
    "label": "Auto Name",
    "oldfieldname": "autoname",
    "oldfieldtype": "Data"
-  },
-  {
-   "depends_on": "eval:doc.naming_rule !== \"Autoincrement\"",
-   "fieldname": "name_case",
-   "fieldtype": "Select",
-   "label": "Name Case",
-   "oldfieldname": "name_case",
-   "oldfieldtype": "Select",
-   "options": "\nTitle Case\nUPPER CASE"
   },
   {
    "fieldname": "column_break_15",
@@ -276,7 +271,7 @@
    "default": "0",
    "fieldname": "hide_toolbar",
    "fieldtype": "Check",
-   "label": "Hide Sidebar and Menu",
+   "label": "Hide Sidebar, Menu, and Comments",
    "oldfieldname": "hide_toolbar",
    "oldfieldtype": "Check"
   },
@@ -475,6 +470,7 @@
   },
   {
    "default": "0",
+   "depends_on": "eval:!doc.istable",
    "description": "Tree structures are implemented using Nested Set",
    "fieldname": "is_tree",
    "fieldtype": "Check",
@@ -618,6 +614,14 @@
    "label": "Make Attachments Public by Default"
   },
   {
+   "default": "0",
+   "depends_on": "eval: doc.is_submittable",
+   "description": "Enabling this will submit documents in background",
+   "fieldname": "queue_in_background",
+   "fieldtype": "Check",
+   "label": "Queue in Background (BETA)"
+  },
+  {
    "fieldname": "default_view",
    "fieldtype": "Select",
    "label": "Default View"
@@ -630,18 +634,85 @@
   },
   {
    "default": "0",
+   "depends_on": "eval:!doc.istable",
    "description": "Enables Calendar and Gantt views.",
    "fieldname": "is_calendar_and_gantt",
    "fieldtype": "Check",
    "label": "Is Calendar and Gantt"
   },
   {
+   "fieldname": "settings_tab",
+   "fieldtype": "Tab Break",
+   "label": "Settings"
+  },
+  {
+   "depends_on": "eval:!doc.__islocal",
+   "fieldname": "form_builder_tab",
+   "fieldtype": "Tab Break",
+   "label": "Form"
+  },
+  {
+   "fieldname": "form_builder",
+   "fieldtype": "HTML",
+   "label": "Form Builder"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "fields_section",
+   "fieldtype": "Section Break",
+   "label": "Fields"
+  },
+  {
+   "fieldname": "connections_tab",
+   "fieldtype": "Tab Break",
+   "label": "Connections",
+   "show_dashboard": 1
+  },
+  {
    "depends_on": "email_append_to",
    "fieldname": "sender_name_field",
    "fieldtype": "Data",
    "label": "Sender Name Field"
+  },
+  {
+    "default": "50",
+    "depends_on": "istable",
+    "fieldname": "grid_page_length",
+    "fieldtype": "Int",
+    "label": "Grid Page Length",
+    "non_negative": 1
+  },
+  {
+   "default": "Dynamic",
+   "fieldname": "row_format",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Row Format",
+   "options": "Dynamic\nCompressed"
+  },
+  {
+   "default": "0",
+   "description": "Users are only able to delete attached files if the document is either in draft or if the document is canceled and they are also able to delete the document.",
+   "fieldname": "protect_attached_files",
+   "fieldtype": "Check",
+   "label": "Protect Attached Files"
+  },
+  {
+   "default": "20",
+   "depends_on": "istable",
+   "fieldname": "rows_threshold_for_grid_search",
+   "fieldtype": "Int",
+   "label": "Rows Threshold for Grid Search",
+   "non_negative": 1
+  },
+  {
+   "depends_on": "email_append_to",
+   "fieldname": "recipient_account_field",
+   "fieldtype": "Data",
+   "label": "Recipient Account Field"
   }
  ],
+ "grid_page_length": 50,
  "icon": "fa fa-bolt",
  "idx": 6,
  "index_web_pages_for_search": 1,
@@ -722,7 +793,7 @@
    "link_fieldname": "reference_doctype"
   }
  ],
- "modified": "2023-12-01 18:37:16.799471",
+ "modified": "2025-09-23 06:48:13.555017",
  "modified_by": "Administrator",
  "module": "Core",
  "name": "DocType",
@@ -752,6 +823,7 @@
   }
  ],
  "route": "doctype",
+ "row_format": "Dynamic",
  "search_fields": "module",
  "show_name_in_global_search": 1,
  "sort_field": "modified",

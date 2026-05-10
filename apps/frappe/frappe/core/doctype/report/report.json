@@ -16,8 +16,9 @@
   "letter_head",
   "add_total_row",
   "disabled",
-  "disable_prepared_report",
   "prepared_report",
+  "add_translate_data",
+  "timeout",
   "filters_section",
   "filters",
   "columns_section",
@@ -136,17 +137,9 @@
   },
   {
    "default": "0",
-   "fieldname": "disable_prepared_report",
-   "fieldtype": "Check",
-   "label": "Disable Prepared Report"
-  },
-  {
-   "default": "0",
    "fieldname": "prepared_report",
    "fieldtype": "Check",
-   "hidden": 1,
-   "label": "Prepared Report",
-   "read_only": 1
+   "label": "Prepared Report"
   },
   {
    "depends_on": "eval:(doc.report_type===\"Script Report\" \n|| doc.report_type==\"Query Report\") \n&& doc.is_standard===\"No\"",
@@ -164,7 +157,7 @@
    "label": "Filters"
   },
   {
-   "depends_on": "eval:doc.report_type != \"Custom Report\"",
+   "depends_on": "eval:![\"Custom Report\", \"Report Builder\"].includes(doc.report_type)",
    "fieldname": "filters",
    "fieldtype": "Table",
    "label": "Filters",
@@ -179,7 +172,7 @@
    "label": "Columns"
   },
   {
-   "depends_on": "eval:doc.report_type != \"Custom Report\"",
+   "depends_on": "eval:![\"Custom Report\", \"Report Builder\"].includes(doc.report_type)",
    "fieldname": "columns",
    "fieldtype": "Table",
    "label": "Columns",
@@ -191,12 +184,25 @@
    "fieldname": "client_code_section",
    "fieldtype": "Section Break",
    "label": "Client Code"
+  },
+  {
+   "depends_on": "prepared_report",
+   "description": "Specify a custom timeout, default timeout is 1500 seconds",
+   "fieldname": "timeout",
+   "fieldtype": "Int",
+   "label": "Timeout (In Seconds)"
+  },
+  {
+   "default": "0",
+   "fieldname": "add_translate_data",
+   "fieldtype": "Check",
+   "label": "Add Translate Data"
   }
  ],
  "idx": 1,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-03-12 17:08:09.629411",
+ "modified": "2025-08-28 18:28:32.510719",
  "modified_by": "Administrator",
  "module": "Core",
  "name": "Report",
@@ -241,9 +247,10 @@
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "All"
+   "role": "Desk User"
   }
  ],
+ "row_format": "Dynamic",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "DESC",

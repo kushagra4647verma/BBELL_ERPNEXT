@@ -4,10 +4,32 @@
 import frappe
 from frappe.model.document import Document
 from frappe.query_builder.utils import DocType
+from frappe.utils import has_common
 
 
 class CustomHTMLBlock(Document):
-	pass
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.core.doctype.has_role.has_role import HasRole
+		from frappe.types import DF
+
+		html: DF.Code | None
+		private: DF.Check
+		roles: DF.Table[HasRole]
+		script: DF.Code | None
+		style: DF.Code | None
+	# end: auto-generated types
+
+	def validate(self):
+		self.validate_private()
+
+	def validate_private(self):
+		if not has_common(frappe.get_roles(), ["Administrator", "System Manager", "Workspace Manager"]):
+			self.private = 1
 
 
 @frappe.whitelist()
@@ -15,7 +37,7 @@ def get_custom_blocks_for_user(doctype, txt, searchfield, start, page_len, filte
 	# return logged in users private blocks and all public blocks
 	customHTMLBlock = DocType("Custom HTML Block")
 
-	condition_query = frappe.qb.get_query(customHTMLBlock)
+	condition_query = frappe.qb.from_(customHTMLBlock)
 
 	return (
 		condition_query.select(customHTMLBlock.name).where(

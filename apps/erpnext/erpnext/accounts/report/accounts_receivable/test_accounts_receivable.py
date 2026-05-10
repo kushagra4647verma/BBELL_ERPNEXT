@@ -84,10 +84,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 			"party": [self.customer],
 			"report_date": add_days(today(), 2),
 			"based_on_payment_terms": 0,
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"show_remarks": False,
 		}
 
@@ -117,10 +114,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 			"company": self.company,
 			"based_on_payment_terms": 1,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"show_remarks": True,
 		}
 
@@ -178,10 +172,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 			"company": self.company,
 			"based_on_payment_terms": 1,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"show_remarks": True,
 		}
 
@@ -208,15 +199,87 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		row = report[1]
 		self.assertTrue(len(row) == 0)
 
+	@change_settings(
+		"Accounts Settings",
+		{"allow_multi_currency_invoices_against_single_party_account": 1},
+	)
+	def test_allow_multi_currency_invoices_against_single_party_account(self):
+		filters = {
+			"company": self.company,
+			"based_on_payment_terms": 1,
+			"report_date": today(),
+			"range": "30, 60, 90, 120",
+			"show_remarks": True,
+			"in_party_currency": 1,
+		}
+
+		# CASE 1: Company currency and party account currency are the same
+		si = self.create_sales_invoice(qty=1, no_payment_schedule=True, do_not_submit=True)
+		si.currency = "USD"
+		si.conversion_rate = 80
+		si.save().submit()
+
+		filters.update(
+			{
+				"party_type": "Customer",
+				"party": [self.customer],
+			}
+		)
+		report = execute(filters)
+		row = report[1][0]
+
+		expected_data = [8000, 8000, "No Remarks"]  # Data in company currency
+
+		self.assertEqual(expected_data, [row.invoice_grand_total, row.invoiced, row.remarks])
+
+		# CASE 2: Transaction currency and party account currency are the same
+		self.create_customer(
+			"USD Customer", currency="USD", default_account=self.debtors_usd, company=self.company
+		)
+		si = create_sales_invoice(
+			item=self.item,
+			company=self.company,
+			customer=self.customer,
+			debit_to=self.debtors_usd,
+			posting_date=today(),
+			parent_cost_center=self.cost_center,
+			cost_center=self.cost_center,
+			rate=100,
+			currency="USD",
+			conversion_rate=80,
+			price_list_rate=100,
+			do_not_save=1,
+		)
+		si.save().submit()
+
+		filters.update(
+			{
+				"party_type": "Customer",
+				"party": [self.customer],
+			}
+		)
+		report = execute(filters)
+		row = report[1][0]
+
+		expected_data = [100, 100, "No Remarks"]  # Data in Part Account Currency
+
+		self.assertEqual(expected_data, [row.invoice_grand_total, row.invoiced, row.remarks])
+
+		# View in Company currency
+		filters.pop("in_party_currency")
+		report = execute(filters)
+		row = report[1][0]
+
+		expected_data = [8000, 8000, "No Remarks"]  # Data in Company Currency
+
+		self.assertEqual(expected_data, [row.invoice_grand_total, row.invoiced, row.remarks])
+
 	def test_accounts_receivable_with_partial_payment(self):
 		filters = {
 			"company": self.company,
 			"based_on_payment_terms": 1,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"show_remarks": True,
 		}
 
@@ -276,10 +339,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"show_remarks": True,
 		}
 
@@ -370,10 +430,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 			"company": self.company,
 			"based_on_payment_terms": 0,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 		}
 
 		report = execute(filters)
@@ -432,10 +489,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 		}
 		report = execute(filters)
 
@@ -501,10 +555,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 		}
 		report = execute(filters)
 		self.assertEqual(report[1], [])
@@ -520,10 +571,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"group_by_party": True,
 		}
 		report = execute(filters)[1]
@@ -597,10 +645,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"show_future_payments": True,
 		}
 		report = execute(filters)[1]
@@ -659,10 +704,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"sales_person": sales_person.name,
 			"show_sales_person": True,
 		}
@@ -679,10 +721,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"cost_center": self.cost_center,
 		}
 		report = execute(filters)[1]
@@ -697,10 +736,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"customer_group": cus_group,
 		}
 		report = execute(filters)[1]
@@ -722,10 +758,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"customer_group": cus_groups_list,  # Use the list of customer groups
 		}
 		report = execute(filters)[1]
@@ -746,6 +779,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 					"customer_name": "Jane Doe",
 					"type": "Individual",
 					"default_currency": "USD",
+					"customer_group": "Individual",
 				}
 			)
 			.insert()
@@ -764,10 +798,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"party_account": self.debit_to,
 		}
 		report = execute(filters)[1]
@@ -815,10 +846,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 			"party_type": "Customer",
 			"party": [self.customer],
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 			"in_party_currency": 1,
 		}
 
@@ -858,10 +886,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 			"party_type": "Customer",
 			"party": [self.customer1, self.customer3],
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 		}
 
 		si1 = self.create_sales_invoice(no_payment_schedule=True, do_not_submit=True)
@@ -941,10 +966,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 		}
 
 		report_ouput = execute(filters)[1]
@@ -981,6 +1003,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 					"customer_name": "Jane Doe",
 					"type": "Individual",
 					"default_currency": "USD",
+					"customer_group": "Individual",
 				}
 			)
 			.insert()
@@ -1007,10 +1030,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 			{
 				"company": self.company,
 				"report_date": today(),
-				"range1": 30,
-				"range2": 60,
-				"range3": 90,
-				"range4": 120,
+				"range": "30, 60, 90, 120",
 				"show_future_payments": True,
 				"in_party_currency": False,
 			}
@@ -1069,10 +1089,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 		}
 
 		# check invoice grand total and invoiced column's value for 3 payment terms
@@ -1095,10 +1112,7 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		filters = {
 			"company": self.company,
 			"report_date": today(),
-			"range1": 30,
-			"range2": 60,
-			"range3": 90,
-			"range4": 120,
+			"range": "30, 60, 90, 120",
 		}
 
 		# check invoice grand total and invoiced column's value for 3 payment terms
@@ -1127,3 +1141,115 @@ class TestAccountsReceivable(AccountsTestMixin, FrappeTestCase):
 		self.assertEqual(len(report[1]), 1)
 		row = report[1][0]
 		self.assertEqual(expected_data_after_payment, [row.voucher_no, row.cost_center, row.outstanding])
+
+	def test_payment_terms_template_filters(self):
+		from erpnext.controllers.accounts_controller import get_payment_terms
+
+		payment_term1 = frappe.get_doc(
+			{"doctype": "Payment Term", "payment_term_name": "_Test 50% on 15 Days"}
+		).insert()
+		payment_term2 = frappe.get_doc(
+			{"doctype": "Payment Term", "payment_term_name": "_Test 50% on 30 Days"}
+		).insert()
+
+		template = frappe.get_doc(
+			{
+				"doctype": "Payment Terms Template",
+				"template_name": "_Test 50-50",
+				"terms": [
+					{
+						"doctype": "Payment Terms Template Detail",
+						"due_date_based_on": "Day(s) after invoice date",
+						"payment_term": payment_term1.name,
+						"description": "_Test 50-50",
+						"invoice_portion": 50,
+						"credit_days": 15,
+					},
+					{
+						"doctype": "Payment Terms Template Detail",
+						"due_date_based_on": "Day(s) after invoice date",
+						"payment_term": payment_term2.name,
+						"description": "_Test 50-50",
+						"invoice_portion": 50,
+						"credit_days": 30,
+					},
+				],
+			}
+		)
+		template.insert()
+
+		filters = {
+			"company": self.company,
+			"report_date": today(),
+			"range": "30, 60, 90, 120",
+			"based_on_payment_terms": 1,
+			"payment_terms_template": template.name,
+			"ageing_based_on": "Posting Date",
+		}
+
+		si = self.create_sales_invoice(no_payment_schedule=True, do_not_submit=True)
+		si.payment_terms_template = template.name
+		schedule = get_payment_terms(template.name)
+		si.set("payment_schedule", [])
+
+		for row in schedule:
+			row["due_date"] = add_days(si.posting_date, row.get("credit_days", 0))
+			si.append("payment_schedule", row)
+
+		si.save()
+		si.submit()
+
+		report = execute(filters)
+		row = report[1][0]
+
+		self.assertEqual(len(report[1]), 2)
+		self.assertEqual([si.name, payment_term1.payment_term_name], [row.voucher_no, row.payment_term])
+
+	def test_project_filter(self):
+		project = frappe.get_doc(
+			{"doctype": "Project", "project_name": "_Test AR Project", "company": self.company}
+		).insert()
+
+		si = self.create_sales_invoice(no_payment_schedule=True, do_not_submit=True)
+		si.project = project.name
+		si.save().submit()
+
+		filters = {
+			"company": self.company,
+			"report_date": today(),
+			"range": "30, 60, 90, 120",
+			"project": [project.name],
+		}
+
+		report = execute(filters)[1]
+		self.assertEqual(len(report), 1)
+		row = report[0]
+		self.assertEqual(row.project, project.name)
+		self.assertEqual(row.invoiced, 100.0)
+
+	def test_project_on_report_output(self):
+		"""
+		Report row must carry the invoice's project even when the payment entry
+		has no project set.
+		"""
+		filters = {
+			"company": self.company,
+			"report_date": today(),
+			"range": "30, 60, 90, 120",
+		}
+
+		project = frappe.get_doc(
+			{"doctype": "Project", "project_name": "_Test AR Project Output", "company": self.company}
+		).insert()
+
+		si = self.create_sales_invoice(no_payment_schedule=True, do_not_submit=True)
+		si.project = project.name
+		si.save().submit()
+
+		# payment has no project — report row must still show the invoice's project
+		self.create_payment_entry(si.name)
+		report = execute(filters)
+
+		self.assertEqual(len(report[1]), 1)
+		row = report[1][0]
+		self.assertEqual([si.name, project.name, 60], [row.voucher_no, row.project, row.outstanding])

@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "autoname": "naming_series:",
  "creation": "2017-10-23 11:38:54.004355",
  "doctype": "DocType",
@@ -22,16 +23,14 @@
   "column_break_14",
   "project",
   "accounting_details",
-  "repair_cost",
+  "purchase_invoice",
   "capitalize_repair_cost",
   "stock_consumption",
   "column_break_8",
-  "purchase_invoice",
+  "repair_cost",
   "stock_consumption_details_section",
-  "warehouse",
   "stock_items",
   "total_repair_cost",
-  "stock_entry",
   "asset_depreciation_details_section",
   "increase_in_asset_life",
   "section_break_9",
@@ -123,7 +122,8 @@
    "default": "0",
    "fieldname": "repair_cost",
    "fieldtype": "Currency",
-   "label": "Repair Cost"
+   "label": "Repair Cost",
+   "read_only": 1
   },
   {
    "fieldname": "amended_from",
@@ -140,6 +140,7 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Asset",
+   "link_filters": "[[\"Asset\",\"status\",\"not in\",[\"Work In Progress\",\"Capitalized\",\"Fully Depreciated\",\"Sold\",\"Scrapped\",\"Cancelled\",null]]]",
    "options": "Asset",
    "reqd": 1
   },
@@ -220,13 +221,6 @@
    "read_only": 1
   },
   {
-   "depends_on": "stock_consumption",
-   "fieldname": "warehouse",
-   "fieldtype": "Link",
-   "label": "Warehouse",
-   "options": "Warehouse"
-  },
-  {
    "depends_on": "capitalize_repair_cost",
    "fieldname": "asset_depreciation_details_section",
    "fieldtype": "Section Break",
@@ -252,20 +246,12 @@
    "fieldtype": "Link",
    "label": "Company",
    "options": "Company"
-  },
-  {
-   "fieldname": "stock_entry",
-   "fieldtype": "Link",
-   "label": "Stock Entry",
-   "no_copy": 1,
-   "options": "Stock Entry",
-   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-07-29 15:14:34.044564",
+ "modified": "2026-01-06 15:48:13.862505",
  "modified_by": "Administrator",
  "module": "Assets",
  "name": "Asset Repair",
@@ -279,6 +265,7 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,
@@ -294,6 +281,7 @@
    "delete": 1,
    "email": 1,
    "export": 1,
+   "import": 1,
    "print": 1,
    "read": 1,
    "report": 1,

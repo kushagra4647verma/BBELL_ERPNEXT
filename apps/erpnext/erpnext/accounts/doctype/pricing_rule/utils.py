@@ -127,6 +127,10 @@ def _get_pricing_rules(apply_on, args, values):
 				values["variant_of"] = args.variant_of
 	elif apply_on_field == "item_group":
 		item_conditions = _get_tree_conditions(args, "Item Group", child_doc, False)
+		if args.get("uom", None):
+			item_conditions += " and ({child_doc}.uom='{item_uom}' or IFNULL({child_doc}.uom, '')='')".format(
+				child_doc=child_doc, item_uom=args.get("uom")
+			)
 
 	conditions += get_other_conditions(conditions, values, args)
 	warehouse_conditions = _get_tree_conditions(args, "Warehouse", "`tabPricing Rule`")
@@ -170,12 +174,9 @@ def _get_pricing_rules(apply_on, args, values):
 
 
 def apply_multiple_pricing_rules(pricing_rules):
-	apply_multiple_rule = [
-		d.apply_multiple_pricing_rules for d in pricing_rules if d.apply_multiple_pricing_rules
-	]
-
-	if not apply_multiple_rule:
-		return False
+	for d in pricing_rules:
+		if not d.apply_multiple_pricing_rules:
+			return False
 
 	return True
 
@@ -222,6 +223,10 @@ def _get_tree_conditions(args, parenttype, table, allow_blank=True):
 			)
 
 			frappe.flags.tree_conditions[key] = condition
+
+	elif allow_blank:
+		condition = f"ifnull({table}.{field}, '') = ''"
+
 	return condition
 
 
@@ -238,10 +243,15 @@ def get_other_conditions(conditions, values, args):
 		if group_condition:
 			conditions += " and " + group_condition
 
-	if args.get("transaction_date"):
+	date = (
+		args.get("transaction_date")
+		or args.get("posting_date")
+		or frappe.get_value(args.get("doctype"), args.get("name"), "posting_date", ignore=True)
+	)
+	if date:
 		conditions += """ and %(transaction_date)s between ifnull(`tabPricing Rule`.valid_from, '2000-01-01')
 			and ifnull(`tabPricing Rule`.valid_upto, '2500-12-31')"""
-		values["transaction_date"] = args.get("transaction_date")
+		values["transaction_date"] = date
 
 	if args.get("doctype") in [
 		"Quotation",
@@ -560,6 +570,7 @@ def apply_pricing_rule_on_transaction(doc):
 
 	if pricing_rules:
 		pricing_rules = filter_pricing_rules_for_qty_amount(doc.total_qty, doc.total, pricing_rules)
+		pricing_rules = filter_pricing_rule_based_on_condition(pricing_rules, doc)
 
 		if not pricing_rules:
 			remove_free_item(doc)
@@ -568,6 +579,8 @@ def apply_pricing_rule_on_transaction(doc):
 			if d.price_or_product_discount == "Price":
 				if d.apply_discount_on:
 					doc.set("apply_discount_on", d.apply_discount_on)
+				# Variable to track whether the condition has been met
+				condition_met = False
 
 				for field in ["additional_discount_percentage", "discount_amount"]:
 					pr_field = "discount_percentage" if field == "additional_discount_percentage" else field
@@ -575,11 +588,7 @@ def apply_pricing_rule_on_transaction(doc):
 					if not d.get(pr_field):
 						continue
 
-					if (
-						d.validate_applied_rule
-						and doc.get(field) is not None
-						and doc.get(field) < d.get(pr_field)
-					):
+					if d.validate_applied_rule and (doc.get(field) or 0) < d.get(pr_field):
 						frappe.msgprint(_("User has not applied rule on the invoice {0}").format(doc.name))
 					else:
 						if not d.coupon_code_based:
@@ -592,6 +601,11 @@ def apply_pricing_rule_on_transaction(doc):
 							if coupon_code_pricing_rule == d.name:
 								# if selected coupon code is linked with pricing rule
 								doc.set(field, d.get(pr_field))
+
+								# Set the condition_met variable to True and break out of the loop
+								condition_met = True
+								break
+
 							else:
 								# reset discount if not linked
 								doc.set(field, 0)
@@ -600,6 +614,10 @@ def apply_pricing_rule_on_transaction(doc):
 							doc.set(field, 0)
 
 				doc.calculate_taxes_and_totals()
+
+				# Break out of the main loop if the condition is met
+				if condition_met:
+					break
 			elif d.price_or_product_discount == "Product":
 				item_details = frappe._dict({"parenttype": doc.doctype, "free_item_data": []})
 				get_product_discount_rule(d, item_details, doc=doc)
@@ -638,8 +656,17 @@ def get_product_discount_rule(pricing_rule, item_details, args=None, doc=None):
 
 	qty = pricing_rule.free_qty or 1
 	if pricing_rule.is_recursive:
-		transaction_qty = (args.get("qty") if args else doc.total_qty) - pricing_rule.apply_recursion_over
-		if transaction_qty:
+		transaction_qty = sum(
+			[
+				flt(row.qty)
+				for row in doc.items
+				if not row.is_free_item
+				and row.item_code == args.item_code
+				and row.pricing_rules == args.pricing_rules
+			]
+		)
+		transaction_qty = transaction_qty - pricing_rule.apply_recursion_over
+		if transaction_qty and transaction_qty > 0:
 			qty = flt(transaction_qty) * qty / pricing_rule.recurse_for
 			if pricing_rule.round_free_qty:
 				qty = (flt(transaction_qty) // pricing_rule.recurse_for) * (pricing_rule.free_qty or 1)

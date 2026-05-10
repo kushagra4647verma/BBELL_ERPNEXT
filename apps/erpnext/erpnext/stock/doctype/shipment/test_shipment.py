@@ -20,6 +20,17 @@ class TestShipment(FrappeTestCase):
 		self.assertEqual(len(second_shipment.shipment_delivery_note), 1)
 		self.assertEqual(second_shipment.shipment_delivery_note[0].delivery_note, delivery_note.name)
 
+	def test_get_total_weight(self):
+		shipment = frappe.new_doc("Shipment")
+		shipment.extend(
+			"shipment_parcel",
+			[
+				{"length": 5, "width": 5, "height": 5, "weight": 5, "count": 5},
+				{"length": 5, "width": 5, "height": 5, "weight": 10, "count": 1},
+			],
+		)
+		self.assertEqual(shipment.get_total_weight(), 35)
+
 
 def create_test_delivery_note():
 	company = get_shipment_company()
@@ -166,7 +177,7 @@ def create_shipment_customer(customer_name):
 	customer = frappe.new_doc("Customer")
 	customer.customer_name = customer_name
 	customer.customer_type = "Company"
-	customer.customer_group = "All Customer Groups"
+	customer.customer_group = "Individual"
 	customer.territory = "All Territories"
 	customer.insert()
 	return customer

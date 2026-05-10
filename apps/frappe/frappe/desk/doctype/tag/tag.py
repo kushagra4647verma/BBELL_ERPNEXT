@@ -8,6 +8,16 @@ from frappe.utils import unique
 
 
 class Tag(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		description: DF.SmallText | None
+	# end: auto-generated types
 	pass
 
 
@@ -17,7 +27,7 @@ def check_user_tags(dt):
 		doctype = DocType(dt)
 		frappe.qb.from_(doctype).select(doctype._user_tags).limit(1).run()
 	except Exception as e:
-		if frappe.db.is_column_missing(e):
+		if frappe.db.is_missing_column(e):
 			DocTags(dt).setup()
 
 
@@ -57,7 +67,7 @@ def get_tags(doctype, txt):
 	tag = frappe.get_list("Tag", filters=[["name", "like", f"%{txt}%"]])
 	tags = [t.name for t in tag]
 
-	return sorted(filter(lambda t: t and txt.lower() in t.lower(), list(set(tags))))
+	return sorted(filter(lambda t: t and txt.casefold() in t.casefold(), list(set(tags))))
 
 
 class DocTags:
@@ -105,7 +115,7 @@ class DocTags:
 			doc = frappe.get_doc(self.dt, dn)
 			update_tags(doc, tags)
 		except Exception as e:
-			if frappe.db.is_column_missing(e):
+			if frappe.db.is_missing_column(e):
 				if not tags:
 					# no tags, nothing to do
 					return
@@ -173,16 +183,19 @@ def get_documents_for_tag(tag):
 	"""
 	# remove hastag `#` from tag
 	tag = tag[1:]
-	results = []
 
 	result = frappe.get_list(
 		"Tag Link", filters={"tag": tag}, fields=["document_type", "document_name", "title", "tag"]
 	)
 
-	for res in result:
-		results.append({"doctype": res.document_type, "name": res.document_name, "content": res.title})
-
-	return results
+	return [
+		{
+			"doctype": res.document_type,
+			"name": res.document_name,
+			"content": res.title,
+		}
+		for res in result
+	]
 
 
 @frappe.whitelist()

@@ -30,7 +30,7 @@ html, body {
 		<p>{{ message }}</p>
 		{% endif %}
 		{% if primary_action %}
-		<div><a href='{{ primary_action or "/" }}' class='btn btn-primary btn-sm'>
+		<div><a href='{{ primary_action or "/" }}' class='btn btn-primary btn-sm btn-block'>
 			{{ primary_label or _("Home") }}</a></div>
 		{% endif %}
 	{% endblock %}
@@ -42,7 +42,7 @@ html, body {
 <script>
 	frappe.ready(function() {
 		if (window.location.hash || window.location.href.includes('/app')) {
-			localStorage.setItem('session_last_route', window.location.pathname + window.location.hash + window.location.search);
+			localStorage.setItem('session_last_route', window.location.pathname);
 		}
 
 		$('.btn-primary').focus();

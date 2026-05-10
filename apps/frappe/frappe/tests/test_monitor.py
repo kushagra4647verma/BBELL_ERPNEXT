@@ -12,11 +12,11 @@ from frappe.utils.response import build_response
 class TestMonitor(FrappeTestCase):
 	def setUp(self):
 		frappe.conf.monitor = 1
-		frappe.cache().delete_value(MONITOR_REDIS_KEY)
+		frappe.cache.delete_value(MONITOR_REDIS_KEY)
 
 	def tearDown(self):
 		frappe.conf.monitor = 0
-		frappe.cache().delete_value(MONITOR_REDIS_KEY)
+		frappe.cache.delete_value(MONITOR_REDIS_KEY)
 
 	def test_enable_monitor(self):
 		set_request(method="GET", path="/api/method/frappe.ping")
@@ -25,7 +25,7 @@ class TestMonitor(FrappeTestCase):
 		frappe.monitor.start()
 		frappe.monitor.stop(response)
 
-		logs = frappe.cache().lrange(MONITOR_REDIS_KEY, 0, -1)
+		logs = frappe.cache.lrange(MONITOR_REDIS_KEY, 0, -1)
 		self.assertEqual(len(logs), 1)
 
 		log = frappe.parse_json(logs[0].decode())
@@ -43,7 +43,7 @@ class TestMonitor(FrappeTestCase):
 		frappe.monitor.start()
 		frappe.monitor.stop(response=None)
 
-		logs = frappe.cache().lrange(MONITOR_REDIS_KEY, 0, -1)
+		logs = frappe.cache.lrange(MONITOR_REDIS_KEY, 0, -1)
 		self.assertEqual(len(logs), 1)
 
 		log = frappe.parse_json(logs[0].decode())
@@ -56,7 +56,7 @@ class TestMonitor(FrappeTestCase):
 			frappe.local.site, "frappe.ping", None, None, {}, is_async=False
 		)
 
-		logs = frappe.cache().lrange(MONITOR_REDIS_KEY, 0, -1)
+		logs = frappe.cache.lrange(MONITOR_REDIS_KEY, 0, -1)
 		self.assertEqual(len(logs), 1)
 		log = frappe.parse_json(logs[0].decode())
 		self.assertEqual(log.transaction_type, "job")

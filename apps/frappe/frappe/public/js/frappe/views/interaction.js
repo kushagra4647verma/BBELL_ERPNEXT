@@ -49,7 +49,7 @@ frappe.views.InteractionComposer = class InteractionComposer {
 		let me = this;
 		let interaction_docs = Object.keys(get_doc_mappings());
 
-		let fields = [
+		return [
 			{
 				label: __("Reference"),
 				fieldtype: "Select",
@@ -75,7 +75,7 @@ frappe.views.InteractionComposer = class InteractionComposer {
 				options: "",
 				hidden: 1,
 			},
-			{ label: __("Public"), fieldtype: "Check", fieldname: "public", default: "1" },
+			{ label: __("Public"), fieldtype: "Check", fieldname: "public", default: "0" },
 			{ fieldtype: "Column Break" },
 			{ label: __("Date"), fieldtype: "Datetime", fieldname: "due_date" },
 			{
@@ -95,8 +95,6 @@ frappe.views.InteractionComposer = class InteractionComposer {
 				fieldname: "select_attachments",
 			},
 		];
-
-		return fields;
 	}
 
 	get_event_categories() {
@@ -284,31 +282,29 @@ frappe.views.InteractionComposer = class InteractionComposer {
 	}
 
 	assign_document(doc, assignee) {
-		if (doc.doctype != "ToDo") {
-			frappe.call({
-				method: "frappe.desk.form.assign_to.add",
-				args: {
-					doctype: doc.doctype,
-					name: doc.name,
-					assign_to: JSON.stringify([assignee]),
-				},
-				callback: function (r) {
-					if (!r.exc) {
-						frappe.show_alert({
-							message: __("The document has been assigned to {0}", [assignee]),
-							indicator: "green",
-						});
-						return;
-					} else {
-						frappe.show_alert({
-							message: __("The document could not be correctly assigned"),
-							indicator: "orange",
-						});
-						return;
-					}
-				},
-			});
-		}
+		frappe.call({
+			method: "frappe.desk.form.assign_to.add",
+			args: {
+				doctype: doc.doctype,
+				name: doc.name,
+				assign_to: JSON.stringify([assignee]),
+			},
+			callback: function (r) {
+				if (!r.exc) {
+					frappe.show_alert({
+						message: __("The document has been assigned to {0}", [assignee]),
+						indicator: "green",
+					});
+					return;
+				} else {
+					frappe.show_alert({
+						message: __("The document could not be correctly assigned"),
+						indicator: "orange",
+					});
+					return;
+				}
+			},
+		});
 	}
 
 	add_attachments(doc, attachments) {
@@ -337,7 +333,7 @@ frappe.views.InteractionComposer = class InteractionComposer {
 };
 
 function get_doc_mappings() {
-	const doc_map = {
+	return {
 		Event: {
 			field_map: {
 				interaction_type: "doctype",
@@ -363,6 +359,4 @@ function get_doc_mappings() {
 			hidden_fields: ["public", "category"],
 		},
 	};
-
-	return doc_map;
 }

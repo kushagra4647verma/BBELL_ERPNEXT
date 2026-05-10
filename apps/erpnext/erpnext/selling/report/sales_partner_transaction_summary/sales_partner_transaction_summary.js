@@ -1,6 +1,5 @@
 // Copyright (c) 2016, Frappe Technologies Pvt. Ltd. and contributors
 // For license information, please see license.txt
-/* eslint-disable */
 
 frappe.query_reports["Sales Partner Transaction Summary"] = {
 	filters: [
@@ -14,7 +13,7 @@ frappe.query_reports["Sales Partner Transaction Summary"] = {
 			fieldname: "doctype",
 			label: __("Document Type"),
 			fieldtype: "Select",
-			options: "Sales Order\nDelivery Note\nSales Invoice",
+			options: "Sales Order\nDelivery Note\nSales Invoice\nPOS Invoice",
 			default: "Sales Order",
 		},
 		{

@@ -21,9 +21,10 @@ frappe.ui.form.on("Customer", {
 		frm.add_fetch("default_sales_partner", "commission_rate", "default_commission_rate");
 		frm.set_query("default_price_list", { selling: 1 });
 		frm.set_query("account", "accounts", function (doc, cdt, cdn) {
-			var d = locals[cdt][cdn];
-			var filters = {
+			let d = locals[cdt][cdn];
+			let filters = {
 				account_type: "Receivable",
+				root_type: "Asset",
 				company: d.company,
 				is_group: 0,
 			};
@@ -36,23 +37,38 @@ frappe.ui.form.on("Customer", {
 			};
 		});
 
+		frm.set_query("advance_account", "accounts", function (doc, cdt, cdn) {
+			let d = locals[cdt][cdn];
+			return {
+				filters: {
+					account_type: "Receivable",
+					root_type: "Liability",
+					company: d.company,
+					is_group: 0,
+				},
+			};
+		});
+
 		if (frm.doc.__islocal == 1) {
 			frm.set_value("represents_company", "");
 		}
 
 		frm.set_query("customer_primary_contact", function (doc) {
 			return {
-				query: "erpnext.selling.doctype.customer.customer.get_customer_primary_contact",
+				query: "erpnext.selling.doctype.customer.customer.get_customer_primary",
 				filters: {
 					customer: doc.name,
+					type: "Contact",
 				},
 			};
 		});
+
 		frm.set_query("customer_primary_address", function (doc) {
 			return {
+				query: "erpnext.selling.doctype.customer.customer.get_customer_primary",
 				filters: {
-					link_doctype: "Customer",
-					link_name: doc.name,
+					customer: doc.name,
+					type: "Address",
 				},
 			};
 		});
@@ -61,6 +77,14 @@ frappe.ui.form.on("Customer", {
 			return {
 				filters: {
 					is_company_account: 1,
+				},
+			};
+		});
+
+		frm.set_query("user", "portal_users", function () {
+			return {
+				filters: {
+					ignore_user_type: true,
 				},
 			};
 		});
@@ -109,8 +133,6 @@ frappe.ui.form.on("Customer", {
 		} else {
 			erpnext.toggle_naming_series();
 		}
-
-		frappe.dynamic_link = { doc: frm.doc, fieldname: "name", doctype: "Customer" };
 
 		if (!frm.doc.__islocal) {
 			frappe.contacts.render_address_and_contact(frm);
@@ -178,6 +200,22 @@ frappe.ui.form.on("Customer", {
 		var grid = cur_frm.get_field("sales_team").grid;
 		grid.set_column_disp("allocated_amount", false);
 		grid.set_column_disp("incentives", false);
+
+		frm.set_query("customer_group", () => {
+			return {
+				filters: {
+					is_group: 0,
+				},
+			};
+		});
+
+		frm.set_query("territory", () => {
+			return {
+				filters: {
+					is_group: 0,
+				},
+			};
+		});
 	},
 	validate: function (frm) {
 		if (frm.doc.lead_name) frappe.model.clear_doc("Lead", frm.doc.lead_name);

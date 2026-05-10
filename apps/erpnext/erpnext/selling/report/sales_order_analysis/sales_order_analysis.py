@@ -53,6 +53,9 @@ def get_conditions(filters):
 	if filters.get("status"):
 		conditions += " and so.status in %(status)s"
 
+	if filters.get("warehouse"):
+		conditions += " and soi.warehouse = %(warehouse)s"
+
 	return conditions
 
 
@@ -83,7 +86,7 @@ def get_data(conditions, filters):
 			ON sii.so_detail = soi.name and sii.docstatus = 1
 		WHERE
 			soi.parent = so.name
-			and so.status not in ('Stopped', 'Closed', 'On Hold')
+			and so.status not in ('Stopped', 'On Hold')
 			and so.docstatus = 1
 			{conditions}
 		GROUP BY soi.name
@@ -170,7 +173,11 @@ def prepare_data(data, so_elapsed_time, filters):
 				# update existing entry
 				so_row = sales_order_map[so_name]
 				so_row["required_date"] = max(getdate(so_row["delivery_date"]), getdate(row["delivery_date"]))
-				so_row["delay"] = min(so_row["delay"], row["delay"])
+				so_row["delay"] = (
+					min(so_row["delay"], row["delay"])
+					if row["delay"] and so_row["delay"]
+					else so_row["delay"]
+				)
 
 				# sum numeric columns
 				fields = [

@@ -3,6 +3,8 @@ import KanbanSettings from "./kanban_settings";
 frappe.provide("frappe.views");
 
 frappe.views.KanbanView = class KanbanView extends frappe.views.ListView {
+	static no_sidebar = true;
+
 	static load_last_view() {
 		const route = frappe.get_route();
 		if (route.length === 3) {
@@ -25,6 +27,7 @@ frappe.views.KanbanView = class KanbanView extends frappe.views.ListView {
 
 	show() {
 		frappe.views.KanbanView.get_kanbans(this.doctype).then((kanbans) => {
+			frappe.route_options = {};
 			if (!kanbans.length) {
 				return frappe.views.KanbanView.show_kanban_dialog(this.doctype, true);
 			} else if (kanbans.length && frappe.get_route().length !== 4) {
@@ -145,7 +148,6 @@ frappe.views.KanbanView = class KanbanView extends frappe.views.ListView {
 	}
 
 	setup_page() {
-		this.hide_sidebar = true;
 		this.hide_page_form = true;
 		this.hide_card_layout = true;
 		this.hide_sort_selector = true;
@@ -153,7 +155,7 @@ frappe.views.KanbanView = class KanbanView extends frappe.views.ListView {
 	}
 
 	setup_view() {
-		if (this.board.columns.length > 5) {
+		if (this.board.columns.filter((col) => col.status !== "Archived").length > 5) {
 			this.page.container.addClass("full-width");
 		}
 		this.setup_realtime_updates();
@@ -224,6 +226,7 @@ frappe.views.KanbanView = class KanbanView extends frappe.views.ListView {
 				user_settings: this.view_user_settings,
 			});
 		} else if (board_name === this.kanban.board_name) {
+			this.$result.empty();
 			this.kanban.update(this.data);
 		}
 	}
@@ -243,7 +246,7 @@ frappe.views.KanbanView = class KanbanView extends frappe.views.ListView {
 
 		this.meta.fields.forEach((df) => {
 			const is_valid_field =
-				in_list(["Data", "Text", "Small Text", "Text Editor"], df.fieldtype) && !df.hidden;
+				["Data", "Text", "Small Text", "Text Editor"].includes(df.fieldtype) && !df.hidden;
 
 			if (is_valid_field && !title_field) {
 				// can be mapped to textarea

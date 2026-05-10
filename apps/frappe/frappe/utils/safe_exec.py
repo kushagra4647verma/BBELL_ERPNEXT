@@ -1,14 +1,18 @@
 import ast
 import copy
 import inspect
+import io
 import json
 import mimetypes
 import types
 from contextlib import contextmanager
 from functools import lru_cache
+from itertools import chain
+from types import FunctionType, MethodType, ModuleType
+from typing import TYPE_CHECKING, Any
 
 import RestrictedPython.Guards
-from RestrictedPython import compile_restricted, safe_globals
+from RestrictedPython import PrintCollector, compile_restricted, safe_globals
 from RestrictedPython.transformer import RestrictingNodeTransformer
 
 import frappe
@@ -25,7 +29,8 @@ from frappe.model.mapper import get_mapped_doc
 from frappe.model.rename_doc import rename_doc
 from frappe.modules import scrub
 from frappe.utils.background_jobs import enqueue, get_jobs
-from frappe.website.utils import get_next_link, get_shade, get_toc
+from frappe.utils.inplacevar import protected_inplacevar
+from frappe.website.utils import get_next_link, get_toc
 from frappe.www.printview import get_visible_columns
 
 
@@ -34,6 +39,9 @@ class ServerScriptNotEnabled(frappe.PermissionError):
 
 
 ARGUMENT_NOT_SET = object()
+
+SAFE_EXEC_CONFIG_KEY = "server_script_enabled"
+SERVER_SCRIPT_FILE_PREFIX = "<serverscript>"
 
 
 class NamespaceDict(frappe._dict):
@@ -58,16 +66,34 @@ class FrappeTransformer(RestrictingNodeTransformer):
 		return super().check_name(node, name, *args, **kwargs)
 
 
-def safe_exec(script, _globals=None, _locals=None, restrict_commit_rollback=False):
-	# server scripts can be disabled via site_config.json
-	# they are enabled by default
-	if "server_script_enabled" in frappe.conf:
-		enabled = frappe.conf.server_script_enabled
-	else:
-		enabled = True
+class FrappePrintCollector(PrintCollector):
+	"""Collect written text, and return it when called."""
 
-	if not enabled:
-		frappe.throw(_("Please Enable Server Scripts"), ServerScriptNotEnabled)
+	def _call_print(self, *objects, **kwargs):
+		output = io.StringIO()
+		print(*objects, file=output, **kwargs)
+		frappe.log(output.getvalue().strip())
+		output.close()
+
+
+def is_safe_exec_enabled() -> bool:
+	# server scripts can only be enabled via common_site_config.json
+	return bool(frappe.get_common_site_config().get(SAFE_EXEC_CONFIG_KEY))
+
+
+def safe_exec(
+	script: str,
+	_globals: dict | None = None,
+	_locals: dict | None = None,
+	*,
+	restrict_commit_rollback: bool = False,
+	script_filename: str | None = None,
+):
+	if not is_safe_exec_enabled():
+		msg = _("Server Scripts are disabled. Please enable server scripts from bench configuration.")
+		docs_cta = _("Read the documentation to know more")
+		msg += f"<br><a href='https://frappeframework.com/docs/user/en/desk/scripting/server-script'>{docs_cta}</a>"
+		frappe.throw(msg, ServerScriptNotEnabled, title="Server Scripts Disabled")
 
 	# build globals
 	exec_globals = get_safe_globals()
@@ -80,10 +106,14 @@ def safe_exec(script, _globals=None, _locals=None, restrict_commit_rollback=Fals
 		exec_globals.frappe.db.pop("rollback", None)
 		exec_globals.frappe.db.pop("add_index", None)
 
+	filename = SERVER_SCRIPT_FILE_PREFIX
+	if script_filename:
+		filename += f": {frappe.scrub(script_filename)}"
+
 	with safe_exec_flags(), patched_qb():
 		# execute script compiled by RestrictedPython
 		exec(
-			compile_restricted(script, filename="<serverscript>", policy=FrappeTransformer),
+			compile_restricted(script, filename=filename, policy=FrappeTransformer),
 			exec_globals,
 			_locals,
 		)
@@ -151,7 +181,7 @@ def get_safe_globals():
 	if "_" in form_dict:
 		del frappe.local.form_dict["_"]
 
-	user = getattr(frappe.local, "session", None) and frappe.local.session.user or "Guest"
+	user = (getattr(frappe.local, "session", None) and frappe.local.session.user) or "Guest"
 
 	out = NamespaceDict(
 		# make available limited methods of frappe
@@ -230,6 +260,10 @@ def get_safe_globals():
 				sql=read_sql,
 				commit=frappe.db.commit,
 				rollback=frappe.db.rollback,
+				after_commit=frappe.db.after_commit,
+				before_commit=frappe.db.before_commit,
+				after_rollback=frappe.db.after_rollback,
+				before_rollback=frappe.db.before_rollback,
 				add_index=frappe.db.add_index,
 			),
 			lang=getattr(frappe.local, "lang", "en"),
@@ -239,7 +273,6 @@ def get_safe_globals():
 		get_toc=get_toc,
 		get_next_link=get_next_link,
 		_=frappe._,
-		get_shade=get_shade,
 		scrub=scrub,
 		guess_mimetype=mimetypes.guess_type,
 		html2text=html2text,
@@ -263,14 +296,64 @@ def get_safe_globals():
 	out._getitem_ = _getitem
 	out._getattr_ = _getattr_for_safe_exec
 
+	# Allow using `print()` calls with `safe_exec()`
+	out._print_ = FrappePrintCollector
+
 	# allow iterators and list comprehension
 	out._getiter_ = iter
 	out._iter_unpack_sequence_ = RestrictedPython.Guards.guarded_iter_unpack_sequence
+	out._inplacevar_ = protected_inplacevar
 
 	# add common python builtins
 	out.update(get_python_builtins())
 
 	return out
+
+
+def get_keys_for_autocomplete(
+	key: str,
+	value: Any,
+	prefix: str = "",
+	offset: int = 0,
+	meta: str = "ctx",
+	depth: int = 0,
+	max_depth: int | None = None,
+):
+	if max_depth and depth > max_depth:
+		return
+	full_key = f"{prefix}.{key}" if prefix else key
+	if key.startswith("_"):
+		return
+	if isinstance(value, NamespaceDict | dict) and value:
+		if key == "form_dict":
+			yield {"value": full_key, "score": offset + 7, "meta": meta}
+		else:
+			yield from chain.from_iterable(
+				get_keys_for_autocomplete(
+					key,
+					value,
+					full_key,
+					offset,
+					meta,
+					depth + 1,
+					max_depth=max_depth,
+				)
+				for key, value in value.items()
+			)
+	else:
+		if isinstance(value, type) and issubclass(value, Exception):
+			score = offset + 0
+		elif isinstance(value, ModuleType):
+			score = offset + 10
+		elif isinstance(value, FunctionType | MethodType):
+			score = offset + 9
+		elif isinstance(value, type):
+			score = offset + 8
+		elif isinstance(value, dict):
+			score = offset + 7
+		else:
+			score = offset + 6
+		yield {"value": full_key, "score": score, "meta": meta}
 
 
 def is_job_queued(job_name, queue="default"):
@@ -445,7 +528,11 @@ def _getattr_for_safe_exec(object, name, default=None):
 	# 2. it is not an UNSAFE_ATTRIBUTES
 	_validate_attribute_read(object, name)
 
-	return RestrictedPython.Guards.safer_getattr(object, name, default=default)
+	ret = RestrictedPython.Guards.safer_getattr(object, name, default=default)
+	if isinstance(ret, types.ModuleType | types.CodeType | types.TracebackType | types.FrameType):
+		raise SyntaxError(f"Reading {type(ret)} is not allowed")
+
+	return ret
 
 
 def _get_attr_for_eval(object, name, default=ARGUMENT_NOT_SET):
@@ -464,7 +551,7 @@ def _validate_attribute_read(object, name):
 		raise SyntaxError(f"Reading {object} attributes is not allowed")
 
 	if name.startswith("_"):
-		raise AttributeError(f'"{name}" is an invalid attribute name because it ' 'starts with "_"')
+		raise AttributeError(f'"{name}" is an invalid attribute name because it starts with "_"')
 
 
 def _write(obj):
@@ -522,9 +609,7 @@ VALID_UTILS = (
 	"now_datetime",
 	"get_timestamp",
 	"get_eta",
-	"get_time_zone",
 	"get_system_timezone",
-	"convert_utc_to_user_timezone",
 	"convert_utc_to_system_timezone",
 	"now",
 	"nowdate",
@@ -613,6 +698,7 @@ VALID_UTILS = (
 	"get_user_info_for_avatar",
 	"get_abbr",
 	"get_month",
+	"sha256_hash",
 )
 
 
@@ -626,4 +712,5 @@ WHITELISTED_SAFE_EVAL_GLOBALS = {
 	"_getitem_": _getitem,
 	"_getiter_": iter,
 	"_iter_unpack_sequence_": RestrictedPython.Guards.guarded_iter_unpack_sequence,
+	"_inplacevar_": protected_inplacevar,
 }

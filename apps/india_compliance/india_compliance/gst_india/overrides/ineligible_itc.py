@@ -1,16 +1,18 @@
+from collections import defaultdict
+
 import frappe
-from frappe import _
-from frappe.utils import flt, get_link_to_form, rounded
 from erpnext.assets.doctype.asset.asset import (
     get_asset_account,
     is_cwip_accounting_enabled,
 )
 from erpnext.stock import get_warehouse_account_map
+from frappe import _
+from frappe.utils import flt, get_link_to_form
 
+from india_compliance.gst_india.constants import GST_TAX_TYPES
 from india_compliance.gst_india.overrides.transaction import (
     is_indian_registered_company,
 )
-from india_compliance.gst_india.utils import get_gst_accounts_by_type
 
 
 class IneligibleITC:
@@ -32,14 +34,57 @@ class IneligibleITC:
         - Only updates if its a stock item or fixed asset
         - No updates for expense items
         """
+
+        self.update_item_ineligibility()
+
+        if not self.doc.get("_has_ineligible_itc_items"):
+            return
+
+        for item in self.doc.items:
+            if not item.get("_ineligible_tax_amount"):
+                continue
+
+            if item.get("_is_stock_item") or item.get("is_fixed_asset"):
+                ineligible_tax_amount = item._ineligible_tax_amount
+                if self.doc.get("is_return"):
+                    ineligible_tax_amount = -ineligible_tax_amount
+
+                self.update_item_valuation_rate(item, ineligible_tax_amount)
+
+    def update_gl_entries(self, gl_entries):
+        self.gl_entries = gl_entries
+
+        self.update_item_ineligibility()
+
+        if not self.doc.get("_has_ineligible_itc_items"):
+            return gl_entries
+
+        if not self.company.default_gst_expense_account:
+            frappe.throw(
+                _("Please set <strong>Default GST Expense Account</strong> in Company {0}").format(
+                    get_link_to_form("Company", self.company.name)
+                )
+            )
+
+        for item in self.doc.items:
+            if not item.get("_ineligible_tax_amount"):
+                continue
+
+            self.update_item_gl_entries(item)
+
+    def update_item_ineligibility(self):
         self.doc._has_ineligible_itc_items = False
         stock_items = self.doc.get_stock_items()
 
+        self.tax_account_dict = {
+            row.gst_tax_type: row.account_head for row in self.doc.taxes if row.gst_tax_type
+        }
+
+        if not self.tax_account_dict:
+            return
+
         for item in self.doc.items:
-            if (
-                not self.is_eligibility_restricted_due_to_pos()
-                and not item.is_ineligible_for_itc
-            ):
+            if not self.is_eligibility_restricted_due_to_pos() and not item.is_ineligible_for_itc:
                 continue
 
             self.update_ineligible_taxes(item)
@@ -49,40 +94,6 @@ class IneligibleITC:
 
             if item.item_code in stock_items and self.is_perpetual:
                 item._is_stock_item = True
-
-            if item.get("_is_stock_item") or item.get("is_fixed_asset"):
-                ineligible_tax_amount = item._ineligible_tax_amount
-                if self.doc.get("is_return"):
-                    ineligible_tax_amount = -ineligible_tax_amount
-
-                # TODO: handle rounding off of gst amount from gst settings
-                self.update_item_valuation_rate(item, ineligible_tax_amount)
-
-    def update_gl_entries(self, gl_entries):
-        self.gl_entries = gl_entries
-
-        if (
-            frappe.flags.through_repost_accounting_ledger
-            or frappe.flags.through_repost_item_valuation
-        ):
-            self.doc.update_valuation_rate()
-            self.update_valuation_rate()
-
-        if not self.doc.get("_has_ineligible_itc_items"):
-            return gl_entries
-
-        if not self.company.default_gst_expense_account:
-            frappe.throw(
-                _(
-                    "Please set <strong>Default GST Expense Account</strong> in Company {0}"
-                ).format(get_link_to_form("Company", self.company.name))
-            )
-
-        for item in self.doc.items:
-            if not item.get("_ineligible_tax_amount"):
-                continue
-
-            self.update_item_gl_entries(item)
 
     def update_item_gl_entries(self, item):
         return
@@ -181,18 +192,12 @@ class IneligibleITC:
         This method reverses the Stock Adjustment Entry
         """
         stock_account = self.get_item_expense_account(item)
-        cogs_account = (
-            self.company.default_expense_account
-            or self.company.stock_received_but_not_billed
-        )
+        cogs_account = self.company.default_expense_account or self.company.stock_received_but_not_billed
 
         ineligible_item_tax_amount = item.get("_ineligible_tax_amount", 0)
 
         for entry in self.gl_entries:
-            if (
-                entry.get("account") != stock_account
-                or entry.get("cost_center") != item.cost_center
-            ):
+            if entry.get("account") != stock_account or entry.get("cost_center") != item.cost_center:
                 continue
 
             entry[self.dr_or_cr] -= ineligible_item_tax_amount
@@ -214,14 +219,11 @@ class IneligibleITC:
             )
 
         for entry in self.gl_entries:
-            if (
-                entry.get("account") != cogs_account
-                or entry.get("cost_center") != item.cost_center
-            ):
+            if entry.get("account") != cogs_account or entry.get("cost_center") != item.cost_center:
                 continue
 
-            entry[self.cr_or_dr] -= ineligible_item_tax_amount
-            entry[f"{self.cr_or_dr}_in_account_currency"] -= ineligible_item_tax_amount
+            entry[self.dr_or_cr] += ineligible_item_tax_amount
+            entry[f"{self.dr_or_cr}_in_account_currency"] += ineligible_item_tax_amount
             break
 
         else:
@@ -245,9 +247,7 @@ class IneligibleITC:
             item.expense_account = expense_account
             self.update_asset_valuation_rate(item)
 
-        elif item.get("_is_stock_item") and self.warehouse_account_map.get(
-            item.warehouse
-        ):
+        elif item.get("_is_stock_item") and self.warehouse_account_map.get(item.warehouse):
             expense_account = self.warehouse_account_map[item.warehouse]["account"]
 
         else:
@@ -272,39 +272,27 @@ class IneligibleITC:
             "Input SGST - FC": 50,
         }
         """
-        gst_accounts = get_gst_accounts_by_type(self.doc.company, "Input").values()
-        ineligible_taxes = frappe._dict()
+        ineligible_taxes = defaultdict(float)
+        ineligible_tax_amount = 0
 
-        for tax in self.doc.taxes:
-            if tax.account_head not in gst_accounts:
+        for tax_type in GST_TAX_TYPES:
+            tax_amount = abs(flt(item.get(f"{tax_type}_amount")))
+            tax_account = self.tax_account_dict.get(tax_type)
+
+            if not tax_amount:
                 continue
 
-            ineligible_taxes[tax.account_head] = self.get_item_tax_amount(item, tax)
+            ineligible_taxes[tax_account] += tax_amount
+            ineligible_tax_amount += tax_amount
 
         item._ineligible_taxes = ineligible_taxes
-        item._ineligible_tax_amount = sum(ineligible_taxes.values())
+        item._ineligible_tax_amount = ineligible_tax_amount
 
     def update_item_valuation_rate(self, item, ineligible_tax_amount):
-        item.valuation_rate += flt(ineligible_tax_amount / item.stock_qty, 2)
-
-    def get_item_tax_amount(self, item, tax):
-        """
-        Returns proportionate item tax amount for each tax component
-        """
-        tax_rate = rounded(
-            frappe.parse_json(tax.item_wise_tax_detail).get(
-                item.item_code or item.item_name
-            )[0],
-            3,
+        item.valuation_rate = flt(
+            item.valuation_rate + ineligible_tax_amount / item.stock_qty,
+            item.precision("valuation_rate"),
         )
-
-        tax_amount = (
-            tax_rate * item.qty
-            if tax.charge_type == "On Item Quantity"
-            else tax_rate * item.taxable_value / 100
-        )
-
-        return abs(tax_amount)
 
     def is_debit_entry_required(self, item):
         return True
@@ -318,7 +306,7 @@ class IneligibleITC:
             },
             {
                 "gross_purchase_amount": flt(item.valuation_rate),
-                "purchase_receipt_amount": flt(item.valuation_rate),
+                "purchase_amount": flt(item.valuation_rate),
             },
         )
 
@@ -327,16 +315,15 @@ class IneligibleITC:
 
 
 class PurchaseReceipt(IneligibleITC):
-
     def __init__(self, doc):
         doc.run_method("onload")
         super().__init__(doc)
 
     def update_valuation_rate(self):
         for item in self.doc.items:
-            item._remarks = self.doc.get("remarks") or _(
-                "Accounting Entry for {0}"
-            ).format("Asset" if item.is_fixed_asset else "Stock")
+            item._remarks = self.doc.get("remarks") or _("Accounting Entry for {0}").format(
+                "Asset" if item.is_fixed_asset else "Stock"
+            )
 
         super().update_valuation_rate()
 
@@ -356,12 +343,11 @@ class PurchaseReceipt(IneligibleITC):
 
 
 class PurchaseInvoice(IneligibleITC):
-
     def update_valuation_rate(self):
         for item in self.doc.items:
-            item._remarks = self.doc.get("remarks") or _(
-                "Accounting Entry for {0}"
-            ).format("Asset" if item.is_fixed_asset else "Stock")
+            item._remarks = self.doc.get("remarks") or _("Accounting Entry for {0}").format(
+                "Asset" if item.is_fixed_asset else "Stock"
+            )
 
         super().update_valuation_rate()
 
@@ -400,9 +386,11 @@ class BillOfEntry(IneligibleITC):
     def update_valuation_rate(self):
         # Update fixed assets
         asset_items = self.doc.get_asset_items()
+
+        purchase_invoices = [item.purchase_invoice for item in self.doc.items]
         expense_account = frappe.db.get_values(
             "Purchase Invoice Item",
-            {"parent": self.doc.purchase_invoice},
+            {"parent": ["in", purchase_invoices]},
             ["expense_account", "name"],
             as_dict=True,
         )
@@ -416,16 +404,6 @@ class BillOfEntry(IneligibleITC):
                 item.expense_account = expense_account[item.pi_detail]
 
         super().update_valuation_rate()
-
-    def get_item_tax_amount(self, item, tax):
-        tax_rate = frappe.parse_json(tax.item_wise_tax_rates).get(item.name)
-        if tax_rate is None:
-            return 0
-
-        tax_rate = rounded(tax_rate, 3)
-        tax_amount = tax_rate * item.taxable_value / 100
-
-        return abs(tax_amount)
 
     def update_item_valuation_rate(self, item, ineligible_tax_amount):
         item.valuation_rate = ineligible_tax_amount
@@ -453,7 +431,7 @@ class BillOfEntry(IneligibleITC):
                 continue
 
             total_gst_expense += gst_expense
-            item.applicable_charges += gst_expense / item.qty
+            item.applicable_charges += gst_expense
 
         if total_gst_expense == 0:
             return

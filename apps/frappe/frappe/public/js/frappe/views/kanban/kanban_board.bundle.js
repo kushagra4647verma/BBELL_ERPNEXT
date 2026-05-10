@@ -1,6 +1,6 @@
 // TODO: Refactor for better UX
 
-import Vuex from "vuex";
+import { createStore } from "vuex";
 
 frappe.provide("frappe.views");
 
@@ -9,7 +9,7 @@ frappe.provide("frappe.views");
 
 	let columns_unwatcher = null;
 
-	var store = new Vuex.Store({
+	var store = createStore({
 		state: {
 			doctype: "",
 			board: {},
@@ -95,7 +95,7 @@ frappe.provide("frappe.views");
 							});
 						},
 						function (err) {
-							console.error(err); // eslint-disable-line
+							console.error(err);
 						}
 					);
 			},
@@ -731,7 +731,9 @@ frappe.provide("frappe.views");
 				let field =
 					frappe.meta.docfield_map[card.doctype]?.[field_name] ||
 					frappe.model.get_std_field(field_name);
-				let label = cur_list.board.show_labels ? `<span>${__(field.label)}: </span>` : "";
+				let label = cur_list.board.show_labels
+					? `<span>${__(field.label, null, field.parent)}: </span>`
+					: "";
 				let value = frappe.format(card.doc[field_name], field);
 				fields.push(`
 					<div class="text-muted text-truncate">
@@ -757,7 +759,7 @@ frappe.provide("frappe.views");
 
 			if (card.comment_count > 0)
 				html += `<span class="list-comment-count small text-muted ">
-					${frappe.utils.icon("small-message")}
+					${frappe.utils.icon("es-line-chat-alt")}
 					${card.comment_count}
 				</span>`;
 

@@ -1,10 +1,10 @@
-
 name: Generate Semantic Release
 on:
   workflow_dispatch:
   push:
     branches:
       - version-14
+      - version-15
 jobs:
   release:
     name: Release
@@ -17,7 +17,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup Node.js
-        uses: actions/setup-node@v2
+        uses: actions/setup-node@v4
         with:
           node-version: 20
 

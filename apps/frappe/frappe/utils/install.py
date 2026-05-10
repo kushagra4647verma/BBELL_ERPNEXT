@@ -3,6 +3,7 @@
 import getpass
 
 import frappe
+from frappe.geo.doctype.country.country import import_country_and_currency
 from frappe.utils.password import update_password
 
 
@@ -23,13 +24,10 @@ def after_install():
 	install_basic_docs()
 
 	from frappe.core.doctype.file.utils import make_home_folder
-
-	make_home_folder()
-
-	import_country_and_currency()
-
 	from frappe.core.doctype.language.language import sync_languages
 
+	make_home_folder()
+	import_country_and_currency()
 	sync_languages()
 
 	# save default print setting
@@ -46,7 +44,6 @@ def after_install():
 		# only set home_page if the value doesn't exist in the db
 		if not frappe.db.get_default("desktop:home_page"):
 			frappe.db.set_default("desktop:home_page", "setup-wizard")
-			frappe.db.set_single_value("System Settings", "setup_complete", 0)
 
 	# clear test log
 	with open(frappe.get_site_path(".test_log"), "w") as f:
@@ -148,7 +145,7 @@ def before_tests():
 	frappe.clear_cache()
 
 	# complete setup if missing
-	if not int(frappe.db.get_single_value("System Settings", "setup_complete") or 0):
+	if not frappe.is_setup_complete():
 		complete_setup_wizard()
 
 	frappe.db.set_single_value("Website Settings", "disable_signup", 0)
@@ -172,53 +169,6 @@ def complete_setup_wizard():
 	)
 
 
-def import_country_and_currency():
-	from frappe.geo.country_info import get_all
-	from frappe.utils import update_progress_bar
-
-	data = get_all()
-
-	for i, name in enumerate(data):
-		update_progress_bar("Updating country info", i, len(data))
-		country = frappe._dict(data[name])
-		add_country_and_currency(name, country)
-
-	print("")
-
-	# enable frequently used currencies
-	for currency in ("INR", "USD", "GBP", "EUR", "AED", "AUD", "JPY", "CNY", "CHF"):
-		frappe.db.set_value("Currency", currency, "enabled", 1)
-
-
-def add_country_and_currency(name, country):
-	if not frappe.db.exists("Country", name):
-		frappe.get_doc(
-			{
-				"doctype": "Country",
-				"country_name": name,
-				"code": country.code,
-				"date_format": country.date_format or "dd-mm-yyyy",
-				"time_format": country.time_format or "HH:mm:ss",
-				"time_zones": "\n".join(country.timezones or []),
-				"docstatus": 0,
-			}
-		).db_insert()
-
-	if country.currency and not frappe.db.exists("Currency", country.currency):
-		frappe.get_doc(
-			{
-				"doctype": "Currency",
-				"currency_name": country.currency,
-				"fraction": country.currency_fraction,
-				"symbol": country.currency_symbol,
-				"fraction_units": country.currency_fraction_units,
-				"smallest_currency_fraction_value": country.smallest_currency_fraction_value,
-				"number_format": country.number_format,
-				"docstatus": 0,
-			}
-		).db_insert()
-
-
 def add_standard_navbar_items():
 	navbar_settings = frappe.get_single("Navbar Settings")
 
@@ -226,90 +176,13 @@ def add_standard_navbar_items():
 	if navbar_settings.settings_dropdown and navbar_settings.help_dropdown:
 		return
 
-	standard_navbar_items = [
-		{
-			"item_label": "My Profile",
-			"item_type": "Route",
-			"route": "/app/user-profile",
-			"is_standard": 1,
-		},
-		{
-			"item_label": "My Settings",
-			"item_type": "Action",
-			"action": "frappe.ui.toolbar.route_to_user()",
-			"is_standard": 1,
-		},
-		{
-			"item_label": "Session Defaults",
-			"item_type": "Action",
-			"action": "frappe.ui.toolbar.setup_session_defaults()",
-			"is_standard": 1,
-		},
-		{
-			"item_label": "Reload",
-			"item_type": "Action",
-			"action": "frappe.ui.toolbar.clear_cache()",
-			"is_standard": 1,
-		},
-		{
-			"item_label": "View Website",
-			"item_type": "Action",
-			"action": "frappe.ui.toolbar.view_website()",
-			"is_standard": 1,
-		},
-		{
-			"item_label": "Toggle Full Width",
-			"item_type": "Action",
-			"action": "frappe.ui.toolbar.toggle_full_width()",
-			"is_standard": 1,
-		},
-		{
-			"item_label": "Toggle Theme",
-			"item_type": "Action",
-			"action": "new frappe.ui.ThemeSwitcher().show()",
-			"is_standard": 1,
-		},
-		{
-			"item_type": "Separator",
-			"is_standard": 1,
-			"item_label": "",
-		},
-		{
-			"item_label": "Log out",
-			"item_type": "Action",
-			"action": "frappe.app.logout()",
-			"is_standard": 1,
-		},
-	]
-
-	standard_help_items = [
-		{
-			"item_label": "About",
-			"item_type": "Action",
-			"action": "frappe.ui.toolbar.show_about()",
-			"is_standard": 1,
-		},
-		{
-			"item_label": "Keyboard Shortcuts",
-			"item_type": "Action",
-			"action": "frappe.ui.toolbar.show_shortcuts(event)",
-			"is_standard": 1,
-		},
-		{
-			"item_label": "Frappe Support",
-			"item_type": "Route",
-			"route": "https://frappe.io/support",
-			"is_standard": 1,
-		},
-	]
-
 	navbar_settings.settings_dropdown = []
 	navbar_settings.help_dropdown = []
 
-	for item in standard_navbar_items:
+	for item in frappe.get_hooks("standard_navbar_items"):
 		navbar_settings.append("settings_dropdown", item)
 
-	for item in standard_help_items:
+	for item in frappe.get_hooks("standard_help_items"):
 		navbar_settings.append("help_dropdown", item)
 
 	navbar_settings.save()

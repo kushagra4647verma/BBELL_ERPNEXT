@@ -3,6 +3,7 @@
 
 import frappe
 from frappe import _
+from frappe.query_builder.custom import GROUP_CONCAT
 
 
 def execute(filters=None):
@@ -10,7 +11,7 @@ def execute(filters=None):
     if not filters:
         filters = {}
 
-    return get_columns(), get_data(filters)
+    return get_columns(filters), get_data(filters)
 
 
 def validate_filters(filters=None):
@@ -20,17 +21,12 @@ def validate_filters(filters=None):
 
     if not filters.company:
         frappe.throw(
-            _("{} is mandatory for generating Bill of Entry Summary Report").format(
-                _("Company")
-            ),
+            _("{} is mandatory for generating Bill of Entry Summary Report").format(_("Company")),
             title=_("Invalid Filter"),
         )
     if not filters.from_date or not filters.to_date:
         frappe.throw(
-            _(
-                "From Date & To Date is mandatory for generating Bill of Entry Summary"
-                " Report"
-            ),
+            _("From Date & To Date is mandatory for generating Bill of Entry Summary Report"),
             title=_("Invalid Filter"),
         )
     if filters.from_date > filters.to_date:
@@ -44,7 +40,6 @@ def get_data(filters):
         frappe.qb.from_(bill_of_entry)
         .select(
             bill_of_entry.name,
-            bill_of_entry.purchase_invoice,
             bill_of_entry.bill_of_entry_no,
             bill_of_entry.bill_of_entry_date,
             bill_of_entry.bill_of_lading_no,
@@ -56,11 +51,7 @@ def get_data(filters):
             bill_of_entry.total_amount_payable,
         )
         .where(bill_of_entry.docstatus == 1)
-        .where(
-            bill_of_entry.bill_of_entry_date[
-                filters.get("from_date") : filters.get("to_date")
-            ]
-        )
+        .where(bill_of_entry.bill_of_entry_date[filters.get("from_date") : filters.get("to_date")])
         .where(bill_of_entry.company == filters.get("company"))
     )
 
@@ -82,18 +73,25 @@ def update_journal_entry_for_payment(query):
 
 def update_purchase_invoice_query(query):
     bill_of_entry = frappe.qb.DocType("Bill of Entry")
+    bill_of_entry_item = frappe.qb.DocType("Bill of Entry Item")
     purchase_invoice = frappe.qb.DocType("Purchase Invoice")
 
     return (
-        query.left_join(purchase_invoice)
-        .on(purchase_invoice.name == bill_of_entry.purchase_invoice)
+        query.join(bill_of_entry_item)
+        .on(bill_of_entry_item.parent == bill_of_entry.name)
+        .left_join(purchase_invoice)
+        .on(purchase_invoice.name == bill_of_entry_item.purchase_invoice)
         .select(
+            GROUP_CONCAT(purchase_invoice.name, ",").as_("purchase_invoice"),
             purchase_invoice.supplier,
         )
+        .groupby(bill_of_entry.name)
     )
 
 
-def get_columns():
+def get_columns(filters):
+    company_currency = frappe.get_cached_value("Company", filters.get("company"), "default_currency")
+
     return [
         {
             "fieldname": "supplier",
@@ -112,7 +110,7 @@ def get_columns():
         {
             "fieldname": "purchase_invoice",
             "label": _("Purchase Invoice"),
-            "fieldtype": "Link",
+            "fieldtype": "Data",
             "options": "Purchase Invoice",
             "width": 130,
         },
@@ -146,28 +144,28 @@ def get_columns():
             "fieldname": "total_assessable_value",
             "label": _("Total Assessable Value"),
             "fieldtype": "Currency",
-            "options": "Company:company:default_currency",
+            "options": company_currency,
             "width": 110,
         },
         {
             "fieldname": "total_customs_duty",
             "label": _("Total Customs Duty"),
             "fieldtype": "Currency",
-            "options": "Company:company:default_currency",
+            "options": company_currency,
             "width": 110,
         },
         {
             "fieldname": "total_taxes",
             "label": _("Total Taxes"),
             "fieldtype": "Currency",
-            "options": "Company:company:default_currency",
+            "options": company_currency,
             "width": 100,
         },
         {
             "fieldname": "total_amount_payable",
             "label": _("Amount Payable"),
             "fieldtype": "Currency",
-            "options": "Company:company:default_currency",
+            "options": company_currency,
             "width": 90,
         },
     ]

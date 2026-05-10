@@ -26,16 +26,13 @@ def validate_filters(filters=None):
 
     if not settings.enable_e_invoice:
         frappe.throw(
-            _("e-Invoice is not enabled for your company."),
+            _("e-Invoice is not enabled in GST Settings"),
             title=_("Invalid Filter"),
         )
 
     if not filters.from_date or not filters.to_date:
         frappe.throw(
-            _(
-                "From Date & To Date is mandatory for generating e-Invoice Summary"
-                " Report"
-            ),
+            _("From Date & To Date is mandatory for generating e-Invoice Summary Report"),
             title=_("Invalid Filter"),
         )
     if filters.from_date > filters.to_date:
@@ -61,16 +58,9 @@ def get_data(filters=None):
             sales_invoice.company,
             e_invoice_log.acknowledgement_number,
             e_invoice_log.acknowledged_on,
-            Case()
-            .when(sales_invoice.docstatus == 1, "Submitted")
-            .else_("Cancelled")
-            .as_("docstatus"),
+            Case().when(sales_invoice.docstatus == 1, "Submitted").else_("Cancelled").as_("docstatus"),
         )
-        .where(
-            sales_invoice.posting_date[
-                filters.get("from_date") : filters.get("to_date")
-            ]
-        )
+        .where(sales_invoice.posting_date[filters.get("from_date") : filters.get("to_date")])
         .where(IfNull(sales_invoice.einvoice_status, "") != "")
         .where(sales_invoice.docstatus != 0)
         .where(sales_invoice.is_opening != "Yes")
@@ -89,6 +79,12 @@ def get_data(filters=None):
 
 
 def get_columns(filters=None):
+    if filters.get("company"):
+        company_currency = frappe.get_cached_value("Company", filters.get("company"), "default_currency")
+
+    else:
+        company_currency = "Company:company:default_currency"
+
     columns = [
         {
             "fieldtype": "Date",
@@ -136,7 +132,7 @@ def get_columns(filters=None):
         {"fieldtype": "Data", "fieldname": "irn", "label": _("IRN No."), "width": 250},
         {
             "fieldtype": "Currency",
-            "options": "Company:company:default_currency",
+            "options": company_currency,
             "fieldname": "base_grand_total",
             "label": _("Grand Total"),
             "width": 120,

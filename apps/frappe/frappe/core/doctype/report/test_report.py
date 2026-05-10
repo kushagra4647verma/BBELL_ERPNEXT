@@ -18,6 +18,11 @@ test_dependencies = ["User"]
 
 
 class TestReport(FrappeTestCase):
+	@classmethod
+	def setUpClass(cls) -> None:
+		cls.enable_safe_exec()
+		return super().setUpClass()
+
 	def test_report_builder(self):
 		if frappe.db.exists("Report", "User Activity Report"):
 			frappe.delete_doc("Report", "User Activity Report")
@@ -126,7 +131,12 @@ class TestReport(FrappeTestCase):
 		self.assertListEqual(["email"], [column.get("fieldname") for column in columns])
 		admin_dict = frappe.core.utils.find(result, lambda d: d["name"] == "Administrator")
 		self.assertDictEqual(
-			{"name": "Administrator", "user_type": "System User", "email": "admin@example.com"}, admin_dict
+			{
+				"name": "Administrator",
+				"user_type": "System User",
+				"email": "admin@example.com",
+			},
+			admin_dict,
 		)
 
 	def test_report_with_custom_column(self):
@@ -151,10 +161,18 @@ class TestReport(FrappeTestCase):
 		)
 		result = response.get("result")
 		columns = response.get("columns")
-		self.assertListEqual(["name", "email", "user_type"], [column.get("fieldname") for column in columns])
+		self.assertListEqual(
+			["name", "email", "user_type"],
+			[column.get("fieldname") for column in columns],
+		)
 		admin_dict = frappe.core.utils.find(result, lambda d: d["name"] == "Administrator")
 		self.assertDictEqual(
-			{"name": "Administrator", "user_type": "System User", "email": "admin@example.com"}, admin_dict
+			{
+				"name": "Administrator",
+				"user_type": "System User",
+				"email": "admin@example.com",
+			},
+			admin_dict,
 		)
 
 	def test_report_permissions(self):
@@ -246,18 +264,18 @@ class TestReport(FrappeTestCase):
 		report.report_script = """
 totals = {}
 for user in frappe.get_all('User', fields = ['name', 'user_type', 'creation']):
-	if not user.user_type in totals:
-		totals[user.user_type] = 0
-	totals[user.user_type] = totals[user.user_type] + 1
+    if not user.user_type in totals:
+        totals[user.user_type] = 0
+    totals[user.user_type] = totals[user.user_type] + 1
 
 data = [
-	[
-		{'fieldname': 'type', 'label': 'Type'},
-		{'fieldname': 'value', 'label': 'Value'}
-	],
-	[
-		{"type":key, "value": value} for key, value in totals.items()
-	]
+    [
+        {'fieldname': 'type', 'label': 'Type'},
+        {'fieldname': 'value', 'label': 'Value'}
+    ],
+    [
+        {"type":key, "value": value} for key, value in totals.items()
+    ]
 ]
 """
 		report.save()
@@ -292,13 +310,13 @@ data = [
 		report.report_script = """
 totals = {}
 for user in frappe.get_all('User', fields = ['name', 'user_type', 'creation']):
-	if not user.user_type in totals:
-		totals[user.user_type] = 0
-	totals[user.user_type] = totals[user.user_type] + 1
+    if not user.user_type in totals:
+        totals[user.user_type] = 0
+    totals[user.user_type] = totals[user.user_type] + 1
 
 result = [
-		{"type":key, "value": value} for key, value in totals.items()
-	]
+        {"type":key, "value": value} for key, value in totals.items()
+    ]
 """
 
 		report.save()
@@ -337,15 +355,40 @@ result = [
 		report_settings = {"tree": True, "parent_field": "parent_value"}
 
 		columns = [
-			{"fieldname": "parent_column", "label": "Parent Column", "fieldtype": "Data", "width": 10},
-			{"fieldname": "column_1", "label": "Column 1", "fieldtype": "Float", "width": 10},
-			{"fieldname": "column_2", "label": "Column 2", "fieldtype": "Float", "width": 10},
+			{
+				"fieldname": "parent_column",
+				"label": "Parent Column",
+				"fieldtype": "Data",
+				"width": 10,
+			},
+			{
+				"fieldname": "column_1",
+				"label": "Column 1",
+				"fieldtype": "Float",
+				"width": 10,
+			},
+			{
+				"fieldname": "column_2",
+				"label": "Column 2",
+				"fieldtype": "Float",
+				"width": 10,
+			},
 		]
 
 		result = [
 			{"parent_column": "Parent 1", "column_1": 200, "column_2": 150.50},
-			{"parent_column": "Child 1", "column_1": 100, "column_2": 75.25, "parent_value": "Parent 1"},
-			{"parent_column": "Child 2", "column_1": 100, "column_2": 75.25, "parent_value": "Parent 1"},
+			{
+				"parent_column": "Child 1",
+				"column_1": 100,
+				"column_2": 75.25,
+				"parent_value": "Parent 1",
+			},
+			{
+				"parent_column": "Child 2",
+				"column_1": 100,
+				"column_2": 75.25,
+				"parent_value": "Parent 1",
+			},
 		]
 
 		result = add_total_row(
@@ -362,13 +405,13 @@ result = [
 	def test_cte_in_query_report(self):
 		cte_query = textwrap.dedent(
 			"""
-			with enabled_users as (
-				select name
-				from `tabUser`
-				where enabled = 1
-			)
-			select * from enabled_users;
-		"""
+            with enabled_users as (
+                select name
+                from `tabUser`
+                where enabled = 1
+            )
+            select * from enabled_users;
+        """
 		)
 
 		report = frappe.get_doc(

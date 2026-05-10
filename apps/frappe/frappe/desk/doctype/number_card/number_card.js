@@ -34,7 +34,7 @@ frappe.ui.form.on("Number Card", {
 	},
 
 	create_add_to_dashboard_button: function (frm) {
-		frm.add_custom_button("Add Card to Dashboard", () => {
+		frm.add_custom_button(__("Add Card to Dashboard"), () => {
 			const dialog = frappe.dashboard_utils.get_add_to_dashboard_dialog(
 				frm.doc.name,
 				"Number Card",
@@ -304,7 +304,7 @@ frappe.ui.form.on("Number Card", {
 						frm.trigger("render_filters_table");
 					}
 				},
-				primary_action_label: "Set",
+				primary_action_label: __("Set"),
 			});
 
 			if (is_document_type) {
@@ -401,7 +401,7 @@ frappe.ui.form.on("Number Card", {
 					}
 					frm.trigger("set_dynamic_filters_in_table");
 				},
-				primary_action_label: "Set",
+				primary_action_label: __("Set"),
 			});
 
 			dialog.show();

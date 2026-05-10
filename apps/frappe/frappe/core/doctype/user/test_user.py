@@ -6,6 +6,8 @@ from contextlib import contextmanager
 from unittest.mock import patch
 from urllib.parse import parse_qs, urlparse
 
+from werkzeug.http import parse_cookie
+
 import frappe
 import frappe.exceptions
 from frappe.core.doctype.user.user import (
@@ -20,6 +22,7 @@ from frappe.core.doctype.user.user import (
 from frappe.desk.notifications import extract_mentions
 from frappe.frappeclient import FrappeClient
 from frappe.model.delete_doc import delete_doc
+from frappe.tests.test_api import FrappeAPITestCase
 from frappe.tests.utils import FrappeTestCase, change_settings
 from frappe.utils import get_url
 from frappe.www.login import sanitize_redirect
@@ -38,7 +41,7 @@ class TestUser(FrappeTestCase):
 
 	@staticmethod
 	def reset_password(user) -> str:
-		link = user.reset_password()
+		link = user._reset_password()
 		return parse_qs(urlparse(link).query)["key"][0]
 
 	def test_user_type(self):
@@ -284,12 +287,12 @@ class TestUser(FrappeTestCase):
 
 		# Clear rate limit tracker to start fresh
 		key = f"rl:{data['cmd']}:{data['user']}"
-		frappe.cache().delete(key)
+		frappe.cache.delete(key)
 
 		c = FrappeClient(url)
 		res1 = c.session.post(url, data=data, verify=c.verify, headers=c.headers)
 		res2 = c.session.post(url, data=data, verify=c.verify, headers=c.headers)
-		self.assertEqual(res1.status_code, 404)
+		self.assertEqual(res1.status_code, 200)
 		self.assertEqual(res2.status_code, 429)
 
 	def test_user_rename(self):
@@ -332,7 +335,7 @@ class TestUser(FrappeTestCase):
 			(1, "Please check your email for verification"),
 		)
 		self.assertEqual(
-			frappe.cache().hget("redirect_after_login", random_user), sanitize_redirect("/welcome")
+			frappe.cache.hget("redirect_after_login", random_user), sanitize_redirect("/welcome")
 		)
 
 		# re-register
@@ -387,9 +390,7 @@ class TestUser(FrappeTestCase):
 
 		# reset password
 		update_password(old_password, old_password=new_password)
-		self.assertRaisesRegex(
-			frappe.exceptions.ValidationError, "Invalid key type", update_password, "test", 1, ["like", "%"]
-		)
+		self.assertRaises(TypeError, update_password, "test", 1, ["like", "%"])
 
 		password_strength_response = {
 			"feedback": {"password_policy_validation_passed": False, "suggestions": ["Fix password"]}
@@ -408,31 +409,50 @@ class TestUser(FrappeTestCase):
 
 		# test redirect URL for website users
 		frappe.set_user("test2@example.com")
-		self.assertEqual(update_password(new_password, old_password=old_password), "/")
+		self.assertEqual(update_password(new_password, old_password=old_password), "me")
 		# reset password
 		update_password(old_password, old_password=new_password)
 
 		# test API endpoint
 		with patch.object(user_module.frappe, "sendmail") as sendmail:
+			from unittest.mock import MagicMock
+
+			mock_q = MagicMock()
+			mock_q.name = "test-email-queue-name"
+			mock_q.message = "Subject: Test\n\nDear User, here is your link"
+			sendmail.return_value = mock_q
 			frappe.clear_messages()
 			test_user = frappe.get_doc("User", "test2@example.com")
 			self.assertEqual(reset_password(user="test2@example.com"), None)
 			test_user.reload()
 			link = sendmail.call_args_list[0].kwargs["args"]["link"]
 			key = parse_qs(urlparse(link).query)["key"][0]
-			self.assertEqual(update_password(new_password, key=key), "/")
+			self.assertEqual(update_password(new_password, key=key), "me")
 			update_password(old_password, old_password=new_password)
 			self.assertEqual(
-				json.loads(frappe.message_log[0]).get("message"),
-				"Password reset instructions have been sent to your email",
+				frappe.message_log[0].get("message"),
+				"If this email is registered with us, we have sent password reset instructions to it. Please check your inbox.",
 			)
 
 		sendmail.assert_called_once()
 		self.assertEqual(sendmail.call_args[1]["recipients"], "test2@example.com")
 
-		self.assertEqual(reset_password(user="test2@example.com"), None)
-		self.assertEqual(reset_password(user="Administrator"), "not allowed")
-		self.assertEqual(reset_password(user="random"), "not found")
+		# Constant-response guarantee: every path — existing user, Administrator,
+		# and non-existent user — must return None AND enqueue the same generic
+		# message, so callers cannot distinguish between them.
+		_GENERIC_MSG = "If this email is registered with us, we have sent password reset instructions to it. Please check your inbox."
+
+		frappe.clear_messages()
+		self.assertIsNone(reset_password(user="test2@example.com"))
+		self.assertEqual(frappe.message_log[0].get("message"), _GENERIC_MSG)
+
+		frappe.clear_messages()
+		self.assertIsNone(reset_password(user="Administrator"))
+		self.assertEqual(frappe.message_log[0].get("message"), _GENERIC_MSG)
+
+		frappe.clear_messages()
+		self.assertIsNone(reset_password(user="random"))
+		self.assertEqual(frappe.message_log[0].get("message"), _GENERIC_MSG)
 
 	def test_user_onload_modules(self):
 		from frappe.config import get_modules_from_all_apps
@@ -460,6 +480,17 @@ class TestUser(FrappeTestCase):
 		)
 
 
+class TestImpersonation(FrappeAPITestCase):
+	def test_impersonation(self):
+		with test_user(roles=["System Manager"], commit=True) as user:
+			self.post(
+				self.method("frappe.core.doctype.user.user.impersonate"),
+				{"user": user.name, "reason": "test", "sid": self.sid},
+			)
+			resp = self.get(self.method("frappe.auth.get_logged_user"))
+			self.assertEqual(resp.json["message"], user.name)
+
+
 @contextmanager
 def test_user(
 	*, first_name: str | None = None, email: str | None = None, roles: list[str], commit=False, **kwargs
@@ -467,8 +498,8 @@ def test_user(
 	try:
 		first_name = first_name or frappe.generate_hash()
 		email = email or (first_name + "@example.com")
-		user: User = frappe.get_doc(
-			doctype="User",
+		user: User = frappe.new_doc(
+			"User",
 			send_welcome_email=0,
 			email=email,
 			first_name=first_name,

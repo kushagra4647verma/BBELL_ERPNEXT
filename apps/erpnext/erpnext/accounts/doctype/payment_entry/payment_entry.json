@@ -19,6 +19,8 @@
   "party_type",
   "party",
   "party_name",
+  "book_advance_payments_in_separate_party_account",
+  "reconcile_on_advance_payment_date",
   "column_break_11",
   "bank_account",
   "party_bank_account",
@@ -54,7 +56,6 @@
   "section_break_34",
   "total_allocated_amount",
   "base_total_allocated_amount",
-  "set_exchange_gain_loss",
   "column_break_36",
   "unallocated_amount",
   "difference_amount",
@@ -86,12 +87,15 @@
   "status",
   "custom_remarks",
   "remarks",
+  "base_in_words",
+  "is_opening",
   "column_break_16",
   "letter_head",
   "print_heading",
   "bank",
   "bank_account_no",
   "payment_order",
+  "in_words",
   "subscription_section",
   "auto_repeat",
   "amended_from",
@@ -147,6 +151,7 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "cost_center",
    "fieldtype": "Link",
    "label": "Cost Center",
@@ -197,14 +202,14 @@
    "fieldtype": "Column Break"
   },
   {
-   "depends_on": "party",
+   "depends_on": "eval: doc.party && doc.party_type !== \"Employee\"",
    "fieldname": "contact_person",
    "fieldtype": "Link",
    "label": "Contact",
    "options": "Contact"
   },
   {
-   "depends_on": "contact_person",
+   "depends_on": "eval: (doc.contact_person || doc.party_type === \"Employee\") && doc.contact_email",
    "fieldname": "contact_email",
    "fieldtype": "Data",
    "label": "Email",
@@ -218,10 +223,12 @@
    "label": "Accounts"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "party",
    "fieldname": "party_balance",
    "fieldtype": "Currency",
    "label": "Party Balance",
+   "no_copy": 1,
    "print_hide": 1,
    "read_only": 1
   },
@@ -247,6 +254,7 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "paid_from",
    "fieldname": "paid_from_account_balance",
    "fieldtype": "Currency",
@@ -280,6 +288,7 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "paid_to",
    "fieldname": "paid_to_account_balance",
    "fieldtype": "Currency",
@@ -385,11 +394,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "set_exchange_gain_loss",
-   "fieldtype": "Button",
-   "label": "Set Exchange Gain / Loss"
-  },
-  {
    "fieldname": "column_break_36",
    "fieldtype": "Column Break"
   },
@@ -473,6 +477,7 @@
    "label": "More Information"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "project",
    "fieldtype": "Link",
    "label": "Project",
@@ -595,6 +600,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
+   "no_copy": 1,
    "options": "\nDraft\nSubmitted\nCancelled",
    "read_only": 1
   },
@@ -736,8 +742,53 @@
    "fieldname": "get_outstanding_orders",
    "fieldtype": "Button",
    "label": "Get Outstanding Orders"
+  },
+  {
+   "default": "0",
+   "fetch_from": "company.book_advance_payments_in_separate_party_account",
+   "fieldname": "book_advance_payments_in_separate_party_account",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Book Advance Payments in Separate Party Account",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "base_in_words",
+   "fieldtype": "Small Text",
+   "label": "In Words (Company Currency)",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "in_words",
+   "fieldtype": "Small Text",
+   "label": "In Words",
+   "print_hide": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "fetch_from": "company.reconcile_on_advance_payment_date",
+   "fieldname": "reconcile_on_advance_payment_date",
+   "fieldtype": "Check",
+   "hidden": 1,
+   "label": "Reconcile on Advance Payment Date",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "No",
+   "depends_on": "eval: doc.book_advance_payments_in_separate_party_account == 1",
+   "fieldname": "is_opening",
+   "fieldtype": "Select",
+   "label": "Is Opening",
+   "options": "No\nYes",
+   "print_hide": 1,
+   "search_index": 1
   }
  ],
+ "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [
@@ -749,7 +800,7 @@
    "table_fieldname": "payment_entries"
   }
  ],
- "modified": "2023-11-23 12:07:20.887885",
+ "modified": "2025-05-15 18:01:04.013025",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Payment Entry",
@@ -789,6 +840,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "DESC",

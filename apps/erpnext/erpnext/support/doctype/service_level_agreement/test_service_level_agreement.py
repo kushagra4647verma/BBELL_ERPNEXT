@@ -16,7 +16,7 @@ from erpnext.support.doctype.service_level_agreement.service_level_agreement imp
 class TestServiceLevelAgreement(unittest.TestCase):
 	def setUp(self):
 		self.create_company()
-		frappe.db.set_value("Support Settings", None, "track_service_level_agreement", 1)
+		frappe.db.set_single_value("Support Settings", "track_service_level_agreement", 1)
 		lead = frappe.qb.DocType("Lead")
 		frappe.qb.from_(lead).delete().where(lead.company == self.company).run()
 
@@ -227,7 +227,7 @@ class TestServiceLevelAgreement(unittest.TestCase):
 
 		self.assertEqual(lead.service_level_agreement, lead_sla.name)
 		self.assertEqual(lead.response_by, datetime.datetime(2019, 3, 4, 16, 0))
-		self.assertEqual(lead.resolution_by, datetime.datetime(2019, 3, 4, 18, 0))
+		self.assertEqual(lead.sla_resolution_by, datetime.datetime(2019, 3, 4, 18, 0))
 
 		frappe.flags.current_time = datetime.datetime(2019, 3, 4, 15, 0)
 		lead.reload()
@@ -268,7 +268,7 @@ class TestServiceLevelAgreement(unittest.TestCase):
 
 		lead.reload()
 		self.assertEqual(flt(lead.total_hold_time, 2), 3000)
-		self.assertEqual(lead.resolution_by, datetime.datetime(2020, 3, 4, 16, 50))
+		self.assertEqual(lead.sla_resolution_by, datetime.datetime(2020, 3, 4, 16, 50))
 
 	def test_failed_sla_for_response_only(self):
 		doctype = "Lead"

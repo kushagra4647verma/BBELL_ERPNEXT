@@ -6,7 +6,7 @@ from collections import defaultdict
 import frappe
 from frappe import _
 from frappe.query_builder.functions import Sum
-from frappe.utils import flt, today
+from frappe.utils import flt, get_datetime, today
 
 
 def execute(filters=None):
@@ -70,6 +70,7 @@ def get_columns(filters):
 def get_data(filters):
 	data = []
 	batchwise_data = get_batchwise_data_from_stock_ledger(filters)
+	batchwise_data = get_batchwise_data_from_serial_batch_bundle(batchwise_data, filters)
 
 	data = parse_batchwise_data(batchwise_data)
 
@@ -118,6 +119,40 @@ def get_batchwise_data_from_stock_ledger(filters):
 	return batchwise_data
 
 
+def get_batchwise_data_from_serial_batch_bundle(batchwise_data, filters):
+	table = frappe.qb.DocType("Stock Ledger Entry")
+	ch_table = frappe.qb.DocType("Serial and Batch Entry")
+	batch = frappe.qb.DocType("Batch")
+
+	query = (
+		frappe.qb.from_(table)
+		.inner_join(ch_table)
+		.on(table.serial_and_batch_bundle == ch_table.parent)
+		.inner_join(batch)
+		.on(ch_table.batch_no == batch.name)
+		.select(
+			table.item_code,
+			ch_table.batch_no,
+			table.warehouse,
+			batch.expiry_date,
+			Sum(ch_table.qty).as_("balance_qty"),
+		)
+		.where((table.is_cancelled == 0) & (table.docstatus == 1))
+		.groupby(ch_table.batch_no, table.item_code, ch_table.warehouse)
+	)
+
+	query = get_query_based_on_filters(query, batch, table, filters)
+
+	for d in query.run(as_dict=True):
+		key = (d.item_code, d.warehouse, d.batch_no)
+		if key in batchwise_data:
+			batchwise_data[key].balance_qty += flt(d.balance_qty)
+		else:
+			batchwise_data.setdefault(key, d)
+
+	return batchwise_data
+
+
 def get_query_based_on_filters(query, batch, table, filters):
 	if filters.item_code:
 		query = query.where(table.item_code == filters.item_code)
@@ -132,7 +167,8 @@ def get_query_based_on_filters(query, batch, table, filters):
 		query = query.where(batch.batch_qty > 0)
 
 	else:
-		query = query.where(table.posting_date <= filters.to_date)
+		to_date = get_datetime(str(filters.to_date) + " 23:59:59")
+		query = query.where(table.posting_datetime <= to_date)
 
 	if filters.warehouse:
 		lft, rgt = frappe.db.get_value("Warehouse", filters.warehouse, ["lft", "rgt"])

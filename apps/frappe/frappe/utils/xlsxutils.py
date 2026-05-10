@@ -1,22 +1,33 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 # License: MIT. See LICENSE
+import datetime
 import re
 from io import BytesIO
 
 import openpyxl
 import xlrd
 from openpyxl import load_workbook
+from openpyxl.cell import WriteOnlyCell
 from openpyxl.styles import Font
 from openpyxl.utils import get_column_letter
 from openpyxl.workbook.child import INVALID_TITLE_REGEX
 
 import frappe
-from frappe import _
 from frappe.utils.html_utils import unescape_html
 
 ILLEGAL_CHARACTERS_RE = re.compile(
 	r"[\000-\010]|[\013-\014]|[\016-\037]|\uFEFF|\uFFFE|\uFFFF|[\uD800-\uDFFF]"
 )
+
+
+def get_excel_date_format():
+	date_format = frappe.get_system_settings("date_format")
+	time_format = frappe.get_system_settings("time_format")
+
+	# Excel-compatible format
+	date_format = date_format.replace("mm", "MM")
+
+	return date_format, time_format
 
 
 # return xlsx file object
@@ -35,6 +46,8 @@ def make_xlsx(data, sheet_name, wb=None, column_widths=None):
 	row1 = ws.row_dimensions[1]
 	row1.font = Font(name="Calibri", bold=True)
 
+	date_format, time_format = get_excel_date_format()
+
 	for row in data:
 		clean_row = []
 		for item in row:
@@ -47,7 +60,16 @@ def make_xlsx(data, sheet_name, wb=None, column_widths=None):
 				# Remove illegal characters from the string
 				value = ILLEGAL_CHARACTERS_RE.sub("", value)
 
-			clean_row.append(value)
+			if isinstance(value, datetime.date | datetime.datetime):
+				number_format = date_format
+				if isinstance(value, datetime.datetime):
+					number_format = f"{date_format} {time_format}"
+
+				cell = WriteOnlyCell(ws, value=value)
+				cell.number_format = number_format
+				clean_row.append(cell)
+			else:
+				clean_row.append(value)
 
 		ws.append(clean_row)
 
@@ -75,9 +97,7 @@ def handle_html(data):
 
 	value = ", ".join(value.split("  \n"))
 	value = " ".join(value.split("\n"))
-	value = ", ".join(value.split("# "))
-
-	return value
+	return ", ".join(value.split("# "))
 
 
 def read_xlsx_file_from_attached_file(file_url=None, fcontent=None, filepath=None):
@@ -95,10 +115,7 @@ def read_xlsx_file_from_attached_file(file_url=None, fcontent=None, filepath=Non
 	wb1 = load_workbook(filename=filename, data_only=True)
 	ws1 = wb1.active
 	for row in ws1.iter_rows():
-		tmp_list = []
-		for cell in row:
-			tmp_list.append(cell.value)
-		rows.append(tmp_list)
+		rows.append([cell.value for cell in row])
 	return rows
 
 
@@ -106,10 +123,7 @@ def read_xls_file_from_attached_file(content):
 	book = xlrd.open_workbook(file_contents=content)
 	sheets = book.sheets()
 	sheet = sheets[0]
-	rows = []
-	for i in range(sheet.nrows):
-		rows.append(sheet.row_values(i))
-	return rows
+	return [sheet.row_values(i) for i in range(sheet.nrows)]
 
 
 def build_xlsx_response(data, filename):

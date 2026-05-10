@@ -34,19 +34,17 @@ class TestGSTRMixin:
         if category:
             filters["classification"] = category.value
 
-        docname, last_updated_on = frappe.get_value(
-            self.log_doctype, filters, ["name", "last_updated_on"]
-        )
+        docname, last_updated_on = frappe.get_value(self.log_doctype, filters, ["name", "last_updated_on"])
         self.assertIsNotNone(docname)
-        self.assertAlmostEqual(
-            last_updated_on, get_datetime(), delta=timedelta(minutes=2)
-        )
+        self.assertAlmostEqual(last_updated_on, get_datetime(), delta=timedelta(minutes=2))
 
 
-class TestGSTR2a(FrappeTestCase, TestGSTRMixin):
+class TestGSTR2a(TestGSTRMixin, FrappeTestCase):
     # Tests as per version 2.1 of GSTR2A Dt: 14-10-2020
     @classmethod
     def setUpClass(cls):
+        super().setUpClass()
+
         cls.gstin = "01AABCE2207R1Z5"
         cls.return_period = "032020"
         cls.doctype = "GST Inward Supply"
@@ -59,15 +57,11 @@ class TestGSTR2a(FrappeTestCase, TestGSTRMixin):
             cls.test_data.copy(),
         )
 
-    @classmethod
-    def tearDownClass(cls):
-        frappe.db.delete(cls.doctype, {"company_gstin": cls.gstin})
-        frappe.db.delete(cls.log_doctype, {"gstin": cls.gstin})
-
     @patch("india_compliance.gst_india.utils.gstr_2.save_gstr")
     @patch("india_compliance.gst_india.utils.gstr_2.GSTR2aAPI")
     def test_download_gstr_2a(self, mock_gstr_2a_api, mock_save_gstr):
-        def mock_get_data(action, return_period, otp):
+
+        def mock_get_data(action, return_period):
             if action in ["B2B", "B2BA", "CDN", "CDNA"]:
                 return frappe._dict({action.lower(): self.test_data[action.lower()]})
             else:
@@ -117,6 +111,8 @@ class TestGSTR2a(FrappeTestCase, TestGSTRMixin):
                 "gstr_3b_filled": 1,
                 "gstr_1_filing_date": date(2019, 11, 18),
                 "registration_cancel_date": date(2019, 8, 27),
+                "is_downloaded_from_2a": 1,
+                "is_supplier_return_filed": 1,
             },
             doc,
         )
@@ -164,6 +160,8 @@ class TestGSTR2a(FrappeTestCase, TestGSTRMixin):
                 "gstr_3b_filled": 1,
                 "gstr_1_filing_date": date(2020, 5, 12),
                 "registration_cancel_date": date(2019, 8, 27),
+                "is_downloaded_from_2a": 1,
+                "is_supplier_return_filed": 1,
             },
             doc,
         )
@@ -200,10 +198,10 @@ class TestGSTR2a(FrappeTestCase, TestGSTRMixin):
                 "gstr_1_filing_date": date(2020, 5, 12),
                 "registration_cancel_date": date(2019, 8, 27),
                 "irn_source": "e-Invoice",
-                "irn_number": (
-                    "897ADG56RTY78956HYUG90BNHHIJK453GFTD99845672FDHHHSHGFH4567FG56TR"
-                ),
+                "irn_number": ("897ADG56RTY78956HYUG90BNHHIJK453GFTD99845672FDHHHSHGFH4567FG56TR"),
                 "irn_gen_date": date(2019, 12, 24),
+                "is_downloaded_from_2a": 1,
+                "is_supplier_return_filed": 1,
             },
             doc,
         )
@@ -241,6 +239,8 @@ class TestGSTR2a(FrappeTestCase, TestGSTRMixin):
                 "gstr_3b_filled": 1,
                 "gstr_1_filing_date": date(2019, 11, 18),
                 "registration_cancel_date": date(2019, 8, 27),
+                "is_downloaded_from_2a": 1,
+                "is_supplier_return_filed": 1,
             },
             doc,
         )
@@ -259,14 +259,11 @@ class TestGSTR2a(FrappeTestCase, TestGSTRMixin):
                 "amendment_type": "Receiver GSTIN Amended",
                 "is_amended": 1,
                 "document_value": 80,
-                "items": [
-                    {
-                        "igst": 20,
-                        "cgst": 20,
-                        "sgst": 20,
-                        "cess": 20,
-                    }
-                ],
+                "igst": 20,
+                "cgst": 20,
+                "sgst": 20,
+                "cess": 20,
+                "is_downloaded_from_2a": 1,
             },
             doc,
         )
@@ -286,13 +283,10 @@ class TestGSTR2a(FrappeTestCase, TestGSTRMixin):
                 "doc_type": "Bill of Entry",
                 "is_amended": 0,
                 "document_value": 246.54,
-                "items": [
-                    {
-                        "taxable_value": 123.02,
-                        "igst": 123.02,
-                        "cess": 0.5,
-                    }
-                ],
+                "taxable_value": 123.02,
+                "igst": 123.02,
+                "cess": 0.5,
+                "is_downloaded_from_2a": 1,
             },
             doc,
         )
@@ -310,15 +304,12 @@ class TestGSTR2a(FrappeTestCase, TestGSTRMixin):
                 "supplier_name": "GSTN",
                 "is_amended": 0,
                 "document_value": 246.54,
-                "items": [
-                    {
-                        "taxable_value": 123.02,
-                        "igst": 123.02,
-                        "cgst": 0,
-                        "sgst": 0,
-                        "cess": 0.5,
-                    }
-                ],
+                "taxable_value": 123.02,
+                "igst": 123.02,
+                "cgst": 0,
+                "sgst": 0,
+                "cess": 0.5,
+                "is_downloaded_from_2a": 1,
             },
             doc,
         )

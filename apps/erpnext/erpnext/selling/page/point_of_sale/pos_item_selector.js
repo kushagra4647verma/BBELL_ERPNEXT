@@ -38,8 +38,13 @@ erpnext.PointOfSale.ItemSelector = class {
 
 	async load_items_data() {
 		if (!this.item_group) {
-			const res = await frappe.db.get_value("Item Group", { lft: 1, is_group: 1 }, "name");
-			this.parent_item_group = res.message.name;
+			frappe.call({
+				method: "erpnext.selling.page.point_of_sale.point_of_sale.get_parent_item_group",
+				async: false,
+				callback: (r) => {
+					if (r.message) this.parent_item_group = r.message;
+				},
+			});
 		}
 		if (!this.price_list) {
 			const res = await frappe.db.get_value("POS Profile", this.pos_profile, "selling_price_list");
@@ -77,7 +82,7 @@ erpnext.PointOfSale.ItemSelector = class {
 	get_item_html(item) {
 		const me = this;
 		// eslint-disable-next-line no-unused-vars
-		const { item_image, serial_no, batch_no, barcode, actual_qty, stock_uom, price_list_rate } = item;
+		const { item_image, serial_no, batch_no, barcode, actual_qty, uom, price_list_rate } = item;
 		const precision = flt(price_list_rate, 2) % 1 != 0 ? 2 : 0;
 		let indicator_color;
 		let qty_to_display = actual_qty;
@@ -99,7 +104,7 @@ erpnext.PointOfSale.ItemSelector = class {
 				return `<div class="item-qty-pill">
 							<span class="indicator-pill whitespace-nowrap ${indicator_color}">${qty_to_display}</span>
 						</div>
-						<div class="flex items-center justify-center h-32 border-b-grey text-6xl text-grey-100">
+						<div class="flex items-center justify-center border-b-grey text-6xl text-grey-100" style="height:8rem; min-height:8rem">
 							<img
 								onerror="cur_pos.item_selector.handle_broken_image(this)"
 								class="h-full item-img" src="${item_image}"
@@ -116,8 +121,9 @@ erpnext.PointOfSale.ItemSelector = class {
 
 		return `<div class="item-wrapper"
 				data-item-code="${escape(item.item_code)}" data-serial-no="${escape(serial_no)}"
-				data-batch-no="${escape(batch_no)}" data-uom="${escape(stock_uom)}"
+				data-batch-no="${escape(batch_no)}" data-uom="${escape(uom)}"
 				data-rate="${escape(price_list_rate || 0)}"
+				data-stock-uom="${escape(item.stock_uom)}"
 				title="${item.item_name}">
 
 				${get_item_image_html()}
@@ -126,7 +132,7 @@ erpnext.PointOfSale.ItemSelector = class {
 					<div class="item-name">
 						${frappe.ellipsis(item.item_name, 18)}
 					</div>
-					<div class="item-rate">${format_currency(price_list_rate, item.currency, precision) || 0}</div>
+					<div class="item-rate">${format_currency(price_list_rate, item.currency, precision) || 0} / ${uom}</div>
 				</div>
 			</div>`;
 	}
@@ -138,7 +144,6 @@ erpnext.PointOfSale.ItemSelector = class {
 
 	make_search_bar() {
 		const me = this;
-		const doc = me.events.get_frm().doc;
 		this.$component.find(".search-field").html("");
 		this.$component.find(".item-group-field").html("");
 
@@ -163,6 +168,7 @@ erpnext.PointOfSale.ItemSelector = class {
 					me.filter_items();
 				},
 				get_query: function () {
+					const doc = me.events.get_frm().doc;
 					return {
 						query: "erpnext.selling.page.point_of_sale.point_of_sale.item_group_query",
 						filters: {
@@ -251,17 +257,19 @@ erpnext.PointOfSale.ItemSelector = class {
 			let serial_no = unescape($item.attr("data-serial-no"));
 			let uom = unescape($item.attr("data-uom"));
 			let rate = unescape($item.attr("data-rate"));
+			let stock_uom = unescape($item.attr("data-stock-uom"));
 
 			// escape(undefined) returns "undefined" then unescape returns "undefined"
 			batch_no = batch_no === "undefined" ? undefined : batch_no;
 			serial_no = serial_no === "undefined" ? undefined : serial_no;
 			uom = uom === "undefined" ? undefined : uom;
 			rate = rate === "undefined" ? undefined : rate;
+			stock_uom = stock_uom === "undefined" ? undefined : stock_uom;
 
 			me.events.item_selected({
 				field: "qty",
 				value: "+1",
-				item: { item_code, batch_no, serial_no, uom, rate },
+				item: { item_code, batch_no, serial_no, uom, rate, stock_uom },
 			});
 			me.search_field.set_focus();
 		});
@@ -337,7 +345,10 @@ erpnext.PointOfSale.ItemSelector = class {
 				const items = this.search_index[selling_price_list][search_term];
 				this.items = items;
 				this.render_item_list(items);
-				this.auto_add_item && this.items.length == 1 && this.add_filtered_item_to_cart();
+				this.auto_add_item &&
+					this.search_field.$input[0].value &&
+					this.items.length == 1 &&
+					this.add_filtered_item_to_cart();
 				return;
 			}
 		}
@@ -350,7 +361,10 @@ erpnext.PointOfSale.ItemSelector = class {
 			}
 			this.items = items;
 			this.render_item_list(items);
-			this.auto_add_item && this.items.length == 1 && this.add_filtered_item_to_cart();
+			this.auto_add_item &&
+				this.search_field.$input[0].value &&
+				this.items.length == 1 &&
+				this.add_filtered_item_to_cart();
 		});
 	}
 

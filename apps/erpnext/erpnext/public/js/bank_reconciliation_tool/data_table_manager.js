@@ -16,7 +16,7 @@ erpnext.accounts.bank_reconciliation.DataTableManager = class DataTableManager {
 	}
 
 	make_dt() {
-		var me = this;
+		const me = this;
 		frappe.call({
 			method: "erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool.get_bank_transactions",
 			args: {
@@ -39,8 +39,8 @@ erpnext.accounts.bank_reconciliation.DataTableManager = class DataTableManager {
 				name: __("Date"),
 				editable: false,
 				width: 100,
+				format: frappe.form.formatters.Date,
 			},
-
 			{
 				name: __("Party Type"),
 				editable: false,
@@ -112,17 +112,15 @@ erpnext.accounts.bank_reconciliation.DataTableManager = class DataTableManager {
 		return [
 			row["date"],
 			row["party_type"],
-			row["party"],
+			frappe.form.formatters.Link(row["party"], { options: row["party_type"] }),
 			row["description"],
 			row["deposit"],
 			row["withdrawal"],
 			row["unallocated_amount"],
 			row["reference_number"],
-			`
-			<Button class="btn btn-primary btn-xs center"  data-name = ${row["name"]} >
-				${__("Actions")}
-			</a>
-			`,
+			`<button class="btn btn-primary btn-xs center" data-name="${row["name"]}">${__(
+				"Actions"
+			)}</button>`,
 		];
 	}
 
@@ -195,6 +193,7 @@ erpnext.accounts.bank_reconciliation.DataTableManager = class DataTableManager {
 				args: {
 					bank_account: this.bank_account,
 					till_date: this.bank_statement_to_date,
+					company: this.company,
 				},
 				callback: (response) => (this.cleared_balance = response.message),
 			});

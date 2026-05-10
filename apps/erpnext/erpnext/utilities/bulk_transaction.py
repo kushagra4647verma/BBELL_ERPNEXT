@@ -16,9 +16,30 @@ def transaction_processing(data, from_doctype, to_doctype):
 	else:
 		deserialized_data = data
 
+	skipped_records = [d for d in deserialized_data if d.get("status") in ("On Hold", "Closed")]
+
+	deserialized_data = [d for d in deserialized_data if d.get("status") not in ("On Hold", "Closed")]
+
 	length_of_data = len(deserialized_data)
 
-	frappe.msgprint(_("Started a background job to create {1} {0}").format(to_doctype, length_of_data))
+	skipped_msg = ""
+
+	if skipped_records:
+		skipped_msg = _("{0} creation for the following records will be skipped.").format(to_doctype)
+
+		skipped_msg += (
+			"<br><br><ul>"
+			+ "".join(_("<li>{}</li>").format(frappe.bold(row.get("name"))) for row in skipped_records)
+			+ "</ul>"
+		)
+
+	if not length_of_data:
+		frappe.msgprint(skipped_msg)
+		return
+
+	frappe.msgprint(
+		_("Started a background job to create {1} {0}. {2}").format(to_doctype, length_of_data, skipped_msg)
+	)
 	frappe.enqueue(
 		job,
 		deserialized_data=deserialized_data,
@@ -140,6 +161,12 @@ def task(doc_name, from_doctype, to_doctype):
 		},
 		"Purchase Receipt": {"Purchase Invoice": purchase_receipt.make_purchase_invoice},
 	}
+
+	hooks = frappe.get_hooks("bulk_transaction_task_mapper")
+	for hook in hooks:
+		mapper.update(frappe.get_attr(hook)())
+
+	frappe.flags.bulk_transaction = True
 	if to_doctype in ["Payment Entry"]:
 		obj = mapper[from_doctype][to_doctype](from_doctype, doc_name)
 	else:
@@ -148,6 +175,7 @@ def task(doc_name, from_doctype, to_doctype):
 	obj.flags.ignore_validate = True
 	obj.set_title_field()
 	obj.insert(ignore_mandatory=True)
+	del frappe.flags.bulk_transaction
 
 
 def create_log(doc_name, e, from_doctype, to_doctype, status, log_date=None, restarted=0):

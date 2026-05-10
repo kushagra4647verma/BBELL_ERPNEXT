@@ -2,8 +2,6 @@ import json
 from contextlib import contextmanager
 
 import frappe
-from frappe.tests.utils import FrappeTestCase, change_settings
-from frappe.utils import today
 from erpnext.controllers.sales_and_purchase_return import make_return_doc
 from erpnext.stock.doctype.purchase_receipt.purchase_receipt import (
     make_purchase_invoice,
@@ -11,6 +9,8 @@ from erpnext.stock.doctype.purchase_receipt.purchase_receipt import (
 from erpnext.stock.doctype.repost_item_valuation.repost_item_valuation import (
     repost_entries,
 )
+from frappe.tests.utils import FrappeTestCase, change_settings
+from frappe.utils import today
 
 from india_compliance.gst_india.doctype.bill_of_entry.bill_of_entry import (
     make_bill_of_entry,
@@ -158,9 +158,7 @@ class TestIneligibleITC(FrappeTestCase):
             ],
         )
 
-        self.assertStockValues(
-            doc.name, {"Test Stock Item": 20, "Test Ineligible Stock Item": 22.42}
-        )
+        self.assertStockValues(doc.name, {"Test Stock Item": 20, "Test Ineligible Stock Item": 22.42})
         self.assertAssetValues(
             "Purchase Invoice",
             doc.name,
@@ -176,16 +174,13 @@ class TestIneligibleITC(FrappeTestCase):
             },
         ):
             settings = frappe.get_single("Repost Accounting Ledger Settings")
-            settings.append(
-                "allowed_types", {"document_type": "Purchase Invoice", "allowed": 1}
-            )
+            settings.append("allowed_types", {"document_type": "Purchase Invoice", "allowed": 1})
             settings.save()
 
         doc.items[4].expense_account = "Office Rent - _TIRC"
         doc.items[5].expense_account = "Office Rent - _TIRC"
 
-        doc.save()
-        doc.repost_accounting_entries()
+        doc.save()  # Repost Accounting on Save
 
         expected_entries = [
             {"account": "Round Off - _TIRC", "debit": 0.28, "credit": 0.0},
@@ -250,6 +245,7 @@ class TestIneligibleITC(FrappeTestCase):
             "items": SAMPLE_ITEM_LIST,
             "place_of_supply": "27-Maharashtra",
             "is_out_state": 1,
+            "supplier_address": "_Test Registered Supplier-Billing",
         }
 
         doc = create_transaction(**transaction_details)
@@ -289,9 +285,7 @@ class TestIneligibleITC(FrappeTestCase):
             ],
         )
 
-        self.assertStockValues(
-            doc.name, {"Test Stock Item": 23.6, "Test Ineligible Stock Item": 22.42}
-        )
+        self.assertStockValues(doc.name, {"Test Stock Item": 23.6, "Test Ineligible Stock Item": 22.42})
         self.assertAssetValues(
             "Purchase Invoice",
             doc.name,
@@ -342,9 +336,7 @@ class TestIneligibleITC(FrappeTestCase):
             ],
         )
 
-        self.assertStockValues(
-            doc.name, {"Test Stock Item": 20, "Test Ineligible Stock Item": 22.42}
-        )
+        self.assertStockValues(doc.name, {"Test Stock Item": 20, "Test Ineligible Stock Item": 22.42})
         self.assertAssetValues(
             "Purchase Receipt",
             doc.name,
@@ -419,6 +411,7 @@ class TestIneligibleITC(FrappeTestCase):
             "items": SAMPLE_ITEM_LIST,
             "place_of_supply": "27-Maharashtra",
             "is_out_state": 1,
+            "supplier_address": "_Test Registered Supplier-Billing",
         }
 
         doc = create_transaction(**transaction_details)
@@ -518,6 +511,7 @@ class TestIneligibleITC(FrappeTestCase):
 
         doc = create_transaction(**transaction_details)
         doc = make_return_doc("Purchase Invoice", doc.name)
+        doc.save()
         doc.submit()
 
         self.assertGLEntry(
@@ -601,6 +595,11 @@ class TestIneligibleITC(FrappeTestCase):
                     "account": "Stock In Hand - _TIRC",
                     "debit": 0.0,
                     "credit": 267.26,  # 257 + 10.26
+                },
+                {
+                    "account": "Cost of Goods Sold - _TIRC",
+                    "debit": 10.26,
+                    "credit": 10.26,
                 },
             ],
         )
@@ -753,9 +752,7 @@ class TestIneligibleITC(FrappeTestCase):
             ],
         )
 
-        self.assertStockValues(
-            doc.name, {"Test Stock Item": 20, "Test Ineligible Stock Item": 22.42}
-        )
+        self.assertStockValues(doc.name, {"Test Stock Item": 20, "Test Ineligible Stock Item": 22.42})
 
         self.assertAssetValues(
             "Purchase Receipt",
@@ -847,7 +844,7 @@ class TestIneligibleITC(FrappeTestCase):
 
         for item in lcv.items:
             if item.item_code == "Test Ineligible Stock Item":
-                self.assertEqual(item.applicable_charges, 3.42)  # 10.26 / 3 Nos
+                self.assertEqual(item.applicable_charges, 10.26)  # 10.26 for 3 Nos
             elif item.item_code == "Test Ineligible Fixed Asset":
                 self.assertEqual(item.applicable_charges, 179.82)
             else:
@@ -946,9 +943,7 @@ def create_test_items():
     )
     asset_category.insert(ignore_if_duplicate=True)
 
-    frappe.get_doc({"doctype": "Location", "location_name": "Test Location"}).insert(
-        ignore_if_duplicate=True
-    )
+    frappe.get_doc({"doctype": "Location", "location_name": "Test Location"}).insert(ignore_if_duplicate=True)
 
     asset_item = {
         "doctype": "Item",
@@ -969,9 +964,7 @@ def create_test_items():
         "item_group": "All Item Groups",
         "gst_hsn_code": "730419",
         "is_stock_item": 0,
-        "item_defaults": [
-            {**item_defaults, "expense_account": "Administrative Expenses - _TIRC"}
-        ],
+        "item_defaults": [{**item_defaults, "expense_account": "Administrative Expenses - _TIRC"}],
     }
 
     # Stock Item

@@ -79,6 +79,10 @@ class MariaDBExceptionUtil:
 		return e.args[0] == ER.DATA_TOO_LONG
 
 	@staticmethod
+	def is_db_table_size_limit(e: pymysql.Error) -> bool:
+		return e.args[0] == ER.TOO_BIG_ROWSIZE
+
+	@staticmethod
 	def is_primary_key_violation(e: pymysql.Error) -> bool:
 		return (
 			MariaDBDatabase.is_duplicate_entry(e)
@@ -117,30 +121,40 @@ class MariaDBConnectionUtil:
 
 	def get_connection_settings(self) -> dict:
 		conn_settings = {
-			"host": self.host,
 			"user": self.user,
-			"password": self.password,
 			"conv": self.CONVERSION_MAP,
 			"charset": "utf8mb4",
 			"collation": "utf8mb4_unicode_ci",
 			"use_unicode": True,
+			"local_infile": False,
 		}
 
-		if self.user not in (frappe.flags.root_login, "root"):
-			conn_settings["database"] = self.user
+		if self.cur_db_name:
+			conn_settings["database"] = self.cur_db_name
 
-		if self.port:
-			conn_settings["port"] = int(self.port)
+		if self.socket:
+			conn_settings["unix_socket"] = self.socket
+		else:
+			conn_settings["host"] = self.host
+			if self.port:
+				conn_settings["port"] = int(self.port)
 
-		if frappe.conf.local_infile:
-			conn_settings["local_infile"] = frappe.conf.local_infile
+		if self.password:
+			conn_settings["password"] = self.password
 
-		if frappe.conf.db_ssl_ca and frappe.conf.db_ssl_cert and frappe.conf.db_ssl_key:
-			conn_settings["ssl"] = {
+		# Configure SSL settings
+		if frappe.conf.db_ssl_ca:
+			ssl_config = {
 				"ca": frappe.conf.db_ssl_ca,
-				"cert": frappe.conf.db_ssl_cert,
-				"key": frappe.conf.db_ssl_key,
+				"check_hostname": frappe.conf.db_ssl_check_hostname,
 			}
+
+			# Add client certificates for mutual SSL if available
+			if frappe.conf.db_ssl_cert and frappe.conf.db_ssl_key:
+				ssl_config.update({"cert": frappe.conf.db_ssl_cert, "key": frappe.conf.db_ssl_key})
+
+			conn_settings["ssl"] = ssl_config
+
 		return conn_settings
 
 
@@ -152,6 +166,7 @@ class MariaDBDatabase(MariaDBConnectionUtil, MariaDBExceptionUtil, Database):
 		UnicodeWithAttrs: escape_string,
 	}
 	default_port = "3306"
+	MAX_ROW_SIZE_LIMIT = 65_535  # bytes
 
 	def setup_type_map(self):
 		self.db_type = "mariadb"
@@ -200,7 +215,7 @@ class MariaDBDatabase(MariaDBConnectionUtil, MariaDBExceptionUtil, Database):
 			SUM(`data_length` + `index_length`) / 1024 / 1024 AS `database_size`
 			FROM information_schema.tables WHERE `table_schema` = %s GROUP BY `table_schema`
 			""",
-			self.db_name,
+			self.cur_db_name,
 			as_dict=True,
 		)
 
@@ -342,6 +357,21 @@ class MariaDBDatabase(MariaDBConnectionUtil, MariaDBExceptionUtil, Database):
 			as_dict=1,
 		)
 
+	def get_column_type(self, doctype, column):
+		"""Returns column type from database."""
+		information_schema = frappe.qb.Schema("information_schema")
+		table = get_table_name(doctype)
+
+		return (
+			frappe.qb.from_(information_schema.columns)
+			.select(information_schema.columns.column_type)
+			.where(
+				(information_schema.columns.table_name == table)
+				& (information_schema.columns.column_name == column)
+			)
+			.run(pluck=True)[0]
+		)
+
 	def has_index(self, table_name, index_name):
 		return self.sql(
 			f"""SHOW INDEX FROM `{table_name}`
@@ -446,7 +476,7 @@ class MariaDBDatabase(MariaDBConnectionUtil, MariaDBExceptionUtil, Database):
 		to_query = not cached
 
 		if cached:
-			tables = frappe.cache().get_value("db_tables")
+			tables = frappe.cache.get_value("db_tables")
 			to_query = not tables
 
 		if to_query:
@@ -455,12 +485,65 @@ class MariaDBDatabase(MariaDBConnectionUtil, MariaDBExceptionUtil, Database):
 			tables = (
 				frappe.qb.from_(information_schema.tables)
 				.select(information_schema.tables.table_name)
-				.where(information_schema.tables.table_schema == frappe.conf.db_name)
+				.where(information_schema.tables.table_schema == frappe.db.cur_db_name)
 				.run(pluck=True)
 			)
-			frappe.cache().set_value("db_tables", tables)
+			frappe.cache.set_value("db_tables", tables)
 
 		return tables
+
+	def get_row_size(self, doctype: str) -> int:
+		"""Get estimated max row size of any table in bytes."""
+
+		# Query reused from this answer: https://dba.stackexchange.com/a/313889/274503
+		# Modification: get values for particular table instead of full summary.
+		# Reference: https://mariadb.com/kb/en/data-type-storage-requirements/
+
+		est_row_size = frappe.db.sql(
+			"""
+			SELECT SUM(col_sizes.col_size) AS EST_MAX_ROW_SIZE
+			FROM (
+				SELECT
+					cols.COLUMN_NAME,
+					CASE cols.DATA_TYPE
+						WHEN 'tinyint' THEN 1
+						WHEN 'smallint' THEN 2
+						WHEN 'mediumint' THEN 3
+						WHEN 'int' THEN 4
+						WHEN 'bigint' THEN 8
+						WHEN 'float' THEN IF(cols.NUMERIC_PRECISION > 24, 8, 4)
+						WHEN 'double' THEN 8
+						WHEN 'decimal' THEN ((cols.NUMERIC_PRECISION - cols.NUMERIC_SCALE) DIV 9)*4  + (cols.NUMERIC_SCALE DIV 9)*4 + CEIL(MOD(cols.NUMERIC_PRECISION - cols.NUMERIC_SCALE,9)/2) + CEIL(MOD(cols.NUMERIC_SCALE,9)/2)
+						WHEN 'bit' THEN (cols.NUMERIC_PRECISION + 7) DIV 8
+						WHEN 'year' THEN 1
+						WHEN 'date' THEN 3
+						WHEN 'time' THEN 3 + CEIL(cols.DATETIME_PRECISION /2)
+						WHEN 'datetime' THEN 5 + CEIL(cols.DATETIME_PRECISION /2)
+						WHEN 'timestamp' THEN 4 + CEIL(cols.DATETIME_PRECISION /2)
+						WHEN 'char' THEN cols.CHARACTER_OCTET_LENGTH
+						WHEN 'binary' THEN cols.CHARACTER_OCTET_LENGTH
+						WHEN 'varchar' THEN IF(cols.CHARACTER_OCTET_LENGTH > 255, 2, 1) + cols.CHARACTER_OCTET_LENGTH
+						WHEN 'varbinary' THEN IF(cols.CHARACTER_OCTET_LENGTH > 255, 2, 1) + cols.CHARACTER_OCTET_LENGTH
+						WHEN 'tinyblob' THEN 9
+						WHEN 'tinytext' THEN 9
+						WHEN 'blob' THEN 10
+						WHEN 'text' THEN 10
+						WHEN 'mediumblob' THEN 11
+						WHEN 'mediumtext' THEN 11
+						WHEN 'longblob' THEN 12
+						WHEN 'longtext' THEN 12
+						WHEN 'enum' THEN 2
+						WHEN 'set' THEN 8
+						ELSE 0
+					END AS col_size
+				FROM INFORMATION_SCHEMA.COLUMNS cols
+				WHERE cols.TABLE_NAME = %s
+			) AS col_sizes;""",
+			(get_table_name(doctype),),
+		)
+
+		if est_row_size:
+			return int(est_row_size[0][0])
 
 	@contextmanager
 	def unbuffered_cursor(self):

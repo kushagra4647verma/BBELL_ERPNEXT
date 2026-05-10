@@ -4,6 +4,7 @@
 import datetime
 from contextlib import suppress
 
+import pytz
 from rq import Worker
 
 import frappe
@@ -13,6 +14,28 @@ from frappe.utils.background_jobs import get_workers
 
 
 class RQWorker(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		birth_date: DF.Datetime | None
+		current_job_id: DF.Link | None
+		failed_job_count: DF.Int
+		last_heartbeat: DF.Datetime | None
+		pid: DF.Data | None
+		queue: DF.Data | None
+		queue_type: DF.Literal["default", "long", "short"]
+		status: DF.Data | None
+		successful_job_count: DF.Int
+		total_working_time: DF.Duration | None
+		utilization_percent: DF.Percent
+		worker_name: DF.Data | None
+	# end: auto-generated types
+
 	def load_from_db(self):
 		all_workers = get_workers()
 		workers = [w for w in all_workers if w.name == self.name]
@@ -24,12 +47,18 @@ class RQWorker(Document):
 
 	@staticmethod
 	def get_list(args):
-		start = cint(args.get("start")) or 0
-		page_length = cint(args.get("page_length")) or 20
+		start = cint(args.get("start"))
+		page_length = cint(args.get("page_length"))
 
 		workers = get_workers()
 
-		valid_workers = [w for w in workers if w.pid][start : start + page_length]
+		valid_workers = [w for w in workers if w.pid]
+
+		if page_length:
+			valid_workers = valid_workers[start : start + page_length]
+		else:
+			valid_workers = valid_workers[start:]
+
 		return [serialize_worker(worker) for worker in valid_workers]
 
 	@staticmethod
@@ -57,6 +86,10 @@ def serialize_worker(worker: Worker) -> frappe._dict:
 	queue = ", ".join(queue_names)
 	queue_types = ",".join(q.rsplit(":", 1)[1] for q in queue_names)
 
+	current_job = worker.get_current_job_id()
+	if current_job and not current_job.startswith(frappe.local.site):
+		current_job = None
+
 	return frappe._dict(
 		name=worker.name,
 		queue=queue,
@@ -64,7 +97,7 @@ def serialize_worker(worker: Worker) -> frappe._dict:
 		worker_name=worker.name,
 		status=worker.get_state(),
 		pid=worker.pid,
-		current_job_id=worker.get_current_job_id(),
+		current_job_id=current_job,
 		last_heartbeat=convert_utc_to_system_timezone(worker.last_heartbeat),
 		birth_date=convert_utc_to_system_timezone(worker.birth_date),
 		successful_job_count=worker.successful_job_count,
@@ -79,5 +112,7 @@ def serialize_worker(worker: Worker) -> frappe._dict:
 
 def compute_utilization(worker: Worker) -> float:
 	with suppress(Exception):
-		total_time = (datetime.datetime.utcnow() - worker.birth_date).total_seconds()
+		total_time = (
+			datetime.datetime.now(pytz.UTC) - worker.birth_date.replace(tzinfo=pytz.UTC)
+		).total_seconds()
 		return worker.total_working_time / total_time * 100

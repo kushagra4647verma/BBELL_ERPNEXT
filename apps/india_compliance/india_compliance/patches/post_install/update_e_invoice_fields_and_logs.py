@@ -3,7 +3,7 @@ import json
 import frappe
 
 from india_compliance.gst_india.utils import parse_datetime
-from india_compliance.gst_india.utils.custom_fields import delete_custom_fields
+from india_compliance.utils.custom_fields import delete_custom_fields
 
 user = None
 
@@ -62,9 +62,7 @@ def migrate_e_waybill_fields():
             ]
         )
 
-    frappe.db.bulk_insert(
-        "e-Waybill Log", fields=fields, values=values, ignore_duplicates=True
-    )
+    frappe.db.bulk_insert("e-Waybill Log", fields=fields, values=values, ignore_duplicates=True)
 
 
 def migrate_e_invoice_fields():
@@ -94,7 +92,8 @@ def migrate_e_invoice_fields():
         "owner",
         "modified_by",
         "irn",
-        "sales_invoice",
+        "reference_doctype",
+        "reference_name",
         "is_cancelled",
         "acknowledgement_number",
         "acknowledged_on",
@@ -120,6 +119,7 @@ def migrate_e_invoice_fields():
                 user,
                 user,
                 doc.irn,
+                "Sales Invoice",
                 doc.name,
                 doc.irn_cancelled,
                 doc.ack_no,
@@ -130,9 +130,7 @@ def migrate_e_invoice_fields():
             ]
         )
 
-    frappe.db.bulk_insert(
-        "e-Invoice Log", fields=fields, values=values, ignore_duplicates=True
-    )
+    frappe.db.bulk_insert("e-Invoice Log", fields=fields, values=values, ignore_duplicates=True)
 
 
 def migrate_e_invoice_request_log():
@@ -201,9 +199,7 @@ def migrate_e_invoice_request_log():
             ]
         )
 
-    frappe.db.bulk_insert(
-        "Integration Request", fields=fields, values=values, ignore_duplicates=True
-    )
+    frappe.db.bulk_insert("Integration Request", fields=fields, values=values, ignore_duplicates=True)
 
 
 def delete_e_invoice_fields():

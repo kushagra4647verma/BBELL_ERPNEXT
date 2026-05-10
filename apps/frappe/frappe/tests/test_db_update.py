@@ -139,8 +139,28 @@ class TestDBUpdate(FrappeTestCase):
 		doctype.save()
 		self.check_unique_indexes(doctype.name, field)
 
+		# New column with a unique index
+		# This works because index name is same as fieldname.
+		new_field = frappe.copy_doc(doctype.fields[0])
+		new_field.fieldname = "duplicate_field"
+		doctype.append("fields", new_field)
+		doctype.save()
+		self.check_unique_indexes(doctype.name, new_field.fieldname)
+
 		doctype.delete()
 		frappe.db.commit()
+
+	@run_only_if(db_type_is.MARIADB)
+	def test_varchar_length(self):
+		from frappe.database.schema import add_column
+
+		test_doc = new_doctype().insert()
+		col_name = f"col_{frappe.generate_hash(length=4)}"
+		add_column(test_doc.name, fieldtype="Data", column_name=col_name, length=50)
+		length = frappe.db.sql(
+			f"SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'tab{test_doc.name}' AND COLUMN_NAME = '{col_name}' ",
+		)[0][0]
+		self.assertEqual(length, 64)
 
 
 def get_fieldtype_from_def(field_def):
@@ -179,12 +199,10 @@ def get_other_fields_meta(meta):
 
 	optional_fields_map = {field: ("Text", 0) for field in optional_fields}
 	fields = dict(default_fields_map, **optional_fields_map, **child_table_fields_map)
-	field_map = [
+	return [
 		frappe._dict({"fieldname": field, "fieldtype": _type, "length": _length})
 		for field, (_type, _length) in fields.items()
 	]
-
-	return field_map
 
 
 def get_table_column(doctype, fieldname):

@@ -9,12 +9,31 @@ from frappe.model.document import Document
 
 
 class KanbanBoard(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.desk.doctype.kanban_board_column.kanban_board_column import KanbanBoardColumn
+		from frappe.types import DF
+
+		columns: DF.Table[KanbanBoardColumn]
+		field_name: DF.Literal[None]
+		fields: DF.Code | None
+		filters: DF.Code | None
+		kanban_board_name: DF.Data
+		private: DF.Check
+		reference_doctype: DF.Link
+		show_labels: DF.Check
+
+	# end: auto-generated types
 	def validate(self):
 		self.validate_column_name()
 
 	def on_change(self):
 		frappe.clear_cache(doctype=self.reference_doctype)
-		frappe.cache().delete_keys("_user_settings")
+		frappe.cache.delete_keys("_user_settings")
 
 	def before_insert(self):
 		for column in self.columns:
@@ -202,8 +221,8 @@ def quick_kanban_board(doctype, board_name, field_name, project=None):
 
 def get_order_for_column(board, colname):
 	filters = [[board.reference_doctype, board.field_name, "=", colname]]
-	if board.filters:
-		filters.append(frappe.parse_json(board.filters)[0])
+	if board.filters and (parsed_filters := frappe.parse_json(board.filters)):
+		filters.append(parsed_filters[0])
 
 	return frappe.as_json(frappe.get_list(board.reference_doctype, filters=filters, pluck="name"))
 

@@ -22,6 +22,7 @@ def execute(filters=None):
 						round((data_length / 1024 / 1024), 2) as data_size,
 						round((index_length / 1024 / 1024), 2) as index_size
 				FROM information_schema.TABLES
+				WHERE table_schema = DATABASE()
 				ORDER BY (data_length + index_length) DESC;
 			""",
 			"postgres": """
@@ -38,3 +39,27 @@ def execute(filters=None):
 		as_dict=1,
 	)
 	return COLUMNS, data
+
+
+@frappe.whitelist()
+def optimize_doctype(doctype_name: str):
+	frappe.only_for("System Manager")
+	frappe.enqueue(
+		optimize_doctype_job,
+		queue="long",
+		job_id=f"optimize-{doctype_name}",
+		doctype_name=doctype_name,
+		deduplicate=True,
+	)
+
+
+def optimize_doctype_job(doctype_name: str):
+	from frappe.utils import get_table_name
+
+	doctype_table = get_table_name(doctype_name, wrap_in_backticks=True)
+	if frappe.db.db_type == "mariadb":
+		query = f"OPTIMIZE TABLE {doctype_table};"
+	else:
+		query = f"VACUUM (ANALYZE) {doctype_table};"
+
+	frappe.db.sql(query)

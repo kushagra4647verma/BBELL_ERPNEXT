@@ -1,5 +1,5 @@
 <div class="timeline-message-box" data-communication-type="{{ doc.communication_type }}">
-	<span class="flex justify-between">
+	<span class="flex justify-between m-1 mb-3">
 		<span class="text-color flex">
 			{% if (doc.communication_type && doc.communication_type == "Automated Message") { %}
 				<span>
@@ -35,6 +35,12 @@
 					<span class="text-muted">
 						{{ comment_when(doc.communication_date || doc.creation) }}
 					</span>
+					{% if (doc.published) { %}
+						<span> · </span>
+						<span class="text-muted" title="{{ __('Visible to website/portal users.') }}">
+							{{ __("Published") }}
+						</span>
+					{% } %}
 				</span>
 			{% } else { %}
 				<span class="margin-right">
@@ -65,8 +71,8 @@
 
 			{% if (doc._url) { %}
 			<a class="action-btn" href="{{ doc._url }}" title="{{ __("Open Communication") }}">
-				<svg class="icon icon-sm">
-					<use href="#icon-link-url" class="like-icon"></use>
+				<svg class="es-icon icon-sm">
+					<use href="#es-line-link"></use>
 				</svg>
 			</a>
 			{% } %}

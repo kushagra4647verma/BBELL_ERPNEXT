@@ -14,6 +14,25 @@ from frappe.model.utils import render_include
 
 
 class Page(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.core.doctype.has_role.has_role import HasRole
+		from frappe.types import DF
+
+		icon: DF.Data | None
+		module: DF.Link
+		page_name: DF.Data
+		restrict_to_domain: DF.Link | None
+		roles: DF.Table[HasRole]
+		standard: DF.Literal["Yes", "No"]
+		system_page: DF.Check
+		title: DF.Data | None
+
+	# end: auto-generated types
 	def autoname(self):
 		"""
 		Creates a url friendly name for this page.
@@ -27,8 +46,7 @@ class Page(Document):
 			if frappe.db.exists("Page", self.name):
 				cnt = frappe.db.sql(
 					"""select name from tabPage
-					where name like "%s-%%" order by name desc limit 1"""
-					% self.name
+					where name like "{}-%" order by name desc limit 1""".format(self.name)
 				)
 				if cnt:
 					cnt = cint(cnt[0][0].split("-")[-1]) + 1
@@ -153,11 +171,6 @@ class Page(Document):
 
 					# flag for not caching this page
 					self._dynamic_page = True
-
-		if frappe.lang != "en":
-			from frappe.translate import get_lang_js
-
-			self.script += get_lang_js("page", self.name)
 
 		for path in get_code_files_via_hooks("page_js", self.name):
 			js = get_js(path)

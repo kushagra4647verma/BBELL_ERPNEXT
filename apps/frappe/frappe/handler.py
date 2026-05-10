@@ -10,13 +10,14 @@ from werkzeug.wrappers import Response
 import frappe
 import frappe.sessions
 import frappe.utils
-from frappe import _, is_whitelisted
+from frappe import _, is_whitelisted, ping
 from frappe.core.doctype.file.utils import find_file_by_url
 from frappe.core.doctype.server_script.server_script_utils import get_server_script_map
 from frappe.monitor import add_data_to_monitor
 from frappe.permissions import check_doctype_permission
 from frappe.utils import cint
 from frappe.utils.csvutils import build_csv_response
+from frappe.utils.deprecations import deprecation_warning
 from frappe.utils.image import optimize_image
 from frappe.utils.response import build_response
 
@@ -27,6 +28,7 @@ if TYPE_CHECKING:
 ALLOWED_MIMETYPES = (
 	"image/png",
 	"image/jpeg",
+	"image/gif",
 	"application/pdf",
 	"application/msword",
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -37,6 +39,7 @@ ALLOWED_MIMETYPES = (
 	"text/plain",
 	"video/quicktime",
 	"video/mp4",
+	"text/csv",
 )
 
 
@@ -58,8 +61,6 @@ def handle():
 		# add the response to `message` label
 		frappe.response["message"] = data
 
-	return build_response("json")
-
 
 def execute_cmd(cmd, from_async=False):
 	"""execute a request as python module"""
@@ -73,7 +74,7 @@ def execute_cmd(cmd, from_async=False):
 	try:
 		method = get_attr(cmd)
 	except Exception as e:
-		frappe.throw(_("Failed to get method for command {0} with {1}").format(cmd, e))
+		frappe.throw(_("Failed to get method for command {0} with {1}").format(cmd, str(e)))
 
 	if from_async:
 		method = method.queue
@@ -97,6 +98,10 @@ def run_server_script(server_script):
 
 def is_valid_http_method(method):
 	if frappe.flags.in_safe_exec:
+		return
+
+	# Skip HTTP method validation when running in a background job
+	if hasattr(frappe.local, "job"):
 		return
 
 	http_method = frappe.local.request.method
@@ -126,6 +131,9 @@ def web_logout():
 
 @frappe.whitelist()
 def uploadfile():
+	deprecation_warning(
+		"uploadfile is deprecated and will be removed in v16. Use upload_file instead.",
+	)
 	ret = None
 	check_write_permission(frappe.form_dict.doctype, frappe.form_dict.docname)
 
@@ -172,7 +180,7 @@ def upload_file():
 		else:
 			raise frappe.PermissionError
 	else:
-		user: "User" = frappe.get_doc("User", frappe.session.user)
+		user: User = frappe.get_doc("User", frappe.session.user)
 		ignore_permissions = False
 
 	files = frappe.request.files
@@ -187,9 +195,6 @@ def upload_file():
 	optimize = frappe.form_dict.optimize
 	content = None
 
-	if not ignore_permissions:
-		check_write_permission(doctype, docname)
-
 	if library_file := frappe.form_dict.get("library_file_name"):
 		frappe.has_permission("File", doc=library_file, throw=True)
 		doc = frappe.get_value(
@@ -201,6 +206,9 @@ def upload_file():
 		is_private = doc.is_private
 		file_url = doc.file_url
 		filename = doc.file_name
+
+	if not ignore_permissions:
+		check_write_permission(doctype, docname)
 
 	if "file" in files:
 		file = files["file"]
@@ -223,7 +231,7 @@ def upload_file():
 	if content is not None and (frappe.session.user == "Guest" or (user and not user.has_desk_access())):
 		filetype = guess_type(filename)[0]
 		if filetype not in ALLOWED_MIMETYPES:
-			frappe.throw(_("You can only upload JPG, PNG, PDF, TXT or Microsoft documents."))
+			frappe.throw(_("You can only upload JPG, PNG, GIF, PDF, TXT, CSV or Microsoft documents."))
 
 	if method:
 		method = frappe.get_attr(method)
@@ -288,19 +296,16 @@ def get_attr(cmd):
 	if "." in cmd:
 		method = frappe.get_attr(cmd)
 	else:
+		deprecation_warning(
+			f"Calling shorthand for {cmd} is deprecated, please specify full path in RPC call."
+		)
 		method = globals()[cmd]
-	frappe.log("method:" + cmd)
 	return method
-
-
-@frappe.whitelist(allow_guest=True)
-def ping():
-	return "pong"
 
 
 def run_doc_method(method, docs=None, dt=None, dn=None, arg=None, args=None):
 	"""run a whitelisted controller method"""
-	from inspect import getfullargspec
+	from inspect import signature
 
 	if not args and arg:
 		args = arg
@@ -308,6 +313,10 @@ def run_doc_method(method, docs=None, dt=None, dn=None, arg=None, args=None):
 	if dt:  # not called from a doctype (from a page)
 		if not dn:
 			dn = dt  # single
+
+		if not isinstance(dn, str | int):
+			frappe.throw("'dn' must be a string or an integer")
+
 		doc = frappe.get_doc(dt, dn)
 
 	else:
@@ -329,7 +338,7 @@ def run_doc_method(method, docs=None, dt=None, dn=None, arg=None, args=None):
 	is_whitelisted(fn)
 	is_valid_http_method(fn)
 
-	fnargs = getfullargspec(method_obj).args
+	fnargs = list(signature(method_obj).parameters)
 
 	if not fnargs or (len(fnargs) == 1 and fnargs[0] == "self"):
 		response = doc.run_method(method)

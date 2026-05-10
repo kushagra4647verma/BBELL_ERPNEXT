@@ -1,31 +1,37 @@
+import copy
 import datetime
-import json
 import random
 import re
 
+import frappe
 import pytz
 import responses
 import time_machine
-from responses import matchers
-
-import frappe
+from erpnext.controllers.sales_and_purchase_return import make_return_doc
 from frappe.tests.utils import FrappeTestCase, change_settings
 from frappe.utils import add_to_date, get_datetime, now_datetime, today
 from frappe.utils.data import format_date
 from frappe.www.printview import get_html_and_style
-from erpnext.controllers.sales_and_purchase_return import make_return_doc
+from responses import matchers
 
 from india_compliance.gst_india.api_classes.base import BASE_URL
-from india_compliance.gst_india.utils import load_doc
+from india_compliance.gst_india.constants import SERVICE_HSN_PREFIX
+from india_compliance.gst_india.overrides.sales_invoice import (
+    is_e_waybill_applicable,
+)
+from india_compliance.gst_india.utils import load_doc, parse_datetime
 from india_compliance.gst_india.utils.e_invoice import (
     retry_e_invoice_e_waybill_generation,
 )
 from india_compliance.gst_india.utils.e_waybill import (
     EWaybillData,
+    _generate_e_waybill,
+    _get_e_waybill_threshold,
     cancel_e_waybill,
     fetch_e_waybill_data,
     generate_e_waybill,
     get_e_waybills_to_extend,
+    get_source_destination_address,
     schedule_ewaybill_for_extension,
     update_transporter,
     update_vehicle_info,
@@ -64,22 +70,16 @@ class TestEWaybill(FrappeTestCase):
 
         cls.e_waybill_test_data = frappe._dict(
             frappe.get_file_json(
-                frappe.get_app_path(
-                    "india_compliance", "gst_india", "data", "test_e_waybill.json"
-                )
+                frappe.get_app_path("india_compliance", "gst_india", "data", "test_e_waybill.json")
             )
         )
 
-    @classmethod
-    def setUp(cls):
         update_dates_for_test_data(cls.e_waybill_test_data)
 
     def test_get_data(self):
         si = self.create_sales_invoice_for("goods_item_with_ewaybill")
         e_waybill_data = EWaybillData(si).get_data()
-        test_data = self.e_waybill_test_data.goods_item_with_ewaybill.get(
-            "request_data"
-        )
+        test_data = self.e_waybill_test_data.goods_item_with_ewaybill.get("request_data")
 
         self.assertDictContainsSubset(
             e_waybill_data,
@@ -95,9 +95,7 @@ class TestEWaybill(FrappeTestCase):
 
         self.assertDocumentEqual(
             {
-                "name": self.e_waybill_test_data.goods_item_with_ewaybill.get(
-                    "response_data"
-                )
+                "name": self.e_waybill_test_data.goods_item_with_ewaybill.get("response_data")
                 .get("result")
                 .get("ewayBillNo")
             },
@@ -128,25 +126,44 @@ class TestEWaybill(FrappeTestCase):
             values=frappe._dict(vehicle_data.get("values")),
         )
 
-        # assertions
-        expected_comment = "Vehicle Info has been updated by <strong>Administrator</strong>.<br><br> New details are: <br><strong>Vehicle No</strong>: GJ07DL9001 <br><strong>Mode of Transport</strong>: Road <br><strong>GST Vehicle Type</strong>: Regular <br><strong>Place of Change</strong>: Test City <br><strong>State</strong>: Gujarat <br>"
+        expected_info = [
+            "Vehicle Info has been updated by <strong>Administrator</strong>",
+            '<table class="table table-bordered">',
+            "<thead>",
+            "<th>Field</th>",
+            "<th>From</th>",
+            "<th>To</th>",
+            "</thead>",
+            "<tbody>",
+            "<td><strong>Vehicle No</strong></td>",
+            "<td>GJ07DL9009</td>",
+            "<td>GJ07DL9001</td>",
+            "<td><strong>LR Date</strong></td>",
+            f"<td>{today()}</td>",
+            "<td>&lt;empty&gt;</td>",
+            "<td><strong>Place of Change</strong></td>",
+            "<td>-</td>",
+            "<td>Test City</td>",
+            "<td><strong>State</strong></td>",
+            "<td>Gujarat</td>",
+            "</tbody>",
+            "</table>",
+        ]
 
+        # assertions
         self.assertDocumentEqual(
             {"name": vehicle_data.get("request_data").get("ewbNo")},
             frappe.get_doc("e-Waybill Log", {"reference_name": si.name}),
         )
 
-        self.assertDocumentEqual(
-            {
-                "reference_doctype": "e-Waybill Log",
-                "reference_name": vehicle_data.get("request_data").get("ewbNo"),
-                "content": expected_comment,
-            },
-            frappe.get_doc(
-                "Comment",
-                {"reference_name": vehicle_data.get("request_data").get("ewbNo")},
-            ),
+        comment_doc = frappe.get_doc(
+            "Comment",
+            {"reference_name": vehicle_data.get("request_data").get("ewbNo")},
         )
+
+        # Test that all expected strings are present in the comment content
+        for expected_string in expected_info:
+            self.assertIn(expected_string, comment_doc.content)
 
     @responses.activate
     def test_update_transporter(self):
@@ -182,7 +199,10 @@ class TestEWaybill(FrappeTestCase):
             {
                 "reference_doctype": "e-Waybill Log",
                 "reference_name": transporter_data.get("request_data").get("ewbNo"),
-                "content": "Transporter Info has been updated by <strong>Administrator</strong>. New Transporter ID is <strong>05AAACG2140A1ZL</strong>.",
+                "content": (
+                    "Transporter Info has been updated by <strong>Administrator</strong>. "
+                    "Transporter ID changed from <strong>&lt;empty&gt;</strong> to <strong>05AAACG2140A1ZL</strong>."
+                ),
             },
             frappe.get_doc(
                 "Comment",
@@ -207,6 +227,7 @@ class TestEWaybill(FrappeTestCase):
             rate=7.6,
             is_in_state=True,
             do_not_submit=True,
+            company_address="_Test Indian Registered Company-Billing",
         )
 
         append_item(
@@ -216,9 +237,7 @@ class TestEWaybill(FrappeTestCase):
         si.save()
         si.submit()
 
-        self._generate_e_waybill(
-            si.name, test_data=self.e_waybill_test_data.goods_with_taxes
-        )
+        self._generate_e_waybill(si.name, test_data=self.e_waybill_test_data.goods_with_taxes)
 
         credit_note = make_return_doc("Sales Invoice", si.name)
         credit_note.vehicle_no = "GJ05DL9009"
@@ -295,10 +314,306 @@ class TestEWaybill(FrappeTestCase):
 
         self.assertDictEqual(
             e_waybill_cancel_data.get("request_data"),
-            EWaybillData(doc).get_data_for_cancellation(
-                frappe._dict(e_waybill_cancel_data.get("values"))
-            ),
+            EWaybillData(doc).get_data_for_cancellation(frappe._dict(e_waybill_cancel_data.get("values"))),
         )
+
+    @change_settings(
+        "GST Settings",
+        {
+            "auto_cancel_e_waybill": 1,
+            "reason_for_e_waybill_cancellation": "Data Entry Mistake",
+        },
+    )
+    @responses.activate
+    def test_auto_cancel_e_waybill_on_si_cancel(self):
+        """Test that e-waybill is automatically cancelled when document is cancelled and auto_cancel_e_waybill is enabled"""
+        si = self.create_sales_invoice_for("goods_item_with_ewaybill")
+        self._generate_e_waybill(si.name)
+
+        ewaybill_log = frappe.get_doc("e-Waybill Log", {"reference_name": si.name})
+        self.assertFalse(ewaybill_log.is_cancelled)
+
+        e_waybill_cancel_data = self.e_waybill_test_data.get("cancel_e_waybill")
+
+        self._mock_e_waybill_response(
+            data=e_waybill_cancel_data.get("response_data"),
+            match_list=[
+                matchers.query_string_matcher(e_waybill_cancel_data.get("params")),
+                matchers.json_params_matcher(
+                    {
+                        "ewbNo": e_waybill_cancel_data.get("request_data").get("ewbNo"),
+                        "cancelRsnCode": "3",  # Data Entry Mistake
+                        "cancelRmrk": "Data Entry Mistake",
+                    }
+                ),
+            ],
+        )
+
+        si.reload()
+        si.cancel()
+
+        ewaybill_log.reload()
+        self.assertTrue(ewaybill_log.is_cancelled)
+        self.assertEqual(ewaybill_log.cancel_reason_code, "3")  # Data Entry Mistake
+        self.assertEqual(ewaybill_log.cancel_remark, "Data Entry Mistake")
+
+        si.reload()
+        self.assertEqual(si.ewaybill, "")
+        self.assertEqual(si.e_waybill_status, "Cancelled")
+
+    @change_settings("GST Settings", {"auto_cancel_e_waybill": 0})
+    @responses.activate
+    def test_no_auto_cancel_when_setting_disabled(self):
+        """Test that e-waybill is NOT automatically cancelled when auto_cancel_e_waybill is disabled"""
+        si = self.create_sales_invoice_for("goods_item_with_ewaybill")
+        self._generate_e_waybill(si.name)
+
+        ewaybill_log = frappe.get_doc("e-Waybill Log", {"reference_name": si.name})
+        self.assertFalse(ewaybill_log.is_cancelled)
+
+        si.reload()
+        si.cancel()
+
+        ewaybill_log.reload()
+        self.assertFalse(ewaybill_log.is_cancelled)
+
+        si.reload()
+        self.assertNotEqual(si.ewaybill, "")
+
+    @change_settings(
+        "GST Settings",
+        {
+            "auto_cancel_e_waybill": 1,
+            "reason_for_e_waybill_cancellation": "Data Entry Mistake",
+            "enable_e_waybill_from_dn": 1,
+        },
+    )
+    @responses.activate
+    def test_auto_cancel_e_waybill_on_dn_cancel(self):
+        """Test that e-waybill is automatically cancelled when delivery note is cancelled and auto_cancel_e_waybill is enabled"""
+        dn = self._create_delivery_note("dn_with_different_gstin")
+        dn_test_data = self.e_waybill_test_data.get("dn_with_different_gstin")
+
+        self._generate_e_waybill(dn.name, "Delivery Note", dn_test_data)
+
+        ewaybill_log = frappe.get_doc("e-Waybill Log", {"reference_name": dn.name})
+        self.assertFalse(ewaybill_log.is_cancelled)
+
+        e_waybill_cancel_data = self.e_waybill_test_data.get("cancel_e_waybill")
+
+        actual_ewaybill_no = ewaybill_log.name
+
+        cancel_response_data = copy.deepcopy(e_waybill_cancel_data.get("response_data"))
+        cancel_response_data["result"]["ewayBillNo"] = actual_ewaybill_no
+
+        self._mock_e_waybill_response(
+            data=cancel_response_data,
+            match_list=[
+                matchers.query_string_matcher(e_waybill_cancel_data.get("params")),
+                matchers.json_params_matcher(
+                    {
+                        "ewbNo": actual_ewaybill_no,
+                        "cancelRsnCode": "3",  # Data Entry Mistake
+                        "cancelRmrk": "Data Entry Mistake",
+                    }
+                ),
+            ],
+        )
+
+        dn.reload()
+        dn.cancel()
+
+        ewaybill_log.reload()
+        self.assertTrue(ewaybill_log.is_cancelled)
+        self.assertEqual(ewaybill_log.cancel_reason_code, "3")  # Data Entry Mistake
+        self.assertEqual(ewaybill_log.cancel_remark, "Data Entry Mistake")
+
+        dn.reload()
+        self.assertEqual(dn.ewaybill, "")
+
+    @change_settings(
+        "GST Settings",
+        {
+            "auto_cancel_e_waybill": 1,
+            "reason_for_e_waybill_cancellation": "Data Entry Mistake",
+            "enable_e_waybill_from_pr": 1,
+        },
+    )
+    @responses.activate
+    def test_auto_cancel_e_waybill_on_pr_cancel(self):
+        """Test that e-waybill is automatically cancelled when purchase receipt is cancelled and auto_cancel_e_waybill is enabled"""
+        # Use PI registered supplier data as PR shares same buying address mapping
+        pr_test_data = self.e_waybill_test_data.get("pi_data_for_registered_supplier")
+
+        pr = self._create_purchase_receipt("pi_data_for_registered_supplier")
+
+        # Generate e-waybill for Purchase Receipt using PI data (structure matches PR)
+        self._generate_e_waybill(pr.name, "Purchase Receipt", pr_test_data)
+
+        ewaybill_log = frappe.get_doc("e-Waybill Log", {"reference_name": pr.name})
+        self.assertFalse(ewaybill_log.is_cancelled)
+
+        e_waybill_cancel_data = self.e_waybill_test_data.get("cancel_e_waybill")
+
+        actual_ewaybill_no = ewaybill_log.name
+
+        cancel_response_data = copy.deepcopy(e_waybill_cancel_data.get("response_data"))
+        cancel_response_data["result"]["ewayBillNo"] = actual_ewaybill_no
+
+        self._mock_e_waybill_response(
+            data=cancel_response_data,
+            match_list=[
+                matchers.query_string_matcher(e_waybill_cancel_data.get("params")),
+                matchers.json_params_matcher(
+                    {
+                        "ewbNo": actual_ewaybill_no,
+                        "cancelRsnCode": "3",  # Data Entry Mistake
+                        "cancelRmrk": "Data Entry Mistake",
+                    }
+                ),
+            ],
+        )
+
+        pr.reload()
+        pr.cancel()
+
+        ewaybill_log.reload()
+        self.assertTrue(ewaybill_log.is_cancelled)
+        self.assertEqual(ewaybill_log.cancel_reason_code, "3")  # Data Entry Mistake
+        self.assertEqual(ewaybill_log.cancel_remark, "Data Entry Mistake")
+
+        pr.reload()
+        self.assertEqual(pr.ewaybill, "")
+
+    @change_settings(
+        "GST Settings",
+        {
+            "auto_cancel_e_waybill": 1,
+            "reason_for_e_waybill_cancellation": "Data Entry Mistake",
+            "enable_e_waybill_from_pi": 1,
+        },
+    )
+    @responses.activate
+    def test_auto_cancel_e_waybill_on_pi_cancel(self):
+        """Test that e-waybill is automatically cancelled when purchase invoice is cancelled and auto_cancel_e_waybill is enabled"""
+        purchase_invoice_data = self.e_waybill_test_data.get("pi_data_for_registered_supplier")
+
+        pi = create_purchase_invoice(**purchase_invoice_data.get("kwargs"), do_not_submit=True)
+
+        pi.bill_no = "1234"
+        pi.submit()
+
+        self._generate_e_waybill(pi.name, "Purchase Invoice", purchase_invoice_data)
+
+        ewaybill_log = frappe.get_doc("e-Waybill Log", {"reference_name": pi.name})
+        self.assertFalse(ewaybill_log.is_cancelled)
+
+        e_waybill_cancel_data = self.e_waybill_test_data.get("cancel_e_waybill")
+
+        actual_ewaybill_no = ewaybill_log.name
+
+        cancel_response_data = copy.deepcopy(e_waybill_cancel_data.get("response_data"))
+        cancel_response_data["result"]["ewayBillNo"] = actual_ewaybill_no
+
+        self._mock_e_waybill_response(
+            data=cancel_response_data,
+            match_list=[
+                matchers.query_string_matcher(e_waybill_cancel_data.get("params")),
+                matchers.json_params_matcher(
+                    {
+                        "ewbNo": actual_ewaybill_no,
+                        "cancelRsnCode": "3",  # Data Entry Mistake
+                        "cancelRmrk": "Data Entry Mistake",
+                    }
+                ),
+            ],
+        )
+
+        pi.reload()
+        pi.cancel()
+
+        ewaybill_log.reload()
+        self.assertTrue(ewaybill_log.is_cancelled)
+        self.assertEqual(ewaybill_log.cancel_reason_code, "3")  # Data Entry Mistake
+        self.assertEqual(ewaybill_log.cancel_remark, "Data Entry Mistake")
+
+        pi.reload()
+        self.assertEqual(pi.ewaybill, "")
+
+    @change_settings(
+        "GST Settings",
+        {
+            "auto_cancel_e_waybill": 1,
+            "reason_for_e_waybill_cancellation": "Data Entry Mistake",
+            "enable_e_waybill_for_sc": 1,
+        },
+    )
+    @responses.activate
+    def test_auto_cancel_e_waybill_on_se_cancel(self):
+        """Test that e-waybill is automatically cancelled when stock entry is cancelled and auto_cancel_e_waybill is enabled"""
+        se = self._create_stock_entry("stock_entry")
+        se_test_data = self.e_waybill_test_data.get("stock_entry")
+
+        self._generate_e_waybill(se.name, "Stock Entry", se_test_data)
+
+        ewaybill_log = frappe.get_doc("e-Waybill Log", {"reference_name": se.name})
+        self.assertFalse(ewaybill_log.is_cancelled)
+
+        e_waybill_cancel_data = self.e_waybill_test_data.get("cancel_e_waybill")
+
+        actual_ewaybill_no = ewaybill_log.name
+
+        cancel_response_data = copy.deepcopy(e_waybill_cancel_data.get("response_data"))
+        cancel_response_data["result"]["ewayBillNo"] = actual_ewaybill_no
+
+        self._mock_e_waybill_response(
+            data=cancel_response_data,
+            match_list=[
+                matchers.query_string_matcher(e_waybill_cancel_data.get("params")),
+                matchers.json_params_matcher(
+                    {
+                        "ewbNo": actual_ewaybill_no,
+                        "cancelRsnCode": "3",  # Data Entry Mistake
+                        "cancelRmrk": "Data Entry Mistake",
+                    }
+                ),
+            ],
+        )
+
+        se.reload()
+        se.cancel()
+
+        ewaybill_log.reload()
+        self.assertTrue(ewaybill_log.is_cancelled)
+        self.assertEqual(ewaybill_log.cancel_reason_code, "3")  # Data Entry Mistake
+        self.assertEqual(ewaybill_log.cancel_remark, "Data Entry Mistake")
+
+        se.reload()
+        self.assertEqual(se.ewaybill, "")
+
+    def test_get_source_destination_address_for_stock_entry(self):
+        """Test get_source_destination_address function with Stock Entry doctype"""
+
+        # Create a Stock Entry for testing
+        se = self._create_stock_entry("stock_entry")
+
+        # Test source address
+        source_address = get_source_destination_address(
+            doctype="Stock Entry", docname=se.name, address_type="source_address"
+        )
+
+        # Verify that the function returns an Address document
+        self.assertEqual(source_address.doctype, "Address")
+        self.assertIsNotNone(source_address.name)
+
+        # Test destination address
+        destination_address = get_source_destination_address(
+            doctype="Stock Entry", docname=se.name, address_type="destination_address"
+        )
+
+        # Verify that the function returns an Address document
+        self.assertEqual(destination_address.doctype, "Address")
+        self.assertIsNotNone(destination_address.name)
 
     def test_get_all_item_details(self):
         """Tests:
@@ -309,9 +624,7 @@ class TestEWaybill(FrappeTestCase):
         item_code = si.items[0].item_code
 
         hsn_codes = frappe.get_file_json(
-            frappe.get_app_path(
-                "india_compliance", "gst_india", "data", "hsn_codes.json"
-            )
+            frappe.get_app_path("india_compliance", "gst_india", "data", "hsn_codes.json")
         )
         _bulk_insert_hsn_wise_items(hsn_codes)
 
@@ -324,7 +637,7 @@ class TestEWaybill(FrappeTestCase):
                 si,
                 frappe._dict(
                     item_code=item_code,
-                    item_name="Test Item {}".format(i),
+                    item_name=f"Test Item {i}",
                     rate=100,
                     gst_hsn_code=hsn_code,
                 ),
@@ -369,7 +682,7 @@ class TestEWaybill(FrappeTestCase):
             EWaybillData(si).get_all_item_details(),
         )
 
-        for i in range(0, 250):
+        for _ in range(0, 250):
             append_item(si)
 
         _append_taxes(si, ("CGST", "SGST"))
@@ -401,9 +714,7 @@ class TestEWaybill(FrappeTestCase):
 
         si = self.create_sales_invoice_for("goods_item_with_ewaybill")
         self._generate_e_waybill(si.name)
-        si.ewaybill = (
-            e_waybill_data.get("response_data").get("result").get("ewayBillNo")
-        )
+        si.ewaybill = e_waybill_data.get("response_data").get("result").get("ewayBillNo")
 
         self.assertRaisesRegex(
             frappe.exceptions.ValidationError,
@@ -441,9 +752,7 @@ class TestEWaybill(FrappeTestCase):
 
         append_item(
             si,
-            frappe._dict(
-                {"item_code": "_Test Trading Goods 1", "gst_hsn_code": "61149090"}
-            ),
+            frappe._dict({"item_code": "_Test Trading Goods 1", "gst_hsn_code": "61149090"}),
         )
         si.update({"gst_transporter_id": "", "mode_of_transport": ""})
 
@@ -453,9 +762,7 @@ class TestEWaybill(FrappeTestCase):
             EWaybillData(si).validate_applicability,
         )
 
-        si.update(
-            {"gst_transporter_id": "05AAACG2140A1ZL", "mode_of_transport": "Road"}
-        )
+        si.update({"gst_transporter_id": "05AAACG2140A1ZL", "mode_of_transport": "Road"})
 
         si.items[0].gst_treatment = "Non-GST"
 
@@ -474,13 +781,13 @@ class TestEWaybill(FrappeTestCase):
         )
         self.assertRaisesRegex(
             frappe.exceptions.ValidationError,
-            re.compile(r"^(.*billing GSTIN is same as company GSTIN.*)$"),
+            re.compile(r"^(.*party GSTIN is same as company GSTIN.*)$"),
             EWaybillData(si).validate_applicability,
         )
 
     @responses.activate
     def test_validate_if_e_waybill_is_set(self):
-        """Test validdation if e-waybill not found"""
+        """Test validation if e-waybill not found"""
         si = self.create_sales_invoice_for("goods_item_with_ewaybill")
         self._generate_e_waybill(si.name)
 
@@ -525,9 +832,7 @@ class TestEWaybill(FrappeTestCase):
 
         self.assertDictEqual(
             vehicle_info.get("request_data"),
-            EWaybillData(doc).get_update_vehicle_data(
-                frappe._dict(vehicle_info.get("values"))
-            ),
+            EWaybillData(doc).get_update_vehicle_data(frappe._dict(vehicle_info.get("values"))),
         )
 
     @responses.activate
@@ -541,9 +846,7 @@ class TestEWaybill(FrappeTestCase):
 
         self.assertDictEqual(
             transporter_data.get("request_data"),
-            EWaybillData(doc).get_update_transporter_data(
-                frappe._dict(transporter_data.get("values"))
-            ),
+            EWaybillData(doc).get_update_transporter_data(frappe._dict(transporter_data.get("values"))),
         )
 
     @responses.activate
@@ -581,9 +884,7 @@ class TestEWaybill(FrappeTestCase):
 
         self.assertRaisesRegex(
             frappe.exceptions.ValidationError,
-            re.compile(
-                r"^(Remaining distance should be less than or equal to actual .*)$"
-            ),
+            re.compile(r"^(Remaining distance should be less than or equal to actual .*)$"),
             EWaybillData(doc).validate_remaining_distance,
             values,
         )
@@ -627,25 +928,18 @@ class TestEWaybill(FrappeTestCase):
             scheduled_time=scheduled_time,
         )
 
-        extension_scheduled = frappe.db.get_value(
-            "e-Waybill Log", doc.ewaybill, "extension_scheduled"
-        )
+        extension_scheduled = frappe.db.get_value("e-Waybill Log", doc.ewaybill, "extension_scheduled")
         self.assertEqual(
             extension_scheduled,
             1,
             "e-waybill should be scheduled for extension",
         )
 
-        with time_machine.travel(
-            scheduled_time.replace().astimezone(pytz.utc), tick=False
-        ):
+        with time_machine.travel(scheduled_time.replace().astimezone(pytz.utc), tick=False):
             e_waybills_to_extend = get_e_waybills_to_extend()
 
             self.assertTrue(
-                any(
-                    doc.ewaybill == ewaybill.get("e_waybill_number")
-                    for ewaybill in e_waybills_to_extend
-                ),
+                any(doc.ewaybill == ewaybill.get("e_waybill_number") for ewaybill in e_waybills_to_extend),
                 "e-Waybill not found in list of scheduled e-Waybills",
             )
 
@@ -655,9 +949,7 @@ class TestEWaybill(FrappeTestCase):
 
         self.assertRaisesRegex(
             frappe.exceptions.ValidationError,
-            re.compile(
-                r"^(Only Sales Invoice, Purchase Invoice, Delivery Note, Purchase Receipt are supported.*)$"
-            ),
+            re.compile(r"""^(Purchase Order is not supported for e-Waybill actions)$"""),
             EWaybillData,
             purchase_order,
         )
@@ -672,7 +964,7 @@ class TestEWaybill(FrappeTestCase):
         doc.save()
 
         self.assertEqual(
-            json.loads(frappe.message_log[-1]).get("message"),
+            frappe.parse_json(frappe.message_log[-1]).get("message"),
             "You have already generated e-Waybill/e-Invoice for this document."
             " This could result in mismatch of item details in e-Waybill/e-Invoice with print format.",
         )
@@ -681,24 +973,14 @@ class TestEWaybill(FrappeTestCase):
     @responses.activate
     def test_e_waybill_for_dn_with_different_gstin(self):
         """Test to generate e-waybill for Delivery Note with different GSTIN"""
-        dn_with_different_gstin_data = self.e_waybill_test_data.get(
-            "dn_with_different_gstin"
-        )
+        dn_with_different_gstin_data = self.e_waybill_test_data.get("dn_with_different_gstin")
         different_gstin_dn = self._create_delivery_note("dn_with_different_gstin")
 
-        self._generate_e_waybill(
-            different_gstin_dn.name, "Delivery Note", dn_with_different_gstin_data
-        )
+        self._generate_e_waybill(different_gstin_dn.name, "Delivery Note", dn_with_different_gstin_data)
 
         self.assertDocumentEqual(
-            {
-                "name": dn_with_different_gstin_data.get("response_data")
-                .get("result")
-                .get("ewayBillNo")
-            },
-            frappe.get_doc(
-                "e-Waybill Log", {"reference_name": different_gstin_dn.name}
-            ),
+            {"name": dn_with_different_gstin_data.get("response_data").get("result").get("ewayBillNo")},
+            frappe.get_doc("e-Waybill Log", {"reference_name": different_gstin_dn.name}),
         )
 
         #  Return Note
@@ -708,9 +990,7 @@ class TestEWaybill(FrappeTestCase):
 
         return_note = make_return_doc("Delivery Note", different_gstin_dn.name).submit()
 
-        self._generate_e_waybill(
-            return_note.name, "Delivery Note", is_return_dn_with_different_gstin_data
-        )
+        self._generate_e_waybill(return_note.name, "Delivery Note", is_return_dn_with_different_gstin_data)
 
         self.assertDocumentEqual(
             {
@@ -728,16 +1008,10 @@ class TestEWaybill(FrappeTestCase):
         dn_with_same_gstin_data = self.e_waybill_test_data.get("dn_with_same_gstin")
         same_gstin_dn = self._create_delivery_note("dn_with_same_gstin")
 
-        self._generate_e_waybill(
-            same_gstin_dn.name, "Delivery Note", dn_with_same_gstin_data
-        )
+        self._generate_e_waybill(same_gstin_dn.name, "Delivery Note", dn_with_same_gstin_data)
 
         self.assertDocumentEqual(
-            {
-                "name": dn_with_same_gstin_data.get("response_data")
-                .get("result")
-                .get("ewayBillNo")
-            },
+            {"name": dn_with_same_gstin_data.get("response_data").get("result").get("ewayBillNo")},
             frappe.get_doc("e-Waybill Log", {"reference_name": same_gstin_dn.name}),
         )
 
@@ -745,56 +1019,34 @@ class TestEWaybill(FrappeTestCase):
         return_note = make_return_doc("Delivery Note", same_gstin_dn.name)
         return_note.submit()
 
-        is_return_dn_with_same_gstin_data = self.e_waybill_test_data.get(
-            "is_return_dn_with_same_gstin"
-        )
+        is_return_dn_with_same_gstin_data = self.e_waybill_test_data.get("is_return_dn_with_same_gstin")
 
-        self._generate_e_waybill(
-            return_note.name, "Delivery Note", is_return_dn_with_same_gstin_data
-        )
+        self._generate_e_waybill(return_note.name, "Delivery Note", is_return_dn_with_same_gstin_data)
 
         self.assertDocumentEqual(
-            {
-                "name": is_return_dn_with_same_gstin_data.get("response_data")
-                .get("result")
-                .get("ewayBillNo")
-            },
+            {"name": is_return_dn_with_same_gstin_data.get("response_data").get("result").get("ewayBillNo")},
             frappe.get_doc("e-Waybill Log", {"reference_name": return_note.name}),
         )
 
     @change_settings("GST Settings", {"enable_e_waybill_from_pi": 1})
     @responses.activate
     def test_e_waybill_for_pi_with_unregistered_supplier(self):
-        purchase_invoice_data = self.e_waybill_test_data.get(
-            "pi_data_for_unregistered_supplier"
-        )
-        purchase_invoice = create_purchase_invoice(
-            **purchase_invoice_data.get("kwargs")
-        )
+        purchase_invoice_data = self.e_waybill_test_data.get("pi_data_for_unregistered_supplier")
+        purchase_invoice = create_purchase_invoice(**purchase_invoice_data.get("kwargs"))
 
-        self._generate_e_waybill(
-            purchase_invoice.name, "Purchase Invoice", purchase_invoice_data
-        )
+        self._generate_e_waybill(purchase_invoice.name, "Purchase Invoice", purchase_invoice_data)
 
         self.assertDocumentEqual(
-            {
-                "name": purchase_invoice_data.get("response_data")
-                .get("result")
-                .get("ewayBillNo")
-            },
+            {"name": purchase_invoice_data.get("response_data").get("result").get("ewayBillNo")},
             frappe.get_doc("e-Waybill Log", {"reference_name": purchase_invoice.name}),
         )
 
     @change_settings("GST Settings", {"enable_e_waybill_from_pi": 1})
     @responses.activate
     def test_e_waybill_for_registered_purchase(self):
-        purchase_invoice_data = self.e_waybill_test_data.get(
-            "pi_data_for_registered_supplier"
-        )
+        purchase_invoice_data = self.e_waybill_test_data.get("pi_data_for_registered_supplier")
 
-        purchase_invoice = create_purchase_invoice(
-            **purchase_invoice_data.get("kwargs"), do_not_submit=True
-        )
+        purchase_invoice = create_purchase_invoice(**purchase_invoice_data.get("kwargs"), do_not_submit=True)
 
         purchase_invoice.bill_no = ""
 
@@ -814,9 +1066,7 @@ class TestEWaybill(FrappeTestCase):
             purchase_invoice_data.get("request_data"),
         )
 
-        self._generate_e_waybill(
-            purchase_invoice.name, "Purchase Invoice", purchase_invoice_data
-        )
+        self._generate_e_waybill(purchase_invoice.name, "Purchase Invoice", purchase_invoice_data)
 
         # Return Note
         return_note = make_return_doc("Purchase Invoice", purchase_invoice.name)
@@ -824,18 +1074,12 @@ class TestEWaybill(FrappeTestCase):
         return_note.vehicle_no = "GJ05DL9009"
         return_note.submit()
 
-        return_pi_data = self.e_waybill_test_data.get(
-            "purchase_return_for_registered_supplier"
-        )
+        return_pi_data = self.e_waybill_test_data.get("purchase_return_for_registered_supplier")
 
         self._generate_e_waybill(return_note.name, "Purchase Invoice", return_pi_data)
 
         self.assertDocumentEqual(
-            {
-                "name": return_pi_data.get("response_data")
-                .get("result")
-                .get("ewayBillNo")
-            },
+            {"name": return_pi_data.get("response_data").get("result").get("ewayBillNo")},
             frappe.get_doc("e-Waybill Log", {"reference_name": return_note.name}),
         )
 
@@ -843,17 +1087,13 @@ class TestEWaybill(FrappeTestCase):
     def test_gst_error_retry_enabled(self):
         """Test to check if e-waybill status is set to Auto Retry on GST Server Error when Retry e-Invoice / e-Waybill Generation is enabled"""
         si = self.create_sales_invoice_for("goods_item_with_ewaybill")
-        self._generate_e_waybill(
-            si.name, test_data=self.e_waybill_test_data.gsp_gst_down_error
-        )
+        self._generate_e_waybill(si.name, test_data=self.e_waybill_test_data.gsp_gst_down_error)
 
         si = load_doc("Sales Invoice", si.name, "submit")
 
         self.assertEqual(si.e_waybill_status, "Auto-Retry")
         self.assertEqual(
-            frappe.get_cached_value(
-                "GST Settings", "GST Settings", "is_retry_einv_ewb_generation_pending"
-            ),
+            frappe.get_cached_value("GST Settings", "GST Settings", "is_retry_einv_ewb_generation_pending"),
             1,
         )
 
@@ -874,9 +1114,7 @@ class TestEWaybill(FrappeTestCase):
         self.assertEqual(si.e_waybill_status, "Generated")
         self.assertEqual(
             si.ewaybill,
-            str(
-                retry_ewb_test_date.get("response_data").get("result").get("ewayBillNo")
-            ),
+            str(retry_ewb_test_date.get("response_data").get("result").get("ewayBillNo")),
         )
 
     @change_settings("GST Settings", {"enable_retry_einv_ewb_generation": 0})
@@ -884,17 +1122,13 @@ class TestEWaybill(FrappeTestCase):
     def test_gst_error_retry_disabled(self):
         """Test to check if e-waybill status is set to Auto Retry on GST Server Error when Retry e-Invoice / e-Waybill Generation is disabled"""
         si = self.create_sales_invoice_for("goods_item_with_ewaybill")
-        self._generate_e_waybill(
-            si.name, test_data=self.e_waybill_test_data.gsp_gst_down_error
-        )
+        self._generate_e_waybill(si.name, test_data=self.e_waybill_test_data.gsp_gst_down_error)
 
         si = load_doc("Sales Invoice", si.name, "submit")
 
         self.assertEqual(si.e_waybill_status, "Failed")
         self.assertEqual(
-            frappe.get_cached_value(
-                "GST Settings", "GST Settings", "is_retry_einv_ewb_generation_pending"
-            ),
+            frappe.get_cached_value("GST Settings", "GST Settings", "is_retry_einv_ewb_generation_pending"),
             0,
         )
 
@@ -928,10 +1162,258 @@ class TestEWaybill(FrappeTestCase):
             frappe.get_doc("e-Waybill Log", {"reference_name": si.name}),
         )
 
+    @responses.activate
+    @change_settings("GST Settings", {"use_fallback_for_nic": 1, "enable_e_invoice": 1})
+    def test_generate_e_waybill_with_irn_with_cancelled_gstin_error_3029_enriched(self):
+        """Test error handling for cancelled GSTIN in e-waybill generation with Irn - Enriched API(error 3029)"""
+
+        test_data = self.e_waybill_test_data.get("ewaybill_gstin_error_3029")
+        si = create_sales_invoice(
+            **test_data.get("kwargs"),
+            qty=1000,
+            transporter="_Test Common Supplier",
+            distance=10,
+            mode_of_transport="Road",
+            irn="12345678901234567",
+        )
+
+        error_response = test_data.get("error_response_enriched")
+
+        responses.add(
+            responses.POST,
+            BASE_URL + "/test/ei/api/ewaybill",
+            json=error_response,
+            status=200,
+        )
+
+        sync_gstin_response = test_data.get("sync_gstin_response_inactive")
+
+        responses.add(
+            responses.GET,
+            BASE_URL + "/test/ei/api/master/syncgstin",
+            match=[matchers.query_param_matcher({"gstin": "29AAACI1195H2ZH"})],
+            json=sync_gstin_response,
+            status=200,
+        )
+
+        with self.assertRaises(frappe.exceptions.ValidationError) as cm:
+            doc = load_doc("Sales Invoice", si.name, "submit")
+            _generate_e_waybill(doc)
+
+        self.assertIn("GSTIN -29AAACI1195H2ZH is inactive or cancelled", str(cm.exception))
+
+    @responses.activate
+    @change_settings(
+        "GST Settings",
+        {"use_fallback_for_nic": 0, "sandbox_mode": 0, "enable_e_invoice": 1},
+    )
+    def test_generate_e_waybill_with_cancelled_gstin_error_3029_standard(self):
+        """Test error handling for cancelled GSTIN in e-waybill generation with Irn - Standard API(error 3029)"""
+
+        test_data = self.e_waybill_test_data.get("ewaybill_gstin_error_3029")
+        si = create_sales_invoice(
+            **test_data.get("kwargs"),
+            qty=1000,
+            transporter="_Test Common Supplier",
+            distance=10,
+            mode_of_transport="Road",
+            irn="12345678901234567",
+        )
+
+        error_response = test_data.get("error_response_standard")
+
+        responses.add(
+            responses.POST,
+            BASE_URL + "/standard/ei/api/ewaybill",
+            json=error_response,
+            status=200,
+        )
+
+        sync_gstin_response = test_data.get("sync_gstin_response_inactive")
+
+        responses.add(
+            responses.GET,
+            BASE_URL + "/standard/ei/api/master/syncgstin",
+            match=[matchers.query_param_matcher({"gstin": "29AAACI1195H2ZH"})],
+            json=sync_gstin_response,
+            status=200,
+        )
+
+        with self.assertRaises(frappe.exceptions.ValidationError) as cm:
+            doc = load_doc("Sales Invoice", si.name, "submit")
+
+            frappe.flags.bypass_auth = True
+            _generate_e_waybill(doc)
+            frappe.flags.bypass_auth = False
+
+        self.assertIn("GSTIN -29AAACI1195H2ZH is inactive or cancelled", str(cm.exception))
+
+    @responses.activate
+    def test_e_waybill_overseas_customer_with_domestic_shipping(self):
+        """Test e-waybill for overseas customer with domestic shipping address.
+
+        When an overseas customer has goods shipped within India the toStateCode should be set based on
+        the place of supply, not as 96-Other Countries.
+        """
+        test_data = self.e_waybill_test_data.get("overseas_customer_domestic_shipping")
+        si = self.create_sales_invoice_for("overseas_customer_domestic_shipping")
+
+        e_waybill_data = EWaybillData(si).get_data()
+
+        self.assertEqual(
+            e_waybill_data.get("toStateCode"),
+            24,
+            "toStateCode should be set from place of supply (shipping address state)",
+        )
+
+        expected_request_data = test_data.get("request_data")
+        for key, value in e_waybill_data.items():
+            self.assertEqual(expected_request_data.get(key), value, f"Mismatch for key '{key}'")
+
+    def test_e_waybill_for_inter_state_sales_return(self):
+        """Test e-waybill generation for inter-state sales return.
+
+        For return documents (is_return=1) with inter-state transport,
+        the toStateCode should come from bill_to's state number.
+        """
+        si = create_sales_invoice(
+            vehicle_no="GJ07DL9009",
+            company_address="_Test Indian Registered Company-Billing",
+            customer="_Test Registered Customer",
+            customer_address="_Test Registered Customer-Billing-3",
+            is_out_state=1,
+        )
+
+        credit_note = make_return_doc("Sales Invoice", si.name)
+        credit_note.vehicle_no = "GJ07DL9009"
+        credit_note.save()
+        credit_note.submit()
+
+        e_waybill_data = EWaybillData(credit_note).get_data()
+
+        # For inter-state return, toStateCode should be company's state (bill_to after swap)
+        self.assertEqual(
+            e_waybill_data.get("toStateCode"),
+            24,
+            "For inter-state returns, toStateCode should be from bill_to.state_number",
+        )
+
+        self.assertEqual(e_waybill_data.get("supplyType"), "I")
+        self.assertEqual(e_waybill_data.get("subSupplyType"), 7)
+
+    @change_settings("GST Settings", {"enable_overseas_transactions": 1})
+    def test_e_waybill_for_sez_outward_invoice(self):
+        si = create_sales_invoice(
+            vehicle_no="GJ07DL9009",
+            company_address="_Test Indian Registered Company-Billing",
+            customer_address="_Test Registered Customer-Billing-1",
+            is_out_state=1,
+            is_export_with_gst=1,
+        )
+
+        e_waybill_data = EWaybillData(si).get_data()
+
+        self.assertEqual(e_waybill_data.get("toStateCode"), 96)
+        self.assertEqual(e_waybill_data.get("fromStateCode"), 24)
+
+    @change_settings("GST Settings", {"enable_overseas_transactions": 1})
+    def test_e_waybill_for_sez_sales_return(self):
+        si = create_sales_invoice(
+            vehicle_no="GJ07DL9009",
+            company_address="_Test Indian Registered Company-Billing",
+            customer_address="_Test Registered Customer-Billing-1",
+            is_out_state=1,
+            is_export_with_gst=1,
+        )
+
+        credit_note = make_return_doc("Sales Invoice", si.name)
+        credit_note.vehicle_no = "GJ07DL9009"
+        credit_note.save()
+        credit_note.submit()
+
+        e_waybill_data = EWaybillData(credit_note).get_data()
+
+        self.assertEqual(e_waybill_data.get("fromStateCode"), 96)
+        self.assertEqual(e_waybill_data.get("toStateCode"), 24)
+
+    @change_settings("GST Settings", {"enable_e_waybill_for_sc": 1})
+    def test_e_waybill_for_sez_stock_entry(self):
+        se = create_transaction(
+            doctype="Stock Entry",
+            stock_entry_type="Send to Subcontractor",
+            purpose="Send to Subcontractor",
+            bill_from_address="_Test Indian Registered Company-Billing",
+            bill_to_address="_Test Registered Customer-Billing-1",
+            vehicle_no="GJ07DL9009",
+            items=[
+                {
+                    "item_code": "_Test Trading Goods 1",
+                    "qty": 1,
+                    "gst_hsn_code": "61149090",
+                    "s_warehouse": "Finished Goods - _TIRC",
+                    "t_warehouse": "Goods In Transit - _TIRC",
+                    "amount": 100,
+                    "taxable_value": 100,
+                }
+            ],
+            company="_Test Indian Registered Company",
+            base_grand_total=100,
+        )
+
+        # reload to trigger onload which sets company_gstin, supplier_gstin
+        se = load_doc("Stock Entry", se.name, "submit")
+
+        e_waybill_data = EWaybillData(se).get_data()
+
+        self.assertEqual(e_waybill_data.get("toStateCode"), 96)
+        self.assertEqual(e_waybill_data.get("fromStateCode"), 24)
+        self.assertEqual(e_waybill_data.get("actToStateCode"), 24)
+
+    @change_settings(
+        "GST Settings",
+        {"enable_e_waybill_from_pi": 1, "enable_overseas_transactions": 1},
+    )
+    def test_e_waybill_for_sez_purchase_invoice(self):
+        pi = create_purchase_invoice(
+            vehicle_no="GJ07DL9009",
+            supplier_address="_Test Registered Supplier-Billing-2",
+            billing_address="_Test Indian Registered Company-Billing",
+            is_out_state=1,
+        )
+
+        e_waybill_data = EWaybillData(pi).get_data()
+
+        # bill_from = supplier (SEZ), bill_to = company
+        self.assertEqual(e_waybill_data.get("fromStateCode"), 96)
+        self.assertEqual(e_waybill_data.get("toStateCode"), 24)
+        self.assertEqual(e_waybill_data.get("actFromStateCode"), 24)
+
+    @change_settings(
+        "GST Settings",
+        {"enable_e_waybill_from_pi": 1, "enable_overseas_transactions": 1},
+    )
+    def test_e_waybill_for_sez_purchase_return(self):
+        pi = create_purchase_invoice(
+            vehicle_no="GJ07DL9009",
+            supplier_address="_Test Registered Supplier-Billing-2",
+            billing_address="_Test Indian Registered Company-Billing",
+            is_out_state=1,
+        )
+
+        debit_note = make_return_doc("Purchase Invoice", pi.name)
+        debit_note.vehicle_no = "GJ07DL9009"
+        debit_note.save()
+        debit_note.submit()
+
+        e_waybill_data = EWaybillData(debit_note).get_data()
+
+        # return swaps from/to: bill_from = company, bill_to = supplier (SEZ)
+        self.assertEqual(e_waybill_data.get("fromStateCode"), 24)
+        self.assertEqual(e_waybill_data.get("toStateCode"), 96)
+        self.assertEqual(e_waybill_data.get("actToStateCode"), 24)
+
     # helper functions
-    def _generate_e_waybill(
-        self, docname=None, doctype="Sales Invoice", test_data=None, force=False
-    ):
+    def _generate_e_waybill(self, docname=None, doctype="Sales Invoice", test_data=None, force=False):
         """
         Mocks response for generate_e_waybill and get_e_waybill.
         Calls generate_e_waybill function.
@@ -960,23 +1442,17 @@ class TestEWaybill(FrappeTestCase):
         self._mock_e_waybill_response(
             data=get_e_waybill_test_data.get("response_data"),
             match_list=[
-                matchers.query_string_matcher(
-                    get_e_waybill_test_data.get("request_data")
-                ),
+                matchers.query_string_matcher(get_e_waybill_test_data.get("request_data")),
             ],
             method="GET",
             api="getewaybill",
         )
 
-        values = (
-            frappe._dict(test_data.get("values")) if test_data.get("values") else None
-        )
+        values = frappe._dict(test_data.get("values")) if test_data.get("values") else None
 
         generate_e_waybill(doctype=doctype, docname=docname, values=values, force=force)
 
-    def _mock_e_waybill_response(
-        self, data, match_list, method="POST", api=None, replace=False
-    ):
+    def _mock_e_waybill_response(self, data, match_list, method="POST", api=None, replace=False):
         """
         Mock e-waybill response for given data and match_list
 
@@ -1036,6 +1512,76 @@ class TestEWaybill(FrappeTestCase):
         delivery_note = create_transaction(**doc_args)
         return delivery_note
 
+    def _create_stock_entry(self, test_case):
+        """Generate Stock Entry to test e-Waybill functionalities"""
+        doc_args = self.e_waybill_test_data.get(test_case).get("kwargs")
+        doc_args.update({"doctype": "Stock Entry"})
+
+        stock_entry = create_transaction(**doc_args)
+        return stock_entry
+
+    def _create_purchase_receipt(self, test_case):
+        """Generate Purchase Receipt to test e-Waybill functionalities"""
+        doc_args = self.e_waybill_test_data.get(test_case).get("kwargs")
+        doc_args.update({"doctype": "Purchase Receipt"})
+
+        purchase_receipt = create_transaction(**doc_args)
+        return purchase_receipt
+
+    @change_settings("GST Settings", {"enable_e_waybill_for_sc": 1})
+    @responses.activate
+    def test_e_waybill_for_stock_entry(self):
+        """Test to generate e-waybill for Stock Entry"""
+        se_data = self.e_waybill_test_data.get("stock_entry")
+
+        stock_entry = self._create_stock_entry("stock_entry")
+
+        self._generate_e_waybill(stock_entry.name, "Stock Entry", se_data)
+
+        self.assertDocumentEqual(
+            {"name": se_data.get("response_data").get("result").get("ewayBillNo")},
+            frappe.get_doc("e-Waybill Log", {"reference_name": stock_entry.name}),
+        )
+
+        stock_entry = load_doc("Stock Entry", stock_entry.name, "submit")
+
+        e_waybill_info = stock_entry.get("__onload").e_waybill_info
+
+        self.assertEqual(
+            e_waybill_info.valid_upto,
+            parse_datetime(
+                se_data.get("response_data").get("result").get("validUpto"),
+                day_first=True,
+            ),
+        )
+
+    @change_settings("GST Settings", {"enable_e_waybill_for_sc": 1})
+    @responses.activate
+    def test_e_waybill_for_stock_entry_same_gstin(self):
+        """Test to generate e-waybill for Stock Entry with same gstin"""
+        se_data = self.e_waybill_test_data.get("stock_entry_with_same_gstin")
+
+        stock_entry = self._create_stock_entry("stock_entry_with_same_gstin")
+
+        self._generate_e_waybill(stock_entry.name, "Stock Entry", se_data)
+
+        self.assertDocumentEqual(
+            {"name": se_data.get("response_data").get("result").get("ewayBillNo")},
+            frappe.get_doc("e-Waybill Log", {"reference_name": stock_entry.name}),
+        )
+
+        stock_entry = load_doc("Stock Entry", stock_entry.name, "submit")
+
+        e_waybill_info = stock_entry.get("__onload").e_waybill_info
+
+        self.assertEqual(
+            e_waybill_info.valid_upto,
+            parse_datetime(
+                se_data.get("response_data").get("result").get("validUpto"),
+                day_first=True,
+            ),
+        )
+
 
 def update_dates_for_test_data(test_data):
     """Update dates in test data"""
@@ -1050,9 +1596,9 @@ def update_dates_for_test_data(test_data):
             continue
 
         response_request = value.get("request_data")
-        response_result = value.get("response_data").get("result", {})
+        response_result = value.get("response_data", {}).get("result", {})
 
-        for k, v in response_result.items():
+        for k in response_result.keys():
             if k == "ewayBillDate":
                 response_result.update({k: current_datetime})
             if k == "validUpto":
@@ -1103,7 +1649,7 @@ def _bulk_insert_hsn_wise_items(hsn_codes):
                 frappe.session.user,
                 code["hsn_code"],
                 code["description"],
-                "Services" if code["hsn_code"][:2] == "99" else "Products",
+                ("Services" if code["hsn_code"][:2] == SERVICE_HSN_PREFIX else "Products"),
                 "Nos",
             ]
             for idx, code in enumerate(hsn_codes, 13000)
@@ -1111,3 +1657,205 @@ def _bulk_insert_hsn_wise_items(hsn_codes):
         ignore_duplicates=True,
         chunk_size=251,
     )
+
+
+def with_intrastate_config(config_rows):
+    """Decorator to set intrastate e-Waybill threshold config on the cached GST Settings.
+
+    Modifies the cached doc in-place before the test and restores it after.
+
+    Usage::
+
+        @with_intrastate_config(
+            [
+                {"state": "Gujarat", "intrastate_applicable": 1, "intrastate_threshold": 100000},
+            ]
+        )
+        def test_something(self): ...
+    """
+    from functools import wraps
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            gst_settings = frappe.get_cached_doc("GST Settings")
+            original_rows = list(gst_settings.get("e_waybill_threshold_for_intrastate") or [])
+
+            gst_settings.set("e_waybill_threshold_for_intrastate", [])
+            for row in config_rows:
+                gst_settings.append("e_waybill_threshold_for_intrastate", row)
+
+            try:
+                return func(*args, **kwargs)
+            finally:
+                gst_settings.set("e_waybill_threshold_for_intrastate", original_rows)
+
+        return wrapper
+
+    return decorator
+
+
+class TestEWaybillThreshold(FrappeTestCase):
+    """Tests for state-wise e-Waybill threshold configuration (PR #3968)"""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+
+        frappe.db.set_single_value(
+            "GST Settings",
+            {
+                "enable_e_waybill": 1,
+                "e_waybill_threshold": 50000,
+            },
+        )
+
+    @with_intrastate_config(
+        [
+            {
+                "state": "Gujarat",
+                "intrastate_applicable": 1,
+                "intrastate_threshold": 100000,
+            }
+        ]
+    )
+    def test_inter_state_supply_returns_default_threshold(self):
+        """Inter-state supply should always return the default e_waybill_threshold."""
+        si = create_sales_invoice(
+            is_out_state=True,
+            rate=100,
+            customer="_Test Registered Customer",
+            customer_address="_Test Registered Customer-Billing-3",
+            company_address="_Test Indian Registered Company-Billing",
+            do_not_submit=True,
+        )
+
+        gst_settings = frappe.get_cached_doc("GST Settings")
+        threshold = _get_e_waybill_threshold(si, gst_settings)
+        self.assertEqual(threshold, gst_settings.e_waybill_threshold)
+
+    @with_intrastate_config([])
+    def test_intra_state_no_state_config_returns_default_threshold(self):
+        """Intra-state supply with no state config should fall back to default threshold."""
+        si = create_sales_invoice(
+            is_in_state=True,
+            rate=100,
+            company_address="_Test Indian Registered Company-Billing",
+            do_not_submit=True,
+        )
+
+        gst_settings = frappe.get_cached_doc("GST Settings")
+        threshold = _get_e_waybill_threshold(si, gst_settings)
+        self.assertEqual(threshold, gst_settings.e_waybill_threshold)
+
+    @with_intrastate_config(
+        [
+            {
+                "state": "Gujarat",
+                "intrastate_applicable": 1,
+                "intrastate_threshold": 100000,
+            }
+        ]
+    )
+    def test_intra_state_with_custom_threshold(self):
+        """Intra-state supply with state config should return configured threshold."""
+        si = create_sales_invoice(
+            is_in_state=True,
+            rate=100,
+            company_address="_Test Indian Registered Company-Billing",
+            do_not_submit=True,
+        )
+
+        threshold = _get_e_waybill_threshold(si)
+        self.assertEqual(threshold, 100000)
+
+    @with_intrastate_config(
+        [
+            {
+                "state": "Gujarat",
+                "intrastate_applicable": 0,
+                "intrastate_threshold": 50000,
+            }
+        ]
+    )
+    def test_intra_state_not_applicable_returns_none(self):
+        """Intra-state supply where intrastate_applicable is False should return None."""
+        si = create_sales_invoice(
+            is_in_state=True,
+            rate=100,
+            company_address="_Test Indian Registered Company-Billing",
+            do_not_submit=True,
+        )
+
+        threshold = _get_e_waybill_threshold(si)
+        self.assertIsNone(threshold)
+
+    @with_intrastate_config(
+        [
+            {
+                "state": "Gujarat",
+                "intrastate_applicable": 1,
+                "intrastate_threshold": 50000,
+            }
+        ]
+    )
+    def test_is_e_waybill_applicable_intra_state_threshold_met(self):
+        """Intra-state with threshold met and state config present should be applicable."""
+        si = create_sales_invoice(
+            is_in_state=True,
+            rate=100000,
+            company_address="_Test Indian Registered Company-Billing",
+        )
+
+        self.assertTrue(is_e_waybill_applicable(si))
+
+    @with_intrastate_config(
+        [
+            {
+                "state": "Gujarat",
+                "intrastate_applicable": 1,
+                "intrastate_threshold": 50000,
+            }
+        ]
+    )
+    def test_is_e_waybill_applicable_intra_state_threshold_not_met(self):
+        """Intra-state with threshold NOT met should not be applicable."""
+        si = create_sales_invoice(
+            is_in_state=True,
+            rate=100,
+            company_address="_Test Indian Registered Company-Billing",
+        )
+
+        self.assertFalse(is_e_waybill_applicable(si))
+
+    @with_intrastate_config(
+        [
+            {
+                "state": "Gujarat",
+                "intrastate_applicable": 0,
+                "intrastate_threshold": 50000,
+            }
+        ]
+    )
+    def test_is_e_waybill_not_applicable_intra_state_disabled(self):
+        """Intra-state with intrastate_applicable=False should not be applicable."""
+        si = create_sales_invoice(
+            is_in_state=True,
+            rate=100000,
+            company_address="_Test Indian Registered Company-Billing",
+        )
+
+        self.assertFalse(is_e_waybill_applicable(si))
+
+    @with_intrastate_config([])
+    def test_is_e_waybill_applicable_inter_state_threshold_met(self):
+        """Inter-state with threshold met should use default threshold and be applicable."""
+        si = create_sales_invoice(
+            is_out_state=True,
+            rate=100000,
+            customer="_Test Registered Customer",
+            customer_address="_Test Registered Customer-Billing-3",
+            company_address="_Test Indian Registered Company-Billing",
+        )
+
+        self.assertTrue(is_e_waybill_applicable(si))

@@ -8,6 +8,21 @@ from frappe.utils import nowdate
 
 
 class SMSSettings(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.core.doctype.sms_parameter.sms_parameter import SMSParameter
+		from frappe.types import DF
+
+		message_parameter: DF.Data
+		parameters: DF.Table[SMSParameter]
+		receiver_parameter: DF.Data
+		sms_gateway_url: DF.SmallText
+		use_post: DF.Check
+	# end: auto-generated types
 	pass
 
 
@@ -42,7 +57,7 @@ def get_contact_number(contact_name, ref_doctype, ref_name):
 		(contact_name, ref_doctype, ref_name),
 	)
 
-	return number and (number[0][0] or number[0][1]) or ""
+	return (number and (number[0][0] or number[0][1])) or ""
 
 
 @frappe.whitelist()

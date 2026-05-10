@@ -244,3 +244,507 @@ Form Dict: {}
 2026-03-06 11:41:19,187 ERROR frappe New Exception collected with id: 2026-03-06 11:41:19.172680-127.0.0.1-718
 Site: local.client.test
 Form Dict: {}
+2026-05-02 17:22:44,861 ERROR frappe Failed to run after request hook
+Site: local.client.test
+Form Dict: {}
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 105, in application
+    init_request(request)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 206, in init_request
+    frappe.local.http_request = HTTPRequest()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/auth.py", line 44, in __init__
+    self.set_session()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/auth.py", line 81, in set_session
+    frappe.local.login_manager = LoginManager()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/auth.py", line 120, in __init__
+    self.make_session(resume=True)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/auth.py", line 216, in make_session
+    frappe.local.session_obj = Session(
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/sessions.py", line 231, in __init__
+    self.resume()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/sessions.py", line 315, in resume
+    self.validate_user()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/sessions.py", line 239, in validate_user
+    if not frappe.get_cached_value("User", self.user, "enabled"):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1245, in get_cached_value
+    doc = get_cached_doc(doctype, name)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1188, in get_cached_doc
+    doc = get_doc(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1314, in get_doc
+    return frappe.model.document.get_doc(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 83, in get_doc
+    controller = get_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 342, in <module>
+    from finbyzerp.finbyzerp.override.general_ledger import check_freezing_date , get_result_as_list
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/finbyzerp/override/general_ledger.py", line 42, in <module>
+    from erpnext.accounts.report.general_ledger.general_ledger import get_result,update_translations,validate_filters ,validate_party,set_account_currency,get_columns
+ImportError: cannot import name 'update_translations' from 'erpnext.accounts.report.general_ledger.general_ledger' (/Users/kushagraverma/frappe/client-bench/apps/erpnext/erpnext/accounts/report/general_ledger/general_ledger.py)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 144, in application
+    response = handle_exception(e)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/permissions.py", line 883, in wrapper
+    return fn(e, *args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 333, in handle_exception
+    allow_traceback = frappe.get_system_settings("allow_error_traceback") if frappe.db else False
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 2375, in get_system_settings
+    local.system_settings = system_settings = get_cached_doc("System Settings")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1188, in get_cached_doc
+    doc = get_doc(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1314, in get_doc
+    return frappe.model.document.get_doc(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 83, in get_doc
+    controller = get_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 342, in <module>
+    from finbyzerp.finbyzerp.override.general_ledger import check_freezing_date , get_result_as_list
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/finbyzerp/override/general_ledger.py", line 42, in <module>
+    from erpnext.accounts.report.general_ledger.general_ledger import get_result,update_translations,validate_filters ,validate_party,set_account_currency,get_columns
+ImportError: cannot import name 'update_translations' from 'erpnext.accounts.report.general_ledger.general_ledger' (/Users/kushagraverma/frappe/client-bench/apps/erpnext/erpnext/accounts/report/general_ledger/general_ledger.py)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 158, in application
+    run_after_request_hooks(request, response)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 173, in run_after_request_hooks
+    for after_request_task in frappe.get_hooks("after_request"):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 342, in <module>
+    from finbyzerp.finbyzerp.override.general_ledger import check_freezing_date , get_result_as_list
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/finbyzerp/override/general_ledger.py", line 42, in <module>
+    from erpnext.accounts.report.general_ledger.general_ledger import get_result,update_translations,validate_filters ,validate_party,set_account_currency,get_columns
+ImportError: cannot import name 'update_translations' from 'erpnext.accounts.report.general_ledger.general_ledger' (/Users/kushagraverma/frappe/client-bench/apps/erpnext/erpnext/accounts/report/general_ledger/general_ledger.py)
+2026-05-02 17:22:46,201 ERROR frappe Failed to run after request hook
+Site: local.client.test
+Form Dict: {}
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 105, in application
+    init_request(request)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 206, in init_request
+    frappe.local.http_request = HTTPRequest()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/auth.py", line 44, in __init__
+    self.set_session()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/auth.py", line 81, in set_session
+    frappe.local.login_manager = LoginManager()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/auth.py", line 120, in __init__
+    self.make_session(resume=True)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/auth.py", line 216, in make_session
+    frappe.local.session_obj = Session(
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/sessions.py", line 231, in __init__
+    self.resume()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/sessions.py", line 315, in resume
+    self.validate_user()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/sessions.py", line 239, in validate_user
+    if not frappe.get_cached_value("User", self.user, "enabled"):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1245, in get_cached_value
+    doc = get_cached_doc(doctype, name)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1188, in get_cached_doc
+    doc = get_doc(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1314, in get_doc
+    return frappe.model.document.get_doc(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 83, in get_doc
+    controller = get_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 342, in <module>
+    from finbyzerp.finbyzerp.override.general_ledger import check_freezing_date , get_result_as_list
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/finbyzerp/override/general_ledger.py", line 42, in <module>
+    from erpnext.accounts.report.general_ledger.general_ledger import get_result,update_translations,validate_filters ,validate_party,set_account_currency,get_columns
+ImportError: cannot import name 'update_translations' from 'erpnext.accounts.report.general_ledger.general_ledger' (/Users/kushagraverma/frappe/client-bench/apps/erpnext/erpnext/accounts/report/general_ledger/general_ledger.py)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 144, in application
+    response = handle_exception(e)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/permissions.py", line 883, in wrapper
+    return fn(e, *args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 333, in handle_exception
+    allow_traceback = frappe.get_system_settings("allow_error_traceback") if frappe.db else False
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 2375, in get_system_settings
+    local.system_settings = system_settings = get_cached_doc("System Settings")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1188, in get_cached_doc
+    doc = get_doc(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1314, in get_doc
+    return frappe.model.document.get_doc(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 83, in get_doc
+    controller = get_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 342, in <module>
+    from finbyzerp.finbyzerp.override.general_ledger import check_freezing_date , get_result_as_list
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/finbyzerp/override/general_ledger.py", line 42, in <module>
+    from erpnext.accounts.report.general_ledger.general_ledger import get_result,update_translations,validate_filters ,validate_party,set_account_currency,get_columns
+ImportError: cannot import name 'update_translations' from 'erpnext.accounts.report.general_ledger.general_ledger' (/Users/kushagraverma/frappe/client-bench/apps/erpnext/erpnext/accounts/report/general_ledger/general_ledger.py)
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 158, in application
+    run_after_request_hooks(request, response)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/app.py", line 173, in run_after_request_hooks
+    for after_request_task in frappe.get_hooks("after_request"):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 342, in <module>
+    from finbyzerp.finbyzerp.override.general_ledger import check_freezing_date , get_result_as_list
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/finbyzerp/override/general_ledger.py", line 42, in <module>
+    from erpnext.accounts.report.general_ledger.general_ledger import get_result,update_translations,validate_filters ,validate_party,set_account_currency,get_columns
+ImportError: cannot import name 'update_translations' from 'erpnext.accounts.report.general_ledger.general_ledger' (/Users/kushagraverma/frappe/client-bench/apps/erpnext/erpnext/accounts/report/general_ledger/general_ledger.py)
+2026-05-02 17:57:40,048 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 17:59:41,394 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:19,038 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:19,507 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:19,974 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:20,190 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:20,490 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:20,696 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:20,886 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:21,084 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:21,262 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:21,474 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:21,656 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:21,871 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-02 18:01:22,103 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:52:13,453 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:52:13,592 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:58:39,435 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:58:40,593 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:58:41,444 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:58:41,662 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:58:41,837 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:58:56,132 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:58:56,790 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:58:57,234 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:58:57,490 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:58:57,666 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:58:57,863 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:59:01,085 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:59:05,176 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 20:59:57,266 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 21:00:14,221 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 21:00:15,550 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 21:00:17,049 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 21:00:24,295 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 21:06:24,971 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 21:06:26,170 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 21:06:27,030 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 21:06:27,319 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 21:06:27,629 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 21:07:51,489 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-09 23:48:53,397 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 00:28:54,678 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 00:28:55,705 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 00:28:56,621 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 00:28:56,992 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 11:15:02,634 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 11:15:04,231 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 11:15:53,415 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 11:15:54,388 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 11:15:55,166 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 11:15:55,397 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 11:15:55,607 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 11:15:55,828 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 11:16:02,554 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 11:16:30,040 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 11:31:24,569 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 12:01:51,658 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 12:03:27,571 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 12:03:29,157 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 12:03:30,412 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {}
+2026-05-10 13:28:05,396 ERROR frappe Failed to capture exception
+Site: local.client.test
+Form Dict: {}
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/sentry.py", line 117, in capture_exception
+    set_scope(scope)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/sentry.py", line 70, in set_scope
+    path = frappe.request.path
+  File "/Users/kushagraverma/frappe/client-bench/env/lib/python3.10/site-packages/werkzeug/local.py", line 318, in __get__
+    obj = instance._get_current_object()
+  File "/Users/kushagraverma/frappe/client-bench/env/lib/python3.10/site-packages/werkzeug/local.py", line 501, in _get_current_object
+    raise RuntimeError(unbound_message) from None
+RuntimeError: object is not bound

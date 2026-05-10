@@ -5,6 +5,7 @@ frappe.ui.form.on("Letter Head", {
 	setup(frm) {
 		frm.get_field("instructions").html(INSTRUCTIONS);
 	},
+
 	refresh: function (frm) {
 		frm.flag_public_attachments = true;
 	},
@@ -28,7 +29,6 @@ frappe.ui.form.on("Letter Head", {
 
 const INSTRUCTIONS = `<h4>${__("Letter Head Scripts")}</h4>
 <p>${__("Header/Footer scripts can be used to add dynamic behaviours.")}</p>
-
 <pre>
 <code>
 // ${__(
@@ -40,9 +40,7 @@ if (el.length > 0) {
 }
 </code>
 </pre>
-
 <p>${__("You can also access wkhtmltopdf variables (valid only in PDF print):")}</p>
-
 <pre>
 <code>
 // ${__("Get Header and Footer wkhtmltopdf variables")}
@@ -55,7 +53,6 @@ for (var query_string in query_strings_from_url) {
 		vars[temp_var[0]] = decodeURI(temp_var[1]);
 	}
 }
-
 var el = document.getElementsByClassName("header-content");
 if (el.length > 0 && vars["page"] == 1) {
 	el[0].textContent += " : " + vars["date"];

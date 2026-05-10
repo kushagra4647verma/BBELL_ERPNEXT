@@ -24,7 +24,7 @@ frappe.ui.DiffView = class DiffView {
 			},
 		});
 		const onchange = () => this.compute_diff();
-		let dialog = new frappe.ui.Dialog({
+		return new frappe.ui.Dialog({
 			title: __("Compare Versions"),
 			fields: [
 				{
@@ -61,7 +61,6 @@ frappe.ui.DiffView = class DiffView {
 			],
 			size: "extra-large",
 		});
-		return dialog;
 	}
 
 	compute_diff() {

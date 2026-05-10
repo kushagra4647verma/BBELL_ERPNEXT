@@ -1,11 +1,13 @@
 # Copyright (c) 2022, Frappe Technologies Pvt. Ltd. and Contributors
 # License: MIT. Check LICENSE
 
+import datetime
 import json
 from collections import defaultdict
 from collections.abc import Callable
-from datetime import datetime, timedelta
 from functools import wraps
+
+import pytz
 
 import frappe
 
@@ -96,7 +98,7 @@ def site_cache(ttl: int | None = None, maxsize: int | None = None) -> Callable:
 
 		if ttl is not None and not callable(ttl):
 			func.ttl = ttl
-			func.expiration = datetime.utcnow() + timedelta(seconds=func.ttl)
+			func.expiration = datetime.datetime.now(pytz.UTC) + datetime.timedelta(seconds=func.ttl)
 
 		if maxsize is not None and not callable(maxsize):
 			func.maxsize = maxsize
@@ -106,9 +108,9 @@ def site_cache(ttl: int | None = None, maxsize: int | None = None) -> Callable:
 			if getattr(frappe.local, "initialised", None):
 				func_call_key = json.dumps((args, kwargs))
 
-				if hasattr(func, "ttl") and datetime.utcnow() >= func.expiration:
+				if hasattr(func, "ttl") and datetime.datetime.now(pytz.UTC) >= func.expiration:
 					func.clear_cache()
-					func.expiration = datetime.utcnow() + timedelta(seconds=func.ttl)
+					func.expiration = datetime.datetime.now(pytz.UTC) + datetime.timedelta(seconds=func.ttl)
 
 				if hasattr(func, "maxsize") and len(_SITE_CACHE[func_key][frappe.local.site]) >= func.maxsize:
 					_SITE_CACHE[func_key][frappe.local.site].pop(
@@ -143,7 +145,7 @@ def redis_cache(ttl: int | None = 3600, user: str | bool | None = None, shared: 
 		func_key = f"{func.__module__}.{func.__qualname__}"
 
 		def clear_cache():
-			frappe.cache().delete_keys(func_key)
+			frappe.cache.delete_keys(func_key)
 
 		func.clear_cache = clear_cache
 		func.ttl = ttl if not callable(ttl) else 3600
@@ -151,11 +153,11 @@ def redis_cache(ttl: int | None = 3600, user: str | bool | None = None, shared: 
 		@wraps(func)
 		def redis_cache_wrapper(*args, **kwargs):
 			func_call_key = func_key + "::" + str(__generate_request_cache_key(args, kwargs))
-			if frappe.cache().exists(func_call_key, user=user, shared=shared):
-				return frappe.cache().get_value(func_call_key, user=user, shared=shared)
+			if frappe.cache.exists(func_call_key, user=user, shared=shared):
+				return frappe.cache.get_value(func_call_key, user=user, shared=shared)
 			val = func(*args, **kwargs)
 			ttl = getattr(func, "ttl", 3600)
-			frappe.cache().set_value(func_call_key, val, expires_in_sec=ttl, user=user, shared=shared)
+			frappe.cache.set_value(func_call_key, val, expires_in_sec=ttl, user=user, shared=shared)
 			return val
 
 		return redis_cache_wrapper

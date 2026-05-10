@@ -21,12 +21,36 @@ from frappe.utils.background_jobs import enqueue
 
 
 class S3BackupSettings(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		access_key_id: DF.Data
+		backup_files: DF.Check
+		backup_path: DF.Data | None
+		bucket: DF.Data
+		enabled: DF.Check
+		endpoint_url: DF.Data | None
+		frequency: DF.Literal["Daily", "Weekly", "Monthly", "None"]
+		notify_email: DF.Data
+		secret_access_key: DF.Password
+		send_email_for_successful_backup: DF.Check
+
+	# end: auto-generated types
+
 	def validate(self):
 		if not self.enabled:
 			return
 
 		if not self.endpoint_url:
 			self.endpoint_url = "https://s3.amazonaws.com"
+
+		if self.backup_path and self.backup_path[-1] != "/":
+			self.backup_path += "/"
 
 		conn = boto3.client(
 			"s3",
@@ -55,12 +79,12 @@ class S3BackupSettings(Document):
 @frappe.whitelist()
 def take_backup():
 	"""Enqueue longjob for taking backup to s3"""
-	enqueue(
+	job = enqueue(
 		"frappe.integrations.doctype.s3_backup_settings.s3_backup_settings.take_backups_s3",
 		queue="long",
 		timeout=1500,
 	)
-	frappe.msgprint(_("Queued for backup. It may take a few minutes to an hour."))
+	return job.id
 
 
 def take_backups_daily():
@@ -113,6 +137,7 @@ def backup_to_s3():
 
 	doc = frappe.get_single("S3 Backup Settings")
 	bucket = doc.bucket
+	path = doc.backup_path or ""
 	backup_files = cint(doc.backup_files)
 
 	conn = boto3.client(
@@ -152,7 +177,7 @@ def backup_to_s3():
 		else:
 			db_filename, site_config = get_latest_backup_file()
 
-	folder = os.path.basename(db_filename)[:15] + "/"
+	folder = path + os.path.basename(db_filename)[:15] + "/"
 	# for adding datetime to folder name
 
 	upload_file_to_s3(db_filename, folder, conn, bucket)

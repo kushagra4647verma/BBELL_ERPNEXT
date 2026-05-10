@@ -9,6 +9,7 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 	refresh: function (frm) {
 		if (!frm.doc.__islocal) {
 			frm.add_custom_button(__("Send Emails"), function () {
+				if (frm.is_dirty()) frappe.throw(__("Please save before proceeding."));
 				frappe.call({
 					method: "erpnext.accounts.doctype.process_statement_of_accounts.process_statement_of_accounts.send_emails",
 					args: {
@@ -24,7 +25,8 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 				});
 			});
 			frm.add_custom_button(__("Download"), function () {
-				var url = frappe.urllib.get_full_url(
+				if (frm.is_dirty()) frappe.throw(__("Please save before proceeding."));
+				let url = frappe.urllib.get_full_url(
 					"/api/method/erpnext.accounts.doctype.process_statement_of_accounts.process_statement_of_accounts.download_statements?" +
 						"document_name=" +
 						encodeURIComponent(frm.doc.name)
@@ -52,6 +54,29 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 			};
 		});
 		frm.set_query("account", function () {
+			if (!frm.doc.company) {
+				frappe.throw(__("Please set Company"));
+			}
+			return {
+				filters: {
+					company: frm.doc.company,
+				},
+			};
+		});
+		frm.set_query("cost_center", function () {
+			if (!frm.doc.company) {
+				frappe.throw(__("Please set Company"));
+			}
+			return {
+				filters: {
+					company: frm.doc.company,
+				},
+			};
+		});
+		frm.set_query("project", function () {
+			if (!frm.doc.company) {
+				frappe.throw(__("Please set Company"));
+			}
 			return {
 				filters: {
 					company: frm.doc.company,
@@ -62,6 +87,12 @@ frappe.ui.form.on("Process Statement Of Accounts", {
 			frm.set_value("from_date", frappe.datetime.add_months(frappe.datetime.get_today(), -1));
 			frm.set_value("to_date", frappe.datetime.get_today());
 		}
+	},
+	company: function (frm) {
+		frm.set_value("account", "");
+		frm.set_value("cost_center", "");
+		frm.set_value("project", "");
+		erpnext.utils.set_letter_head(frm);
 	},
 	report: function (frm) {
 		let filters = {

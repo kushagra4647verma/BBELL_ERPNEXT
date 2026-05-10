@@ -26,15 +26,21 @@ frappe.throw = function (msg) {
 	throw new Error(msg.message);
 };
 
-frappe.confirm = function (message, confirm_action, reject_action) {
+frappe.confirm = function (
+	message,
+	confirm_action,
+	reject_action,
+	primary_label,
+	secondary_label
+) {
 	var d = new frappe.ui.Dialog({
 		title: __("Confirm", null, "Title of confirmation dialog"),
-		primary_action_label: __("Yes", null, "Approve confirmation dialog"),
+		primary_action_label: __(primary_label || "Yes", null, "Approve confirmation dialog"),
 		primary_action: () => {
 			confirm_action && confirm_action();
 			d.hide();
 		},
-		secondary_action_label: __("No", null, "Dismiss confirmation dialog"),
+		secondary_action_label: __(secondary_label || "No", null, "Dismiss confirmation dialog"),
 		secondary_action: () => d.hide(),
 	});
 
@@ -111,14 +117,15 @@ frappe.prompt = function (fields, callback, title, primary_label) {
 frappe.msgprint = function (msg, title, is_minimizable) {
 	if (!msg) return;
 
+	let data;
 	if ($.isPlainObject(msg)) {
-		var data = msg;
+		data = msg;
 	} else {
 		// passed as JSON
 		if (typeof msg === "string" && msg.substr(0, 1) === "{") {
-			var data = JSON.parse(msg);
+			data = JSON.parse(msg);
 		} else {
-			var data = { message: msg, title: title };
+			data = { message: msg, title: title };
 		}
 	}
 
@@ -143,7 +150,15 @@ frappe.msgprint = function (msg, title, is_minimizable) {
 
 	if (data.message instanceof Array) {
 		let messages = data.message;
-		const exceptions = messages.map((m) => JSON.parse(m)).filter((m) => m.raise_exception);
+		const exceptions = messages
+			.map((m) => {
+				if (typeof m == "string") {
+					return JSON.parse(m);
+				} else {
+					return m;
+				}
+			})
+			.filter((m) => m.raise_exception);
 
 		// only show exceptions if any exceptions exist
 		if (exceptions.length) {
@@ -221,7 +236,7 @@ frappe.msgprint = function (msg, title, is_minimizable) {
 		}
 
 		frappe.msg_dialog.set_primary_action(
-			__(data.primary_action.label || data.primary_action_label || "Done"),
+			__(data.primary_action.label) || __(data.primary_action_label) || __("Done"),
 			data.primary_action.action
 		);
 	} else {
@@ -233,7 +248,9 @@ frappe.msgprint = function (msg, title, is_minimizable) {
 
 	if (data.secondary_action) {
 		frappe.msg_dialog.set_secondary_action(data.secondary_action.action);
-		frappe.msg_dialog.set_secondary_action_label(__(data.secondary_action.label || "Close"));
+		frappe.msg_dialog.set_secondary_action_label(
+			__(data.secondary_action.label) || __("Close")
+		);
 	}
 
 	if (data.message == null) {
@@ -376,6 +393,7 @@ frappe.show_progress = (title, count, total = 100, description, hide_on_completi
 		// timeout to avoid abrupt hide
 		setTimeout(frappe.hide_progress, 500);
 	}
+	frappe.cur_progress.$wrapper.css("z-index", 2000);
 	return dialog;
 };
 
@@ -458,13 +476,3 @@ frappe.show_alert = frappe.toast = function (message, seconds = 7, actions = {})
 
 	return div;
 };
-
-// Proxy for frappe.show_alert
-Object.defineProperty(window, "show_alert", {
-	get: function () {
-		console.warn(
-			"Please use `frappe.show_alert` instead of `show_alert`. It will be deprecated soon."
-		);
-		return frappe.show_alert;
-	},
-});

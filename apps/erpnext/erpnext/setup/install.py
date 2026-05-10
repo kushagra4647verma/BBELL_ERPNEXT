@@ -2,15 +2,15 @@
 # License: GNU General Public License v3. See license.txt
 
 
+import click
 import frappe
-from frappe import _
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.desk.page.setup_wizard.setup_wizard import add_all_roles_to
-from frappe.utils import cint
 
-from erpnext.accounts.doctype.cash_flow_mapper.default_cash_flow_mapper import DEFAULT_MAPPERS
+import erpnext
 from erpnext.setup.default_energy_point_rules import get_default_energy_point_rules
 from erpnext.setup.doctype.incoterm.incoterm import create_incoterms
+from erpnext.setup.utils import identity as _
 
 from .default_success_action import get_default_success_action
 
@@ -24,8 +24,8 @@ def after_install():
 
 	set_single_defaults()
 	create_print_setting_custom_fields()
+	create_custom_company_links()
 	add_all_roles_to("Administrator")
-	create_default_cash_flow_mapper_templates()
 	create_default_success_action()
 	create_default_energy_point_rules()
 	create_incoterms()
@@ -33,17 +33,29 @@ def after_install():
 	add_company_to_session_defaults()
 	add_standard_navbar_items()
 	add_app_name()
-	setup_log_settings()
 	hide_workspaces()
 	update_roles()
+	update_pegged_currencies()
 	frappe.db.commit()
 
 
-def check_setup_wizard_not_completed():
-	if cint(frappe.db.get_single_value("System Settings", "setup_complete") or 0):
-		message = """ERPNext can only be installed on a fresh site where the setup wizard is not completed.
-You can reinstall this site (after saving your data) using: bench --site [sitename] reinstall"""
-		frappe.throw(message)  # nosemgrep
+def check_frappe_version():
+	def major_version(v: str) -> str:
+		return v.split(".")[0]
+
+	frappe_version = major_version(frappe.__version__)
+	erpnext_version = major_version(erpnext.__version__)
+
+	if frappe_version == erpnext_version:
+		return
+
+	click.secho(
+		f"You're attempting to install ERPNext version {erpnext_version} with Frappe version {frappe_version}. "
+		"This is not supported and will result in broken install. Switch to correct branch before installing.",
+		fg="red",
+	)
+
+	raise SystemExit(1)
 
 
 def set_single_defaults():
@@ -120,11 +132,37 @@ def create_print_setting_custom_fields():
 	)
 
 
-def create_default_cash_flow_mapper_templates():
-	for mapper in DEFAULT_MAPPERS:
-		if not frappe.db.exists("Cash Flow Mapper", mapper["section_name"]):
-			doc = frappe.get_doc(mapper)
-			doc.insert(ignore_permissions=True)
+def create_custom_company_links():
+	"""Add link fields to Company in Email Account and Communication.
+
+	These DocTypes are provided by the Frappe Framework but need to be associated
+	with a company in ERPNext to allow for multitenancy. I.e. one company should
+	not be able to access emails and communications from another company.
+	"""
+	create_custom_fields(
+		{
+			"Email Account": [
+				{
+					"label": _("Company"),
+					"fieldname": "company",
+					"fieldtype": "Link",
+					"options": "Company",
+					"insert_after": "email_id",
+				},
+			],
+			"Communication": [
+				{
+					"label": _("Company"),
+					"fieldname": "company",
+					"fieldtype": "Link",
+					"options": "Company",
+					"insert_after": "email_account",
+					"fetch_from": "email_account.company",
+					"read_only": 1,
+				},
+			],
+		},
+	)
 
 
 def create_default_success_action():
@@ -154,22 +192,27 @@ def add_company_to_session_defaults():
 
 def add_standard_navbar_items():
 	navbar_settings = frappe.get_single("Navbar Settings")
-
 	erpnext_navbar_items = [
 		{
-			"item_label": "Documentation",
+			"item_label": _("Documentation"),
 			"item_type": "Route",
-			"route": "https://docs.erpnext.com/docs/v14/user/manual/en/introduction",
+			"route": "https://docs.erpnext.com/",
 			"is_standard": 1,
 		},
 		{
-			"item_label": "User Forum",
+			"item_label": _("User Forum"),
 			"item_type": "Route",
 			"route": "https://discuss.frappe.io",
 			"is_standard": 1,
 		},
 		{
-			"item_label": "Report an Issue",
+			"item_label": _("Frappe School"),
+			"item_type": "Route",
+			"route": "https://frappe.io/school?utm_source=in_app",
+			"is_standard": 1,
+		},
+		{
+			"item_label": _("Report an Issue"),
 			"item_type": "Route",
 			"route": "https://github.com/frappe/erpnext/issues",
 			"is_standard": 1,
@@ -201,14 +244,7 @@ def add_standard_navbar_items():
 
 
 def add_app_name():
-	frappe.db.set_value("System Settings", None, "app_name", "ERPNext")
-
-
-def setup_log_settings():
-	log_settings = frappe.get_single("Log Settings")
-	log_settings.append("logs_to_clear", {"ref_doctype": "Repost Item Valuation", "days": 60})
-
-	log_settings.save(ignore_permissions=True)
+	frappe.db.set_single_value("System Settings", "app_name", "ERPNext")
 
 
 def hide_workspaces():
@@ -224,12 +260,59 @@ def update_roles():
 
 def create_default_role_profiles():
 	for role_profile_name, roles in DEFAULT_ROLE_PROFILES.items():
+		if frappe.db.exists("Role Profile", role_profile_name):
+			role_profile = frappe.get_doc("Role Profile", role_profile_name)
+			existing_roles = [row.role for row in role_profile.roles]
+
+			role_profile.roles = [row for row in role_profile.roles if row.role in roles]
+
+			for role in roles:
+				if role not in existing_roles:
+					role_profile.append("roles", {"role": role})
+
+			role_profile.save(ignore_permissions=True)
+
+			continue
+
 		role_profile = frappe.new_doc("Role Profile")
 		role_profile.role_profile = role_profile_name
 		for role in roles:
 			role_profile.append("roles", {"role": role})
 
 		role_profile.insert(ignore_permissions=True)
+
+
+def update_pegged_currencies():
+	doc = frappe.get_doc("Pegged Currencies", "Pegged Currencies")
+
+	existing_sources = {item.source_currency for item in doc.pegged_currency_item}
+
+	currencies_to_add = [
+		{"source_currency": "AED", "pegged_against": "USD", "pegged_exchange_rate": 3.6725},
+		{"source_currency": "BHD", "pegged_against": "USD", "pegged_exchange_rate": 0.376},
+		{"source_currency": "JOD", "pegged_against": "USD", "pegged_exchange_rate": 0.709},
+		{"source_currency": "OMR", "pegged_against": "USD", "pegged_exchange_rate": 0.3845},
+		{"source_currency": "QAR", "pegged_against": "USD", "pegged_exchange_rate": 3.64},
+		{"source_currency": "SAR", "pegged_against": "USD", "pegged_exchange_rate": 3.75},
+	]
+
+	# Add items on pegged_currency_item if source_currency and pegged_against currency doc exist.
+
+	currencies_exist = frappe.db.get_list(
+		"Currency", {"name": ["in", ["AED", "BHD", "JOD", "OMR", "QAR", "SAR", "USD"]]}, pluck="name"
+	)
+
+	if "USD" not in currencies_exist:
+		return
+
+	for currency in currencies_to_add:
+		if (
+			currency["source_currency"] in currencies_exist
+			and currency["source_currency"] not in existing_sources
+		):
+			doc.append("pegged_currency_item", currency)
+
+	doc.save()
 
 
 DEFAULT_ROLE_PROFILES = {

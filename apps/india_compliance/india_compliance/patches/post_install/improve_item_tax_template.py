@@ -1,5 +1,4 @@
 import click
-
 import frappe
 import frappe.defaults
 from frappe.query_builder import Case
@@ -125,6 +124,7 @@ def create_or_update_item_tax_templates(companies):
         elif doc.gst_rate == 0:
             doc.gst_treatment = "Nil-Rated"
 
+        doc.flags.ignore_validate = True  # eg: account_type validation
         doc.save()
 
     # create new templates for nil rated, exempted, non gst
@@ -132,8 +132,7 @@ def create_or_update_item_tax_templates(companies):
     show_notification = False
     for company in companies_with_templates:
         gst_accounts = [
-            {"tax_type": account, "tax_rate": 0}
-            for account in company_wise_gst_accounts[company]
+            {"tax_type": account, "tax_rate": 0} for account in company_wise_gst_accounts[company]
         ]
 
         for new_template in NEW_TEMPLATES.values():
@@ -169,9 +168,7 @@ def create_or_update_item_tax_templates(companies):
         )
 
         for user in get_users_with_role("Accounts Manager"):
-            frappe.defaults.set_user_default(
-                "needs_item_tax_template_notification", 1, user=user
-            )
+            frappe.defaults.set_user_default("needs_item_tax_template_notification", 1, user=user)
 
     return templates
 
@@ -261,6 +258,7 @@ def remove_old_item_variant_settings():
         if field.field_name in ("is_nil_exempt", "is_non_gst"):
             item_variant.fields.remove(field)
 
+    item_variant.flags.ignore_validate = True
     item_variant.save()
 
 
@@ -310,10 +308,7 @@ def update_gst_treatment_for_zero_rated(table, query, doctype):
         .set(table.gst_treatment, "Zero-Rated")
         .where(
             (doc.gst_category == "SEZ")
-            | (
-                (doc.gst_category == "Overseas")
-                & (doc.place_of_supply == "96-Other Countries")
-            )
+            | ((doc.gst_category == "Overseas") & (doc.place_of_supply == "96-Other Countries"))
         )
         .run()
     )
@@ -323,9 +318,7 @@ def update_gst_details_for_transactions(companies):
     for company in companies:
         gst_accounts = []
         for account_type in ["Input", "Output"]:
-            gst_accounts.extend(
-                get_gst_accounts_by_type(company, account_type, throw=False).values()
-            )
+            gst_accounts.extend(get_gst_accounts_by_type(company, account_type, throw=False).values())
 
         if not gst_accounts:
             continue
@@ -363,7 +356,7 @@ def _update_gst_details(company, doctype, is_sales_doctype, docs):
                 continue
 
             build_query_and_update_gst_details(gst_details, doctype)
-            frappe.db.commit()
+            frappe.db.commit()  # nosemgrep
 
 
 def get_docs_with_gst_accounts(doctype, gst_accounts):
@@ -381,15 +374,13 @@ def get_docs_with_gst_accounts(doctype, gst_accounts):
 
 
 def get_taxes_for_docs(docs, doctype, is_sales_doctype):
-    taxes_doctype = (
-        "Sales Taxes and Charges" if is_sales_doctype else "Purchase Taxes and Charges"
-    )
+    taxes_doctype = "Sales Taxes and Charges" if is_sales_doctype else "Purchase Taxes and Charges"
     taxes = frappe.qb.DocType(taxes_doctype)
     return (
         frappe.qb.from_(taxes)
         .select(
             taxes.base_tax_amount_after_discount_amount,
-            taxes.account_head,
+            taxes.gst_tax_type,
             taxes.parent,
             taxes.item_wise_tax_detail,
         )
@@ -459,9 +450,7 @@ def build_query_and_update_gst_details(gst_details, doctype):
             if not row.get(field):
                 continue
 
-            conditions[field] = conditions[field].when(
-                transaction_item.name == item_name, row[field]
-            )
+            conditions[field] = conditions[field].when(transaction_item.name == item_name, row[field])
             conditions_available_for.add(field)
 
     # Update queries
@@ -476,6 +465,4 @@ def build_query_and_update_gst_details(gst_details, doctype):
         execute_query = True
 
     if execute_query:
-        update_query = update_query.where(
-            transaction_item.name.isin(list(gst_details.keys()))
-        ).run()
+        update_query = update_query.where(transaction_item.name.isin(list(gst_details.keys()))).run()

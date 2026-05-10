@@ -1,10 +1,11 @@
 # Copyright (c) 2020, Frappe Technologies Pvt. Ltd. and Contributors
 # License: MIT. See LICENSE
 
+import time
 from collections.abc import Callable
-from datetime import datetime
 from functools import wraps
 
+import pytz
 from werkzeug.wrappers import Response
 
 import frappe
@@ -30,16 +31,35 @@ def respond():
 
 
 class RateLimiter:
+	__slots__ = (
+		"counter",
+		"duration",
+		"end",
+		"key",
+		"limit",
+		"rejected",
+		"remaining",
+		"reset",
+		"spent",
+		"start",
+		"window",
+		"window_number",
+	)
+
 	def __init__(self, limit, window):
 		self.limit = int(limit * 1000000)
 		self.window = window
 
-		self.start = datetime.utcnow()
-		timestamp = int(frappe.utils.now_datetime().timestamp())
+		self.start = time.time()
 
-		self.window_number, self.spent = divmod(timestamp, self.window)
-		self.key = frappe.cache().make_key(f"rate-limit-counter-{self.window_number}")
-		self.counter = cint(frappe.cache().get(self.key))
+		self.window_number, self.spent = divmod(int(self.start), self.window)
+		self.key = frappe.cache.make_key(f"rate-limit-counter-{self.window_number}")
+		self.counter = cint(frappe.cache.get(self.key))
+		if not self.counter:
+			# This is the first request in this window
+			frappe.cache.incrby(self.key, 0)
+			frappe.cache.expire(self.key, self.window)
+
 		self.remaining = max(self.limit - self.counter, 0)
 		self.reset = self.window - self.spent
 
@@ -56,15 +76,11 @@ class RateLimiter:
 		raise frappe.TooManyRequestsError
 
 	def update(self):
-		self.end = datetime.utcnow()
-		self.duration = int((self.end - self.start).total_seconds() * 1000000)
-
-		pipeline = frappe.cache().pipeline()
-		pipeline.incrby(self.key, self.duration)
-		pipeline.expire(self.key, self.window)
-		pipeline.execute()
+		self.record_request_end()
+		frappe.cache.incrby(self.key, self.duration)
 
 	def headers(self):
+		self.record_request_end()
 		headers = {
 			"X-RateLimit-Reset": self.reset,
 			"X-RateLimit-Limit": self.limit,
@@ -74,6 +90,12 @@ class RateLimiter:
 			headers["Retry-After"] = self.reset
 
 		return headers
+
+	def record_request_end(self):
+		if self.end is not None:
+			return
+		self.end = time.time()
+		self.duration = int((self.end - self.start) * 1000000)
 
 	def respond(self):
 		if self.rejected:
@@ -105,17 +127,14 @@ def rate_limit(
 	:returns: a decorator function that limit the number of requests per endpoint
 	"""
 
-	def ratelimit_decorator(fun):
-		@wraps(fun)
+	def ratelimit_decorator(fn):
+		@wraps(fn)
 		def wrapper(*args, **kwargs):
 			# Do not apply rate limits if method is not opted to check
-			if (
-				methods != "ALL"
-				and frappe.request
-				and frappe.request.method
-				and frappe.request.method.upper() not in methods
+			if not frappe.request or (
+				methods != "ALL" and frappe.request.method and frappe.request.method.upper() not in methods
 			):
-				return frappe.call(fun, **frappe.form_dict or kwargs)
+				return fn(*args, **kwargs)
 
 			_limit = limit() if callable(limit) else limit
 
@@ -133,20 +152,20 @@ def rate_limit(
 			if not identity:
 				frappe.throw(_("Either key or IP flag is required."))
 
-			cache_key = frappe.cache().make_key(f"rl:{frappe.form_dict.cmd}:{identity}")
+			cache_key = frappe.cache.make_key(f"rl:{frappe.form_dict.cmd}:{identity}")
 
-			value = frappe.cache().get(cache_key) or 0
+			value = frappe.cache.get(cache_key) or 0
 			if not value:
-				frappe.cache().setex(cache_key, seconds, 0)
+				frappe.cache.setex(cache_key, seconds, 0)
 
-			value = frappe.cache().incrby(cache_key, 1)
+			value = frappe.cache.incrby(cache_key, 1)
 			if value > _limit:
 				frappe.throw(
 					_("You hit the rate limit because of too many requests. Please try after sometime."),
 					frappe.RateLimitExceededError,
 				)
 
-			return frappe.call(fun, **frappe.form_dict or kwargs)
+			return fn(*args, **kwargs)
 
 		return wrapper
 

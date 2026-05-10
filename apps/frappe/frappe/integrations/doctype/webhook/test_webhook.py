@@ -2,7 +2,6 @@
 # License: MIT. See LICENSE
 import json
 from contextlib import contextmanager
-from unittest import skip
 
 import responses
 from responses.matchers import json_params_matcher
@@ -19,7 +18,10 @@ from frappe.tests.utils import FrappeTestCase
 
 @contextmanager
 def get_test_webhook(config):
-	wh = frappe.get_doc(config).insert()
+	wh = frappe.get_doc(config)
+	if not wh.name:
+		wh.name = frappe.generate_hash()
+	wh.insert()
 	wh.reload()
 	try:
 		yield wh
@@ -42,6 +44,7 @@ class TestWebhook(FrappeTestCase):
 	def create_sample_webhooks(cls):
 		samples_webhooks_data = [
 			{
+				"name": frappe.generate_hash(),
 				"webhook_doctype": "User",
 				"webhook_docevent": "after_insert",
 				"request_url": "https://httpbin.org/post",
@@ -49,6 +52,7 @@ class TestWebhook(FrappeTestCase):
 				"enabled": True,
 			},
 			{
+				"name": frappe.generate_hash(),
 				"webhook_doctype": "User",
 				"webhook_docevent": "after_insert",
 				"request_url": "https://httpbin.org/post",
@@ -73,6 +77,8 @@ class TestWebhook(FrappeTestCase):
 
 	def setUp(self):
 		# retrieve or create a User webhook for `after_insert`
+		self.responses = responses.RequestsMock()
+		self.responses.start()
 		webhook_fields = {
 			"webhook_doctype": "User",
 			"webhook_docevent": "after_insert",
@@ -97,9 +103,6 @@ class TestWebhook(FrappeTestCase):
 		self.test_user.first_name = "user1"
 		self.test_user.send_welcome_email = False
 
-		self.responses = responses.RequestsMock()
-		self.responses.start()
-
 	def tearDown(self) -> None:
 		self.user.delete()
 		self.test_user.delete()
@@ -111,12 +114,12 @@ class TestWebhook(FrappeTestCase):
 	def test_webhook_trigger_with_enabled_webhooks(self):
 		"""Test webhook trigger for enabled webhooks"""
 
-		frappe.cache().delete_value("webhooks")
+		frappe.cache.delete_value("webhooks")
 
 		# Insert the user to db
 		self.test_user.insert()
 
-		webhooks = frappe.cache().get_value("webhooks")
+		webhooks = frappe.cache.get_value("webhooks")
 		self.assertTrue("User" in webhooks)
 		self.assertEqual(len(webhooks.get("User")), 1)
 
@@ -245,3 +248,65 @@ class TestWebhook(FrappeTestCase):
 			flush_webhook_execution_queue()
 			log = frappe.get_last_doc("Webhook Request Log")
 			self.assertEqual(len(json.loads(log.response)), 3)
+
+	def test_webhook_with_dynamic_url_enabled(self):
+		wh_config = {
+			"doctype": "Webhook",
+			"webhook_doctype": "Note",
+			"webhook_docevent": "after_insert",
+			"enabled": 1,
+			"request_url": "https://httpbin.org/anything/{{ doc.doctype }}",
+			"is_dynamic_url": 1,
+			"request_method": "POST",
+			"request_structure": "JSON",
+			"webhook_json": "{}",
+			"meets_condition": "Yes",
+			"webhook_headers": [
+				{
+					"key": "Content-Type",
+					"value": "application/json",
+				}
+			],
+		}
+
+		self.responses.add(
+			responses.POST,
+			"https://httpbin.org/anything/Note",
+			status=200,
+		)
+
+		with get_test_webhook(wh_config) as wh:
+			doc = frappe.new_doc("Note")
+			doc.title = "Test Webhook Note"
+			enqueue_webhook(doc, wh)
+
+	def test_webhook_with_dynamic_url_disabled(self):
+		wh_config = {
+			"doctype": "Webhook",
+			"webhook_doctype": "Note",
+			"webhook_docevent": "after_insert",
+			"enabled": 1,
+			"request_url": "https://httpbin.org/anything/{{doc.doctype}}",
+			"is_dynamic_url": 0,
+			"request_method": "POST",
+			"request_structure": "JSON",
+			"webhook_json": "{}",
+			"meets_condition": "Yes",
+			"webhook_headers": [
+				{
+					"key": "Content-Type",
+					"value": "application/json",
+				}
+			],
+		}
+
+		self.responses.add(
+			responses.POST,
+			"https://httpbin.org/anything/{{doc.doctype}}",
+			status=200,
+		)
+
+		with get_test_webhook(wh_config) as wh:
+			doc = frappe.new_doc("Note")
+			doc.title = "Test Webhook Note"
+			enqueue_webhook(doc, wh)

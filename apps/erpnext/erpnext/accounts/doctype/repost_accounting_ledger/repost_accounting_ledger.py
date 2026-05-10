@@ -1,8 +1,11 @@
 # Copyright (c) 2023, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
+import inspect
+
 import frappe
 from frappe import _, qb
+from frappe.desk.form.linked_with import get_child_tables_of_doctypes
 from frappe.model.document import Document
 from frappe.utils.data import comma_and
 
@@ -10,6 +13,24 @@ from erpnext.stock import get_warehouse_account_map
 
 
 class RepostAccountingLedger(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.accounts.doctype.repost_accounting_ledger_items.repost_accounting_ledger_items import (
+			RepostAccountingLedgerItems,
+		)
+
+		amended_from: DF.Link | None
+		company: DF.Link | None
+		delete_cancelled_entries: DF.Check
+		vouchers: DF.Table[RepostAccountingLedgerItems]
+	# end: auto-generated types
+
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self._allowed_types = get_allowed_types_from_settings()
@@ -30,8 +51,8 @@ class RepostAccountingLedger(Document):
 				frappe.db.get_all(
 					"Period Closing Voucher",
 					filters={"company": self.company, "docstatus": 1},
-					order_by="posting_date desc",
-					pluck="posting_date",
+					order_by="period_end_date desc",
+					pluck="period_end_date",
 					limit=1,
 				)
 				or None
@@ -94,6 +115,10 @@ class RepostAccountingLedger(Document):
 	def generate_preview(self):
 		from erpnext.accounts.report.general_ledger.general_ledger import get_columns as get_gl_columns
 
+		if not self.vouchers:
+			frappe.msgprint(_("Add vouchers to generate preview."))
+			return
+
 		gl_columns = []
 		gl_data = []
 
@@ -121,6 +146,7 @@ class RepostAccountingLedger(Document):
 				account_repost_doc=self.name,
 				is_async=True,
 				job_name=job_name,
+				enqueue_after_commit=True,
 			)
 			frappe.msgprint(_("Repost has started in the background"))
 		else:
@@ -129,6 +155,8 @@ class RepostAccountingLedger(Document):
 
 @frappe.whitelist()
 def start_repost(account_repost_doc=str) -> None:
+	from erpnext.accounts.general_ledger import make_reverse_gl_entries
+
 	frappe.flags.through_repost_accounting_ledger = True
 	if account_repost_doc:
 		repost_doc = frappe.get_doc("Repost Accounting Ledger", account_repost_doc)
@@ -146,6 +174,10 @@ def start_repost(account_repost_doc=str) -> None:
 					)
 					frappe.db.delete(
 						"Payment Ledger Entry", filters={"voucher_type": doc.doctype, "voucher_no": doc.name}
+					)
+					frappe.db.delete(
+						"Advance Payment Ledger Entry",
+						filters={"voucher_type": doc.doctype, "voucher_no": doc.name},
 					)
 
 				if doc.doctype in ["Sales Invoice", "Purchase Invoice"]:
@@ -172,15 +204,45 @@ def start_repost(account_repost_doc=str) -> None:
 					if not repost_doc.delete_cancelled_entries:
 						doc.make_gl_entries(1)
 					doc.make_gl_entries()
+				elif doc.doctype in frappe.get_hooks("repost_allowed_doctypes"):
+					if hasattr(doc, "make_gl_entries") and callable(doc.make_gl_entries):
+						if not repost_doc.delete_cancelled_entries:
+							if "cancel" in inspect.getfullargspec(doc.make_gl_entries):
+								doc.make_gl_entries(cancel=1)
+							else:
+								make_reverse_gl_entries(voucher_type=doc.doctype, voucher_no=doc.name)
+						doc.make_gl_entries()
 
 
-def get_allowed_types_from_settings():
-	return [
-		x.document_type
-		for x in frappe.db.get_all(
-			"Repost Allowed Types", filters={"allowed": True}, fields=["distinct(document_type)"]
-		)
-	]
+def get_allowed_types_from_settings(child_doc: bool = False):
+	# Avoid DISTINCT(...) here: Frappe applies a default ORDER BY which breaks on Postgres
+	# when used with SELECT DISTINCT.
+	repost_docs = frappe.db.get_all(
+		"Repost Allowed Types",
+		filters={"allowed": True},
+		pluck="document_type",
+	)
+
+	# De-dupe while preserving order (first occurrence wins)
+	repost_docs = list(dict.fromkeys(repost_docs))
+	result = repost_docs
+
+	if repost_docs and child_doc:
+		result.extend(get_child_docs(repost_docs))
+		# Keep uniqueness after extending
+		result = list(dict.fromkeys(result))
+
+	return result
+
+
+def get_child_docs(doc: list) -> list:
+	child_doc = []
+	doc = get_child_tables_of_doctypes(doc)
+	for child_list in doc.values():
+		for child in child_list:
+			if child.get("child_table"):
+				child_doc.append(child["child_table"])
+	return child_doc
 
 
 def validate_docs_for_deferred_accounting(sales_docs, purchase_docs):
@@ -235,8 +297,11 @@ def get_repost_allowed_types(doctype, txt, searchfield, start, page_len, filters
 	if txt:
 		filters.update({"document_type": ("like", f"%{txt}%")})
 
-	if allowed_types := frappe.db.get_all(
-		"Repost Allowed Types", filters=filters, fields=["distinct(document_type)"], as_list=1
-	):
-		return allowed_types
-	return []
+	allowed_types = frappe.db.get_all(
+		"Repost Allowed Types",
+		filters=filters,
+		pluck="document_type",
+	)
+
+	allowed_types = list(dict.fromkeys(allowed_types))
+	return [[dt] for dt in allowed_types]

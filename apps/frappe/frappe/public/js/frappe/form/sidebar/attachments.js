@@ -15,7 +15,8 @@ frappe.ui.form.Attachments = class Attachments {
 			me.new_attachment();
 		});
 
-		this.parent.find(".explore-btn").click(() => {
+		this.parent.find(".explore-link").click(() => {
+			if (!this.frm.attachments.get_attachments()?.length) return;
 			frappe.open_in_new_tab = true;
 			frappe.set_route("List", "File", {
 				attached_to_doctype: this.frm.doctype,
@@ -51,28 +52,12 @@ frappe.ui.form.Attachments = class Attachments {
 		this.parent.find(".attachment-row").remove();
 
 		var max_reached = this.max_reached();
-		this.add_attachment_wrapper.toggle(!max_reached);
-		this.setup_expanded_explore_button(max_reached);
+		this.add_attachment_wrapper.find(".add-attachment-btn").toggle(!max_reached);
 
 		// add attachment objects
 		var attachments = this.get_attachments();
 		this.render_attachments(attachments);
 		this.setup_show_all_button(attachments);
-	}
-
-	setup_expanded_explore_button(max_reached) {
-		if (!max_reached) {
-			this.parent.find(".explore-full-btn").addClass("hidden");
-			return;
-		}
-
-		this.parent.find(".explore-full-btn").removeClass("hidden");
-		this.parent.find(".explore-full-btn").click(() => {
-			frappe.set_route("List", "File", {
-				attached_to_doctype: this.frm.doctype,
-				attached_to_name: this.frm.docname,
-			});
-		});
 	}
 
 	setup_show_all_button(attachments) {
@@ -124,7 +109,6 @@ frappe.ui.form.Attachments = class Attachments {
 		if (!attachments.length) {
 			// If no attachments in totality
 			this.attachments_label.removeClass("has-attachments");
-			this.parent.find(".explore-btn").toggle(false); // hide explore icon button
 		}
 	}
 
@@ -139,14 +123,16 @@ frappe.ui.form.Attachments = class Attachments {
 		var me = this;
 
 		let file_label = `
-			<a href="${file_url}" target="_blank" title="${frappe.utils.escape_html(file_name)}"
+			<a href="${frappe.utils.escape_html(file_url)}" target="_blank" title="${frappe.utils.escape_html(
+			file_name
+		)}"
 				class="ellipsis" style="max-width: calc(100% - 43px);"
 			>
-				<span>${file_name}</span>
+				<span>${frappe.utils.xss_sanitise(file_name)}</span>
 			</a>`;
 
 		let remove_action = null;
-		if (frappe.model.can_write(this.frm.doctype, this.frm.name)) {
+		if (this.can_delete_attachment()) {
 			remove_action = function (target_id) {
 				frappe.confirm(__("Are you sure you want to delete the attachment?"), function () {
 					let target_attachment = me
@@ -164,14 +150,27 @@ frappe.ui.form.Attachments = class Attachments {
 		}
 
 		const icon = `<a href="/app/file/${fileid}">
-				${frappe.utils.icon(attachment.is_private ? "lock" : "unlock", "sm ml-0")}
+				${frappe.utils.icon(attachment.is_private ? "es-line-lock" : "es-line-unlock", "sm ml-0")}
 			</a>`;
 
 		$(`<li class="attachment-row">`)
 			.append(frappe.get_data_pill(file_label, fileid, remove_action, icon))
 			.insertAfter(this.add_attachment_wrapper);
+	}
 
-		this.parent.find(".explore-btn").toggle(true); // show explore icon button if hidden
+	can_delete_attachment() {
+		if (this.frm.meta.protect_attached_files) {
+			switch (this.frm.doc.docstatus) {
+				case 0:
+					return this.frm.has_perm("write");
+				case 2:
+					return this.frm.has_perm("write") && this.frm.has_perm("delete");
+				default:
+					return false;
+			}
+		}
+
+		return this.frm.has_perm("write");
 	}
 
 	get_file_url(attachment) {
@@ -183,8 +182,18 @@ frappe.ui.form.Attachments = class Attachments {
 				file_url = "/files/" + attachment.file_name;
 			}
 		}
+
+		const is_web_url = /^(https?:)?\/\//i.test(file_url);
+
+		file_url = encodeURI(file_url);
+
 		// hash is not escaped, https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURI
-		return encodeURI(file_url).replace(/#/g, "%23");
+		// only encode hash if it's a local file path, not a web URL
+		if (!is_web_url) {
+			file_url = file_url.replace(/#/g, "%23");
+		}
+
+		return file_url;
 	}
 	get_file_id_from_file_url(file_url) {
 		var fid;

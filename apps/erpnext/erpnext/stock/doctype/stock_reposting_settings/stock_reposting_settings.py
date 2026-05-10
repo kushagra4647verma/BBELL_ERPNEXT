@@ -8,6 +8,24 @@ from frappe.utils import add_to_date, get_datetime, get_time_str, time_diff_in_h
 
 
 class StockRepostingSettings(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		end_time: DF.Time | None
+		item_based_reposting: DF.Check
+		limit_reposting_timeslot: DF.Check
+		limits_dont_apply_on: DF.Literal[
+			"", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+		]
+		notify_reposting_error_to_role: DF.Link | None
+		start_time: DF.Time | None
+	# end: auto-generated types
+
 	def validate(self):
 		self.set_minimum_reposting_time_slot()
 
@@ -66,7 +84,7 @@ def get_reposting_entries():
 def get_stock_ledgers(vouchers):
 	return frappe.get_all(
 		"Stock Ledger Entry",
-		fields=["item_code", "warehouse", "posting_date"],
+		fields=["item_code", "warehouse", "posting_date", "posting_time", "posting_datetime"],
 		filters={"voucher_no": ("in", vouchers)},
 	)
 

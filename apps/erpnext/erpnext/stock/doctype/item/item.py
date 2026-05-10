@@ -7,6 +7,8 @@ import json
 import frappe
 from frappe import _, bold
 from frappe.model.document import Document
+from frappe.query_builder import Interval
+from frappe.query_builder.functions import Count, CurDate, UnixTimestamp
 from frappe.utils import (
 	cint,
 	cstr,
@@ -20,6 +22,7 @@ from frappe.utils import (
 	strip_html,
 )
 from frappe.utils.html_utils import clean_html
+from pypika import Order
 
 import erpnext
 from erpnext.controllers.item_variant import (
@@ -29,7 +32,6 @@ from erpnext.controllers.item_variant import (
 	make_variant_item_code,
 	validate_item_variant_attributes,
 )
-from erpnext.setup.doctype.item_group.item_group import invalidate_cache_for
 from erpnext.stock.doctype.item_default.item_default import ItemDefault
 from erpnext.stock.utils import get_valuation_method
 
@@ -51,10 +53,109 @@ class DataValidationError(frappe.ValidationError):
 
 
 class Item(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.stock.doctype.item_barcode.item_barcode import ItemBarcode
+		from erpnext.stock.doctype.item_customer_detail.item_customer_detail import ItemCustomerDetail
+		from erpnext.stock.doctype.item_default.item_default import ItemDefault
+		from erpnext.stock.doctype.item_reorder.item_reorder import ItemReorder
+		from erpnext.stock.doctype.item_supplier.item_supplier import ItemSupplier
+		from erpnext.stock.doctype.item_tax.item_tax import ItemTax
+		from erpnext.stock.doctype.item_variant_attribute.item_variant_attribute import ItemVariantAttribute
+		from erpnext.stock.doctype.uom_conversion_detail.uom_conversion_detail import UOMConversionDetail
+
+		allow_alternative_item: DF.Check
+		allow_negative_stock: DF.Check
+		asset_category: DF.Link | None
+		asset_naming_series: DF.Literal[None]
+		attributes: DF.Table[ItemVariantAttribute]
+		auto_create_assets: DF.Check
+		barcodes: DF.Table[ItemBarcode]
+		batch_number_series: DF.Data | None
+		brand: DF.Link | None
+		country_of_origin: DF.Link | None
+		create_new_batch: DF.Check
+		customer: DF.Link | None
+		customer_code: DF.SmallText | None
+		customer_items: DF.Table[ItemCustomerDetail]
+		customs_tariff_number: DF.Link | None
+		default_bom: DF.Link | None
+		default_item_manufacturer: DF.Link | None
+		default_manufacturer_part_no: DF.Data | None
+		default_material_request_type: DF.Literal[
+			"Purchase", "Material Transfer", "Material Issue", "Manufacture", "Customer Provided"
+		]
+		delivered_by_supplier: DF.Check
+		description: DF.TextEditor | None
+		disabled: DF.Check
+		enable_deferred_expense: DF.Check
+		enable_deferred_revenue: DF.Check
+		end_of_life: DF.Date | None
+		grant_commission: DF.Check
+		has_batch_no: DF.Check
+		has_expiry_date: DF.Check
+		has_serial_no: DF.Check
+		has_variants: DF.Check
+		image: DF.AttachImage | None
+		include_item_in_manufacturing: DF.Check
+		inspection_required_before_delivery: DF.Check
+		inspection_required_before_purchase: DF.Check
+		is_customer_provided_item: DF.Check
+		is_fixed_asset: DF.Check
+		is_grouped_asset: DF.Check
+		is_purchase_item: DF.Check
+		is_sales_item: DF.Check
+		is_stock_item: DF.Check
+		is_sub_contracted_item: DF.Check
+		item_code: DF.Data
+		item_defaults: DF.Table[ItemDefault]
+		item_group: DF.Link
+		item_name: DF.Data | None
+		last_purchase_rate: DF.Float
+		lead_time_days: DF.Int
+		max_discount: DF.Float
+		min_order_qty: DF.Float
+		naming_series: DF.Literal["STO-ITEM-.YYYY.-"]
+		no_of_months: DF.Int
+		no_of_months_exp: DF.Int
+		opening_stock: DF.Float
+		over_billing_allowance: DF.Float
+		over_delivery_receipt_allowance: DF.Float
+		purchase_uom: DF.Link | None
+		quality_inspection_template: DF.Link | None
+		reorder_levels: DF.Table[ItemReorder]
+		retain_sample: DF.Check
+		safety_stock: DF.Float
+		sales_uom: DF.Link | None
+		sample_quantity: DF.Int
+		serial_no_series: DF.Data | None
+		shelf_life_in_days: DF.Int
+		standard_rate: DF.Currency
+		stock_uom: DF.Link
+		supplier_items: DF.Table[ItemSupplier]
+		taxes: DF.Table[ItemTax]
+		total_projected_qty: DF.Float
+		uoms: DF.Table[UOMConversionDetail]
+		valuation_method: DF.Literal["", "FIFO", "Moving Average", "LIFO"]
+		valuation_rate: DF.Currency
+		variant_based_on: DF.Literal["Item Attribute", "Manufacturer"]
+		variant_of: DF.Link | None
+		warranty_period: DF.Data | None
+		weight_per_unit: DF.Float
+		weight_uom: DF.Link | None
+	# end: auto-generated types
+
 	def onload(self):
 		self.set_onload("stock_exists", self.stock_ledger_created())
 		self.set_onload("asset_naming_series", get_asset_naming_series())
 		self.set_onload("current_valuation_method", get_valuation_method(self.name))
+		self.set_onload("asset_exists", self.has_submitted_assets())
 
 	def autoname(self):
 		if frappe.db.get_default("item_naming_by") == "Naming Series":
@@ -116,21 +217,35 @@ class Item(Document):
 		self.validate_auto_reorder_enabled_in_stock_settings()
 		self.cant_change()
 		self.validate_item_tax_net_rate_range()
-		set_item_tax_from_hsn_code(self)
 
 		if not self.is_new():
 			self.old_item_group = frappe.db.get_value(self.doctype, self.name, "item_group")
 
 	def on_update(self):
-		invalidate_cache_for_item(self)
 		self.update_variants()
 		self.update_item_price()
-		self.update_website_item()
 
 	def validate_description(self):
 		"""Clean HTML description if set"""
 		if cint(frappe.db.get_single_value("Stock Settings", "clean_description_html")):
+			old_desc = self.description
 			self.description = clean_html(self.description)
+
+			if (
+				old_desc
+				and self.description
+				and "<img src" in old_desc
+				and "<img src" not in self.description
+			):
+				frappe.msgprint(
+					_(
+						'Image in the description has been removed. To disable this behavior, uncheck "{0}" in {1}.'
+					).format(
+						frappe.get_meta("Stock Settings").get_label("clean_description_html"),
+						get_link_to_form("Stock Settings", "Stock Settings"),
+					),
+					alert=True,
+				)
 
 	def validate_customer_provided_part(self):
 		if self.is_customer_provided_item:
@@ -209,9 +324,8 @@ class Item(Document):
 			if self.stock_ledger_created():
 				frappe.throw(_("Cannot be a fixed asset item as Stock Ledger is created."))
 
-		if not self.is_fixed_asset:
-			asset = frappe.db.get_all("Asset", filters={"item_code": self.name, "docstatus": 1}, limit=1)
-			if asset:
+		if not self.is_fixed_asset and not self.is_new():
+			if self.has_submitted_assets():
 				frappe.throw(
 					_('"Is Fixed Asset" cannot be unchecked, as Asset record exists against the item')
 				)
@@ -248,33 +362,16 @@ class Item(Document):
 		if self.stock_uom not in uoms_list:
 			self.append("uoms", {"uom": self.stock_uom, "conversion_factor": 1})
 
-	def update_website_item(self):
-		"""Update Website Item if change in Item impacts it."""
-		web_item = frappe.db.exists("Website Item", {"item_code": self.item_code})
-
-		if web_item:
-			changed = {}
-			editable_fields = ["item_name", "item_group", "stock_uom", "brand", "description", "disabled"]
-			doc_before_save = self.get_doc_before_save()
-
-			for field in editable_fields:
-				if doc_before_save.get(field) != self.get(field):
-					if field == "disabled":
-						changed["published"] = not self.get(field)
-					else:
-						changed[field] = self.get(field)
-
-			if not changed:
-				return
-
-			web_item_doc = frappe.get_doc("Website Item", web_item)
-			web_item_doc.update(changed)
-			web_item_doc.save()
-
 	def validate_item_tax_net_rate_range(self):
 		for tax in self.get("taxes"):
 			if flt(tax.maximum_net_rate) < flt(tax.minimum_net_rate):
-				frappe.throw(_("Row #{0}: Maximum Net Rate cannot be greater than Minimum Net Rate"))
+				frappe.throw(
+					_("Taxes row #{0}: {1} cannot be smaller than {2}").format(
+						tax.idx,
+						bold(_(tax.meta.get_label("maximum_net_rate"))),
+						bold(_(tax.meta.get_label("minimum_net_rate"))),
+					)
+				)
 
 	def update_template_tables(self):
 		template = frappe.get_cached_doc("Item", self.variant_of)
@@ -362,7 +459,7 @@ class Item(Document):
 					check_list.append((d.item_tax_template, d.tax_category))
 
 	def validate_barcode(self):
-		from stdnum import ean
+		import barcodenumber
 
 		if len(self.barcodes) > 0:
 			for item_barcode in self.barcodes:
@@ -382,19 +479,18 @@ class Item(Document):
 					item_barcode.barcode_type = (
 						"" if item_barcode.barcode_type not in options else item_barcode.barcode_type
 					)
-					if item_barcode.barcode_type and item_barcode.barcode_type.upper() in (
-						"EAN",
-						"UPC-A",
-						"EAN-13",
-						"EAN-8",
-					):
-						if not ean.is_valid(item_barcode.barcode):
-							frappe.throw(
-								_("Barcode {0} is not a valid {1} code").format(
-									item_barcode.barcode, item_barcode.barcode_type
-								),
-								InvalidBarcode,
-							)
+					if item_barcode.barcode_type:
+						barcode_type = convert_erpnext_to_barcodenumber(
+							item_barcode.barcode_type.upper(), item_barcode.barcode
+						)
+						if barcode_type in barcodenumber.barcodes():
+							if not barcodenumber.check_code(barcode_type, item_barcode.barcode):
+								frappe.throw(
+									_("Barcode {0} is not a valid {1} code").format(
+										item_barcode.barcode, item_barcode.barcode_type
+									),
+									InvalidBarcode,
+								)
 
 	def validate_warehouse_for_reorder(self):
 		"""Validate Reorder level table for duplicate and conditional mandatory"""
@@ -446,6 +542,9 @@ class Item(Document):
 			)
 		return self._stock_ledger_created
 
+	def has_submitted_assets(self):
+		return bool(frappe.db.exists("Asset", {"item_code": self.name, "docstatus": 1}))
+
 	def update_item_price(self):
 		frappe.db.sql(
 			"""
@@ -477,7 +576,6 @@ class Item(Document):
 		if merge:
 			self.validate_properties_before_merge(new_name)
 			self.validate_duplicate_product_bundles_before_merge(old_name, new_name)
-			self.validate_duplicate_website_item_before_merge(old_name, new_name)
 			self.delete_old_bins(old_name)
 
 	def after_rename(self, old_name, new_name, merge):
@@ -488,9 +586,6 @@ class Item(Document):
 				indicator="orange",
 				title=_("Note"),
 			)
-
-		if self.published_in_website:
-			invalidate_cache_for_item(self)
 
 		frappe.db.set_value("Item", new_name, "item_code", new_name)
 
@@ -559,7 +654,7 @@ class Item(Document):
 
 		if new_properties != [cstr(self.get(field)) for field in field_list]:
 			msg = _("To merge, following properties must be same for both items")
-			msg += ": \n" + ", ".join([self.meta.get_label(fld) for fld in field_list])
+			msg += ": \n" + ", ".join([_(self.meta.get_label(fld)) for fld in field_list])
 			frappe.throw(msg, title=_("Cannot Merge"), exc=DataValidationError)
 
 	def validate_duplicate_product_bundles_before_merge(self, old_name, new_name):
@@ -576,27 +671,6 @@ class Item(Document):
 			)
 			frappe.throw(msg, title=_("Cannot Merge"), exc=DataValidationError)
 
-	def validate_duplicate_website_item_before_merge(self, old_name, new_name):
-		"""
-		Block merge if both old and new items have website items against them.
-		This is to avoid duplicate website items after merging.
-		"""
-		web_items = frappe.get_all(
-			"Website Item",
-			filters={"item_code": ["in", [old_name, new_name]]},
-			fields=["item_code", "name"],
-		)
-
-		if len(web_items) <= 1:
-			return
-
-		old_web_item = next(d.get("name") for d in web_items if d.get("item_code") == old_name)
-		web_item_link = get_link_to_form("Website Item", old_web_item)
-		old_name, new_name = frappe.bold(old_name), frappe.bold(new_name)
-
-		msg = f"Please delete linked Website Item {frappe.bold(web_item_link)} before merging {old_name} into {new_name}"
-		frappe.throw(_(msg), title=_("Cannot Merge"), exc=DataValidationError)
-
 	def set_last_purchase_rate(self, new_name):
 		last_purchase_rate = get_last_purchase_details(new_name).get("base_net_rate", 0)
 		frappe.db.set_value("Item", new_name, "last_purchase_rate", last_purchase_rate)
@@ -605,7 +679,7 @@ class Item(Document):
 		from erpnext.stock.stock_balance import repost_stock
 
 		existing_allow_negative_stock = frappe.db.get_value("Stock Settings", None, "allow_negative_stock")
-		frappe.db.set_value("Stock Settings", None, "allow_negative_stock", 1)
+		frappe.db.set_single_value("Stock Settings", "allow_negative_stock", 1)
 
 		repost_stock_for_warehouses = frappe.get_all(
 			"Stock Ledger Entry",
@@ -621,7 +695,7 @@ class Item(Document):
 		for warehouse in repost_stock_for_warehouses:
 			repost_stock(new_name, warehouse)
 
-		frappe.db.set_value("Stock Settings", None, "allow_negative_stock", existing_allow_negative_stock)
+		frappe.db.set_single_value("Stock Settings", "allow_negative_stock", existing_allow_negative_stock)
 
 	def update_bom_item_desc(self):
 		if self.is_new():
@@ -670,7 +744,10 @@ class Item(Document):
 
 		item_defaults = frappe.db.get_values(
 			"Item Default",
-			{"parent": self.item_group},
+			{
+				"parent": self.item_group,
+				"parenttype": "Item Group",
+			},
 			[
 				"company",
 				"default_warehouse",
@@ -712,6 +789,20 @@ class Item(Document):
 				self.append(
 					"item_defaults",
 					{"company": defaults.get("company"), "default_warehouse": defaults.default_warehouse},
+				)
+
+		item_group = frappe.get_cached_doc("Item Group", self.item_group)
+		if not self.taxes and item_group.taxes:
+			for tax in item_group.taxes:
+				self.append(
+					"taxes",
+					{
+						"item_tax_template": tax.item_tax_template,
+						"tax_category": tax.tax_category,
+						"valid_from": tax.valid_from,
+						"minimum_net_rate": tax.minimum_net_rate,
+						"maximum_net_rate": tax.maximum_net_rate,
+					},
 				)
 
 	def update_variants(self):
@@ -789,7 +880,7 @@ class Item(Document):
 
 		rows = ""
 		for docname, attr_list in not_included.items():
-			link = f"<a href='/app/Form/Item/{frappe.bold(_(docname))}'>{frappe.bold(_(docname))}</a>"
+			link = f"<a href='/app/item/{docname}'>{frappe.bold(docname)}</a>"
 			rows += table_row(link, body(attr_list))
 
 		error_description = _(
@@ -927,7 +1018,7 @@ class Item(Document):
 			return
 
 		if linked_doc := self._get_linked_submitted_documents(changed_fields):
-			changed_field_labels = [frappe.bold(self.meta.get_label(f)) for f in changed_fields]
+			changed_field_labels = [frappe.bold(_(self.meta.get_label(f))) for f in changed_fields]
 			msg = _(
 				"As there are existing submitted transactions against item {0}, you can not change the value of {1}."
 			).format(self.name, ", ".join(changed_field_labels))
@@ -1008,6 +1099,31 @@ class Item(Document):
 				)
 
 
+def convert_erpnext_to_barcodenumber(erpnext_number, barcode):
+	if erpnext_number == "EAN":
+		ean_type = {
+			8: "EAN8",
+			13: "EAN13",
+		}
+		barcode_length = len(barcode)
+		if barcode_length in ean_type:
+			return ean_type[barcode_length]
+
+		return erpnext_number
+
+	convert = {
+		"UPC-A": "UPCA",
+		"CODE-39": "CODE39",
+		"ISBN-10": "ISBN10",
+		"ISBN-13": "ISBN13",
+	}
+
+	if erpnext_number in convert:
+		return convert[erpnext_number]
+
+	return erpnext_number
+
+
 def make_item_price(item, price_list_name, item_price):
 	frappe.get_doc(
 		{
@@ -1019,18 +1135,19 @@ def make_item_price(item, price_list_name, item_price):
 	).insert()
 
 
-def get_timeline_data(doctype, name):
+def get_timeline_data(doctype: str, name: str) -> dict[int, int]:
 	"""get timeline data based on Stock Ledger Entry. This is displayed as heatmap on the item page."""
 
-	items = frappe.db.sql(
-		"""select unix_timestamp(posting_date), count(*)
-							from `tabStock Ledger Entry`
-							where item_code=%s and posting_date > date_sub(curdate(), interval 1 year)
-							group by posting_date""",
-		name,
-	)
+	sle = frappe.qb.DocType("Stock Ledger Entry")
 
-	return dict(items)
+	return dict(
+		frappe.qb.from_(sle)
+		.select(UnixTimestamp(sle.posting_date), Count("*"))
+		.where(sle.item_code == name)
+		.where(sle.posting_date > CurDate() - Interval(years=1))
+		.groupby(sle.posting_date)
+		.run()
+	)
 
 
 def validate_end_of_life(item_code, end_of_life=None, disabled=None):
@@ -1067,34 +1184,10 @@ def get_last_purchase_details(item_code, doc_name=None, conversion_rate=1.0):
 	"""returns last purchase details in stock uom"""
 	# get last purchase order item details
 
-	last_purchase_order = frappe.db.sql(
-		"""\
-		select po.name, po.transaction_date, po.conversion_rate,
-			po_item.conversion_factor, po_item.base_price_list_rate,
-			po_item.discount_percentage, po_item.base_rate, po_item.base_net_rate
-		from `tabPurchase Order` po, `tabPurchase Order Item` po_item
-		where po.docstatus = 1 and po_item.item_code = %s and po.name != %s and
-			po.name = po_item.parent
-		order by po.transaction_date desc, po.name desc
-		limit 1""",
-		(item_code, cstr(doc_name)),
-		as_dict=1,
-	)
+	last_purchase_order = get_purchase_voucher_details("Purchase Order", item_code, doc_name)
 
 	# get last purchase receipt item details
-	last_purchase_receipt = frappe.db.sql(
-		"""\
-		select pr.name, pr.posting_date, pr.posting_time, pr.conversion_rate,
-			pr_item.conversion_factor, pr_item.base_price_list_rate, pr_item.discount_percentage,
-			pr_item.base_rate, pr_item.base_net_rate
-		from `tabPurchase Receipt` pr, `tabPurchase Receipt Item` pr_item
-		where pr.docstatus = 1 and pr_item.item_code = %s and pr.name != %s and
-			pr.name = pr_item.parent
-		order by pr.posting_date desc, pr.posting_time desc, pr.name desc
-		limit 1""",
-		(item_code, cstr(doc_name)),
-		as_dict=1,
-	)
+	last_purchase_receipt = get_purchase_voucher_details("Purchase Receipt", item_code, doc_name)
 
 	purchase_order_date = getdate(
 		last_purchase_order and last_purchase_order[0].transaction_date or "1900-01-01"
@@ -1115,7 +1208,13 @@ def get_last_purchase_details(item_code, doc_name=None, conversion_rate=1.0):
 		purchase_date = purchase_receipt_date
 
 	else:
-		return frappe._dict()
+		last_purchase_invoice = get_purchase_voucher_details("Purchase Invoice", item_code, doc_name)
+
+		if last_purchase_invoice:
+			last_purchase = last_purchase_invoice[0]
+			purchase_date = getdate(last_purchase.posting_date)
+		else:
+			return frappe._dict()
 
 	conversion_factor = flt(last_purchase.conversion_factor)
 	out = frappe._dict(
@@ -1141,30 +1240,40 @@ def get_last_purchase_details(item_code, doc_name=None, conversion_rate=1.0):
 	return out
 
 
-def invalidate_cache_for_item(doc):
-	"""Invalidate Item Group cache and rebuild ItemVariantsCacheManager."""
-	invalidate_cache_for(doc, doc.item_group)
+def get_purchase_voucher_details(doctype, item_code, document_name=None):
+	parent_doc = frappe.qb.DocType(doctype)
+	child_doc = frappe.qb.DocType(doctype + " Item")
 
-	if doc.get("old_item_group") and doc.get("old_item_group") != doc.item_group:
-		invalidate_cache_for(doc, doc.old_item_group)
+	query = (
+		frappe.qb.from_(parent_doc)
+		.inner_join(child_doc)
+		.on(parent_doc.name == child_doc.parent)
+		.select(
+			parent_doc.name,
+			parent_doc.conversion_rate,
+			child_doc.conversion_factor,
+			child_doc.base_price_list_rate,
+			child_doc.discount_percentage,
+			child_doc.base_rate,
+			child_doc.base_net_rate,
+		)
+		.where(parent_doc.docstatus == 1)
+		.where(child_doc.item_code == item_code)
+	)
 
-	invalidate_item_variants_cache_for_website(doc)
+	if document_name:
+		query = query.where(parent_doc.name != document_name)
 
+	if doctype in ("Purchase Receipt", "Purchase Invoice"):
+		query = query.select(parent_doc.posting_date, parent_doc.posting_time)
+		query = query.orderby(
+			parent_doc.posting_date, parent_doc.posting_time, parent_doc.name, order=Order.desc
+		)
+	else:
+		query = query.select(parent_doc.transaction_date)
+		query = query.orderby(parent_doc.transaction_date, parent_doc.name, order=Order.desc)
 
-def invalidate_item_variants_cache_for_website(doc):
-	"""Rebuild ItemVariantsCacheManager via Item or Website Item."""
-	from erpnext.e_commerce.variant_selector.item_variants_cache import ItemVariantsCacheManager
-
-	item_code = None
-	is_web_item = doc.get("published_in_website") or doc.get("published")
-	if doc.has_variants and is_web_item:
-		item_code = doc.item_code
-	elif doc.variant_of and frappe.db.get_value("Item", doc.variant_of, "published_in_website"):
-		item_code = doc.variant_of
-
-	if item_code:
-		item_cache = ItemVariantsCacheManager(item_code)
-		item_cache.rebuild_cache()
+	return query.run(as_dict=1)
 
 
 def check_stock_uom_with_bin(item, stock_uom):
@@ -1209,7 +1318,7 @@ def get_item_defaults(item_code, company):
 
 	for d in item.item_defaults:
 		if d.company == company:
-			row = copy.deepcopy(d.as_dict())
+			row = d.as_dict(no_private_properties=True)
 			row.pop("name")
 			out.update(row)
 	return out
@@ -1309,11 +1418,6 @@ def update_variants(variants, template, publish_progress=True):
 		variant.save()
 		if publish_progress:
 			frappe.publish_progress(count / total * 100, title=_("Updating Variants..."))
-
-
-@erpnext.allow_regional
-def set_item_tax_from_hsn_code(item):
-	pass
 
 
 def validate_item_default_company_links(item_defaults: list[ItemDefault]) -> None:

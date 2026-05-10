@@ -1,5 +1,7 @@
 from enum import Enum
 
+from frappe.utils import getdate
+
 
 class GSTR1_Category(Enum):
     """
@@ -45,12 +47,25 @@ class GSTR1_SubCategory(Enum):
     # Other Sub-Categories
     AT = "Advances Received"
     TXP = "Advances Adjusted"
-    HSN = "HSN Summary"
+    HSN = "HSN Summary"  # Backwards Compatibility
+    HSN_B2B = "HSN Summary - B2B"
+    HSN_B2C = "HSN Summary - B2C"
     DOC_ISSUE = "Document Issued"
 
     # E-Commerce
-    SUPECOM_52 = "TCS collected by E-commerce Operator u/s 52"
-    SUPECOM_9_5 = "GST Payable on RCM by E-commerce Operator u/s 9(5)"
+    SUPECOM_52 = "Liable to collect tax u/s 52(TCS)"
+    SUPECOM_9_5 = "Liable to pay tax u/s 9(5)"
+
+
+class SUPECOM(Enum):
+    US_9_5 = "Liable to pay tax u/s 9(5)"
+    US_52 = "Liable to collect tax u/s 52(TCS)"
+
+
+QUARTERLY_KEYS = (
+    "already_included_docs_for_quarterly",
+    "excluded_docs_for_quarterly",
+)
 
 
 CATEGORY_SUB_CATEGORY_MAPPING = {
@@ -70,15 +85,23 @@ CATEGORY_SUB_CATEGORY_MAPPING = {
     GSTR1_Category.AT: (GSTR1_SubCategory.AT,),
     GSTR1_Category.TXP: (GSTR1_SubCategory.TXP,),
     GSTR1_Category.DOC_ISSUE: (GSTR1_SubCategory.DOC_ISSUE,),
-    GSTR1_Category.HSN: (GSTR1_SubCategory.HSN,),
+    GSTR1_Category.HSN: (
+        GSTR1_SubCategory.HSN_B2B,
+        GSTR1_SubCategory.HSN_B2C,
+    ),
     GSTR1_Category.SUPECOM: (
         GSTR1_SubCategory.SUPECOM_52,
         GSTR1_SubCategory.SUPECOM_9_5,
     ),
 }
 
+# Backwards compatibility
+PREVIOUS_VERSION = {
+    GSTR1_Category.HSN.value: (GSTR1_SubCategory.HSN,),
+}
 
-class GSTR1_DataField(Enum):
+
+class GSTR1_DataField:
     TRANSACTION_TYPE = "transaction_type"
     CUST_GSTIN = "customer_gstin"
     ECOMMERCE_GSTIN = "ecommerce_gstin"
@@ -119,8 +142,11 @@ class GSTR1_DataField(Enum):
     NET_ISSUE = "net_issue"
     UPLOAD_STATUS = "upload_status"
 
+    ERROR_CD = "error_code"
+    ERROR_MSG = "error_message"
 
-class GSTR1_ItemField(Enum):
+
+class GSTR1_ItemField:
     INDEX = "idx"
     TAXABLE_VALUE = "taxable_value"
     IGST = "igst_amount"
@@ -132,7 +158,7 @@ class GSTR1_ItemField(Enum):
     ADDITIONAL_AMOUNT = "additional_amount"
 
 
-class GovDataField(Enum):
+class GovDataField:
     CUST_GSTIN = "ctin"
     ECOMMERCE_GSTIN = "etin"
     DOC_DATE = "idt"
@@ -159,7 +185,7 @@ class GovDataField(Enum):
     NIL_RATED_AMOUNT = "nil_amt"
     NON_GST_AMOUNT = "ngsup_amt"
 
-    HSN_DATA = "data"
+    HSN_DATA = "data"  # Backwards compatibility
     HSN_CODE = "hsn_sc"
     DESCRIPTION = "desc"
     UOM = "uqc"
@@ -189,10 +215,17 @@ class GovDataField(Enum):
     SUPECOM_52 = "clttx"
     SUPECOM_9_5 = "paytx"
 
+    HSN_B2B = "hsn_b2b"
+    HSN_B2C = "hsn_b2c"
+
+    ERROR_CD = "error_cd"
+    ERROR_MSG = "error_msg"
+
     FLAG = "flag"
+    CHECKSUM = "chksum"
 
 
-class GovExcelField(Enum):
+class GovExcelField:
     CUST_GSTIN = "GSTIN/UIN of Recipient"
     CUST_NAME = "Receiver Name"
     INVOICE_NUMBER = "Invoice Number"
@@ -250,12 +283,19 @@ class GovJsonKey(Enum):
     RET_SUM = "sec_sum"
 
 
+# only for excel
+class HSNKey(Enum):
+    HSN = "hsn"
+    HSN_B2B = "hsn_b2b"
+    HSN_B2C = "hsn_b2c"
+
+
 class GovExcelSheetName(Enum):
     """
     Categories / Worksheets as per Gov Excel file
     """
 
-    B2B = "b2b, sez, de"
+    B2B = "b2b,sez,de"
     EXP = "exp"
     B2CL = "b2cl"
     B2CS = "b2cs"
@@ -265,6 +305,8 @@ class GovExcelSheetName(Enum):
     AT = "at"
     TXP = "atadj"
     HSN = "hsn"
+    HSN_B2B = "hsn(b2b)"
+    HSN_B2C = "hsn(b2c)"
     DOC_ISSUE = "docs"
 
 
@@ -284,7 +326,9 @@ SUB_CATEGORY_GOV_CATEGORY_MAPPING = {
     GSTR1_SubCategory.AT: GovJsonKey.AT,
     GSTR1_SubCategory.TXP: GovJsonKey.TXP,
     GSTR1_SubCategory.DOC_ISSUE: GovJsonKey.DOC_ISSUE,
-    GSTR1_SubCategory.HSN: GovJsonKey.HSN,
+    GSTR1_SubCategory.HSN: GovJsonKey.HSN,  # Backwards Compatibility
+    GSTR1_SubCategory.HSN_B2B: GovJsonKey.HSN,
+    GSTR1_SubCategory.HSN_B2C: GovJsonKey.HSN,
     GSTR1_SubCategory.SUPECOM_52: GovJsonKey.SUPECOM,
     GSTR1_SubCategory.SUPECOM_9_5: GovJsonKey.SUPECOM,
 }
@@ -301,6 +345,9 @@ JSON_CATEGORY_EXCEL_CATEGORY_MAPPING = {
     GovJsonKey.TXP.value: GovExcelSheetName.TXP.value,
     GovJsonKey.HSN.value: GovExcelSheetName.HSN.value,
     GovJsonKey.DOC_ISSUE.value: GovExcelSheetName.DOC_ISSUE.value,
+    # only for excel
+    HSNKey.HSN_B2B.value: GovExcelSheetName.HSN_B2B.value,
+    HSNKey.HSN_B2C.value: GovExcelSheetName.HSN_B2C.value,
 }
 
 
@@ -312,7 +359,9 @@ class GSTR1_B2B_InvoiceType(Enum):
 
 
 SUBCATEGORIES_NOT_CONSIDERED_IN_TOTAL_TAXABLE_VALUE = [
-    GSTR1_SubCategory.HSN.value,
+    GSTR1_SubCategory.HSN.value,  # Backwards Compatibility
+    GSTR1_SubCategory.HSN_B2B.value,
+    GSTR1_SubCategory.HSN_B2C.value,
     GSTR1_SubCategory.DOC_ISSUE.value,
     GSTR1_SubCategory.SUPECOM_52.value,
     GSTR1_SubCategory.SUPECOM_9_5.value,
@@ -322,3 +371,22 @@ SUBCATEGORIES_NOT_CONSIDERED_IN_TOTAL_TAX = [
     GSTR1_SubCategory.B2B_REVERSE_CHARGE.value,
     *SUBCATEGORIES_NOT_CONSIDERED_IN_TOTAL_TAXABLE_VALUE,
 ]
+
+
+HSN_BIFURCATION_FROM = getdate("2025-05-01")
+
+B2C_LIMIT = [
+    ("2024-07-31", 2_50_000),
+    ("2099-03-31", 1_00_000),
+]
+
+
+def get_b2c_limit(date):
+    if isinstance(date, str):
+        date = getdate(date)
+
+    for limit_date, limit in B2C_LIMIT:
+        if date <= getdate(limit_date):
+            return limit
+
+    return B2C_LIMIT[-1][1]

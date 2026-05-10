@@ -2,7 +2,7 @@
  "actions": [],
  "allow_import": 1,
  "creation": "2013-01-29 10:47:14",
- "default_view": "Inbox",
+ "default_view": "List",
  "description": "Keeps track of all communications",
  "doctype": "DocType",
  "document_type": "Setup",
@@ -31,6 +31,7 @@
   "additional_info",
   "communication_date",
   "read_receipt",
+  "send_after",
   "column_break_14",
   "sender_full_name",
   "read_by_recipient",
@@ -125,7 +126,7 @@
    "fieldtype": "Select",
    "hidden": 1,
    "label": "Delivery Status",
-   "options": "\nSent\nBounced\nOpened\nMarked As Spam\nRejected\nDelayed\nSoft-Bounced\nClicked\nRecipient Unsubscribed\nError\nExpired\nSending\nRead"
+   "options": "\nSent\nBounced\nOpened\nMarked As Spam\nRejected\nDelayed\nSoft-Bounced\nClicked\nRecipient Unsubscribed\nError\nExpired\nSending\nRead\nScheduled"
   },
   {
    "fieldname": "section_break_8",
@@ -390,13 +391,18 @@
    "hidden": 1,
    "label": "IMAP Folder",
    "read_only": 1
+  },
+  {
+   "fieldname": "send_after",
+   "fieldtype": "Datetime",
+   "label": "Send After"
   }
  ],
  "icon": "fa fa-comment",
  "idx": 1,
  "links": [],
  "make_attachments_public": 1,
- "modified": "2024-03-27 12:10:01.200845",
+ "modified": "2025-12-25 19:19:29.427081",
  "modified_by": "Administrator",
  "module": "Core",
  "name": "Communication",
@@ -451,6 +457,7 @@
    "role": "All"
   }
  ],
+ "row_format": "Compressed",
  "search_fields": "subject",
  "sender_field": "sender",
  "sort_field": "modified",

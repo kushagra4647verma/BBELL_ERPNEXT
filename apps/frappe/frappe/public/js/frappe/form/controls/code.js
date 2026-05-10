@@ -4,6 +4,39 @@ frappe.ui.form.ControlCode = class ControlCode extends frappe.ui.form.ControlTex
 		this.load_lib().then(() => this.make_ace_editor());
 	}
 
+	make_wrapper() {
+		super.make_wrapper();
+		this.set_copy_button();
+	}
+
+	set_copy_button() {
+		if (!this.frm?.doc) {
+			return;
+		}
+
+		const codeField = this.df.fieldtype === "Code";
+		if ((codeField && this.df.read_only === 1) || (codeField && this.frm.doc.docstatus > 0)) {
+			this.button = $(
+				`<button
+					class="btn icon-btn"
+					style="position: absolute; top: 32px; right: 5px;"
+					onmouseover="this.classList.add('btn-default')"
+					onmouseout="this.classList.remove('btn-default')"
+				>
+					<svg class="es-icon es-line  icon-sm" style="" aria-hidden="true">
+						<use class="" href="#es-line-copy-light"></use>
+					</svg>
+				</button>`
+			);
+			this.button.on("click", () => {
+				frappe.utils.copy_to_clipboard(
+					frappe.model.get_value(this.doctype, this.docname, this.df.fieldname)
+				);
+			});
+			this.button.appendTo(this.$wrapper);
+		}
+	}
+
 	make_ace_editor() {
 		if (this.editor) return;
 		this.ace_editor_target = $('<div class="ace-editor-target"></div>').appendTo(
@@ -38,19 +71,27 @@ frappe.ui.form.ControlCode = class ControlCode extends frappe.ui.form.ControlTex
 				.appendTo(this.$input_wrapper);
 		}
 
+		if (this.disabled) {
+			this.editor.setReadOnly(true);
+			$(this.ace_editor_target).css("pointer-events", "none");
+		}
+
 		this.editor.setTheme("ace/theme/tomorrow");
 		this.editor.setOption("showPrintMargin", false);
 		this.editor.setOption("wrap", this.df.wrap);
 		this.set_language();
+		this.is_setting_content = false;
 
 		// events
-		this.editor.session.on(
-			"change",
-			frappe.utils.debounce(() => {
-				const input_value = this.get_input_value();
-				this.parse_validate_and_set_in_model(input_value);
-			}, 300)
-		);
+		this.editor.session.on("change", () => {
+			if (this.is_setting_content) return;
+			change_content();
+		});
+
+		let change_content = frappe.utils.debounce(() => {
+			const input_value = this.get_input_value();
+			this.parse_validate_and_set_in_model(input_value);
+		}, 300);
 
 		// setup autocompletion when it is set the first time
 		Object.defineProperty(this.df, "autocompletions", {
@@ -159,7 +200,6 @@ frappe.ui.form.ControlCode = class ControlCode extends frappe.ui.form.ControlTex
 
 		const valid_languages = Object.keys(language_map);
 		if (language && !valid_languages.includes(language)) {
-			// eslint-disable-next-line
 			console.warn(
 				`Invalid language option provided for field "${
 					this.df.label
@@ -184,7 +224,9 @@ frappe.ui.form.ControlCode = class ControlCode extends frappe.ui.form.ControlTex
 			if (!this.editor) return;
 			if (!value) value = "";
 			if (value === this.get_input_value()) return;
+			this.is_setting_content = true;
 			this.editor.session.setValue(value);
+			this.is_setting_content = false;
 		});
 	}
 

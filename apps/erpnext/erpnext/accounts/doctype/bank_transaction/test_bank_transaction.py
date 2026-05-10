@@ -12,10 +12,14 @@ from erpnext.accounts.doctype.bank_reconciliation_tool.bank_reconciliation_tool 
 	get_linked_payments,
 	reconcile_vouchers,
 )
+from erpnext.accounts.doctype.mode_of_payment.test_mode_of_payment import (
+	set_default_account_for_mode_of_payment,
+)
 from erpnext.accounts.doctype.payment_entry.test_payment_entry import get_payment_entry
 from erpnext.accounts.doctype.pos_profile.test_pos_profile import make_pos_profile
 from erpnext.accounts.doctype.purchase_invoice.test_purchase_invoice import make_purchase_invoice
 from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
+from erpnext.tests.utils import if_lending_app_installed
 
 test_dependencies = ["Item", "Cost Center"]
 
@@ -23,14 +27,13 @@ test_dependencies = ["Item", "Cost Center"]
 class TestBankTransaction(FrappeTestCase):
 	def setUp(self):
 		for dt in [
-			"Loan Repayment",
 			"Bank Transaction",
 			"Payment Entry",
 			"Payment Entry Reference",
 			"POS Profile",
 		]:
 			frappe.db.delete(dt)
-
+		clear_loan_transactions()
 		make_pos_profile()
 
 		# generate and use a uniq hash identifier for 'Bank Account' and it's linked GL 'Account' to avoid validation error
@@ -55,7 +58,7 @@ class TestBankTransaction(FrappeTestCase):
 			from_date=bank_transaction.date,
 			to_date=utils.today(),
 		)
-		self.assertTrue(linked_payments[0][6] == "Conrad Electronic")
+		self.assertTrue(linked_payments[0]["party"] == "Conrad Electronic")
 
 	# This test validates a simple reconciliation leading to the clearance of the bank transaction and the payment
 	def test_reconcile(self):
@@ -124,7 +127,7 @@ class TestBankTransaction(FrappeTestCase):
 			from_date=bank_transaction.date,
 			to_date=utils.today(),
 		)
-		self.assertTrue(linked_payments[0][3])
+		self.assertTrue(linked_payments[0]["paid_amount"])
 
 	# Check error if already reconciled
 	def test_already_reconciled(self):
@@ -191,8 +194,9 @@ class TestBankTransaction(FrappeTestCase):
 			is not None
 		)
 
+	@if_lending_app_installed
 	def test_matching_loan_repayment(self):
-		from erpnext.loan_management.doctype.loan.test_loan import create_loan_accounts
+		from lending.loan_management.doctype.loan.test_loan import create_loan_accounts
 
 		create_loan_accounts()
 		bank_account = frappe.get_doc(
@@ -218,7 +222,12 @@ class TestBankTransaction(FrappeTestCase):
 		repayment_entry = create_loan_and_repayment()
 
 		linked_payments = get_linked_payments(bank_transaction.name, ["loan_repayment", "exact_match"])
-		self.assertEqual(linked_payments[0][2], repayment_entry.name)
+		self.assertEqual(linked_payments[0]["name"], repayment_entry.name)
+
+
+@if_lending_app_installed
+def clear_loan_transactions():
+	frappe.db.delete("Loan Repayment")
 
 
 def create_bank_account(
@@ -389,7 +398,7 @@ def add_vouchers(gl_account="_Test Bank - _TC"):
 		frappe.get_doc(
 			{
 				"doctype": "Customer",
-				"customer_group": "All Customer Groups",
+				"customer_group": "Individual",
 				"customer_type": "Company",
 				"customer_name": "Poore Simon's",
 			}
@@ -420,7 +429,7 @@ def add_vouchers(gl_account="_Test Bank - _TC"):
 		frappe.get_doc(
 			{
 				"doctype": "Customer",
-				"customer_group": "All Customer Groups",
+				"customer_group": "Individual",
 				"customer_type": "Company",
 				"customer_name": "Fayva",
 			}
@@ -428,32 +437,33 @@ def add_vouchers(gl_account="_Test Bank - _TC"):
 	except frappe.DuplicateEntryError:
 		pass
 
-	mode_of_payment = frappe.get_doc({"doctype": "Mode of Payment", "name": "Cash"})
+	mode_of_payment = frappe.get_doc({"doctype": "Mode of Payment", "name": "Wire Transfer"})
 
-	if not frappe.db.get_value("Mode of Payment Account", {"company": "_Test Company", "parent": "Cash"}):
-		mode_of_payment.append("accounts", {"company": "_Test Company", "default_account": gl_account})
-		mode_of_payment.save()
+	set_default_account_for_mode_of_payment(mode_of_payment, "_Test Company", gl_account)
 
 	si = create_sales_invoice(customer="Fayva", qty=1, rate=109080, do_not_save=1)
 	si.is_pos = 1
-	si.append("payments", {"mode_of_payment": "Cash", "account": gl_account, "amount": 109080})
+	si.append("payments", {"mode_of_payment": "Wire Transfer", "amount": 109080})
 	si.insert()
 	si.submit()
 
 
+@if_lending_app_installed
 def create_loan_and_repayment():
-	from erpnext.loan_management.doctype.loan.test_loan import (
+	from lending.loan_management.doctype.loan.test_loan import (
 		create_loan,
-		create_loan_type,
+		create_loan_product,
 		create_repayment_entry,
 		make_loan_disbursement_entry,
 	)
-	from erpnext.loan_management.doctype.process_loan_interest_accrual.process_loan_interest_accrual import (
+	from lending.loan_management.doctype.process_loan_interest_accrual.process_loan_interest_accrual import (
 		process_loan_interest_accrual_for_term_loans,
 	)
+
 	from erpnext.setup.doctype.employee.test_employee import make_employee
 
-	create_loan_type(
+	create_loan_product(
+		"Personal Loan",
 		"Personal Loan",
 		500000,
 		8.4,
@@ -474,7 +484,7 @@ def create_loan_and_repayment():
 			"applicant_type": "Employee",
 			"company": "_Test Company",
 			"applicant": applicant,
-			"loan_type": "Personal Loan",
+			"loan_product": "Personal Loan",
 			"loan_amount": 5000,
 			"repayment_method": "Repay Fixed Amount per Period",
 			"monthly_repayment_amount": 500,

@@ -84,7 +84,7 @@ def _execute(filters=None, additional_table_columns=None):
 			"supplier_id": inv.supplier,
 			"supplier_name": inv.supplier_name,
 			**get_values_for_columns(additional_table_columns, inv),
-			"supplier_group": supplier_details.get(inv.supplier).get("supplier_group"),  # supplier_group
+			"supplier_group": supplier_details.get(inv.supplier).get("supplier_group"),
 			"tax_id": supplier_details.get(inv.supplier).get("tax_id"),
 			"payable_account": inv.credit_to,
 			"mode_of_payment": inv.mode_of_payment,
@@ -405,12 +405,20 @@ def get_invoices(filters, additional_query_columns):
 
 	if filters.get("supplier"):
 		query = query.where(pi.supplier == filters.supplier)
+	if filters.get("supplier_group"):
+		query = query.where(pi.supplier_group == filters.supplier_group)
 
 	query = get_conditions(filters, query, "Purchase Invoice")
 
 	query = apply_common_conditions(
 		filters, query, doctype="Purchase Invoice", child_doctype="Purchase Invoice Item"
 	)
+
+	if filters.get("include_payments"):
+		party_account = get_party_account(
+			"Supplier", filters.get("supplier"), filters.get("company"), include_advance=True
+		)
+		query = query.where(pi.credit_to.isin(party_account))
 
 	from frappe.desk.reportview import build_match_conditions
 
@@ -440,7 +448,7 @@ def get_payments(filters):
 		account_fieldname="paid_to",
 		party="supplier",
 		party_name="supplier_name",
-		party_account=[get_party_account("Supplier", filters.supplier, filters.company)],
+		party_account=get_party_account("Supplier", filters.supplier, filters.company, include_advance=True),
 	)
 	payment_entries = get_payment_entries(filters, args)
 	journal_entries = get_journal_entries(filters, args)
@@ -493,7 +501,7 @@ def get_invoice_tax_map(invoice_list, invoice_expense_map, expense_accounts, inc
 		else sum(base_tax_amount_after_discount_amount) * -1 end as tax_amount
 		from `tabPurchase Taxes and Charges`
 		where parent in (%s) and category in ('Total', 'Valuation and Total')
-			and base_tax_amount_after_discount_amount != 0
+			and base_tax_amount_after_discount_amount != 0 and parenttype='Purchase Invoice'
 		group by parent, account_head, add_deduct_tax
 	"""
 		% ", ".join(["%s"] * len(invoice_list)),

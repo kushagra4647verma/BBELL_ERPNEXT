@@ -3,7 +3,7 @@
 
 import frappe
 from frappe import qb
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests.utils import FrappeTestCase, change_settings
 from frappe.utils import flt, today
 
 from erpnext.accounts.doctype.sales_invoice.test_sales_invoice import create_sales_invoice
@@ -14,9 +14,9 @@ from erpnext.controllers.sales_and_purchase_return import make_return_doc
 class TestGeneralLedger(FrappeTestCase):
 	def setUp(self):
 		self.company = "_Test Company"
-		self.clear_old_records()
+		self.clear_old_entries()
 
-	def clear_old_records(self):
+	def clear_old_entries(self):
 		doctype_list = [
 			"GL Entry",
 			"Payment Ledger Entry",

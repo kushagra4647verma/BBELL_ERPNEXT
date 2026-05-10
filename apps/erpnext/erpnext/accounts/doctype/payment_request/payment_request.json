@@ -9,10 +9,12 @@
   "transaction_date",
   "column_break_2",
   "naming_series",
+  "company",
   "mode_of_payment",
   "party_details",
   "party_type",
   "party",
+  "party_name",
   "column_break_4",
   "reference_doctype",
   "reference_name",
@@ -56,7 +58,9 @@
   "payment_account",
   "payment_channel",
   "payment_order",
-  "amended_from"
+  "amended_from",
+  "column_break_iiuv",
+  "phone_number"
  ],
  "fields": [
   {
@@ -222,7 +226,8 @@
    "fetch_from": "bank_account.iban",
    "fieldname": "iban",
    "fieldtype": "Read Only",
-   "label": "IBAN"
+   "label": "IBAN",
+   "options": "IBAN"
   },
   {
    "fetch_from": "bank_account.branch_code",
@@ -236,6 +241,28 @@
    "fieldname": "swift_number",
    "fieldtype": "Read Only",
    "label": "SWIFT Number"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "accounting_dimensions_section",
+   "fieldtype": "Section Break",
+   "label": "Accounting Dimensions"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "dimension_col_break",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "project",
+   "fieldtype": "Link",
+   "label": "Project",
+   "options": "Project"
   },
   {
    "depends_on": "eval: doc.payment_request_type == 'Inward'",
@@ -324,9 +351,10 @@
   },
   {
    "fieldname": "payment_url",
-   "fieldtype": "Small Text",
+   "fieldtype": "Data",
    "hidden": 1,
-   "label": "payment_url",
+   "length": 500,
+   "options": "URL",
    "read_only": 1
   },
   {
@@ -351,6 +379,15 @@
    "read_only": 1
   },
   {
+   "depends_on": "eval: doc.payment_channel==\"Phone\"",
+   "fetch_from": "payment_gateway_account.payment_channel",
+   "fieldname": "payment_channel",
+   "fieldtype": "Select",
+   "label": "Payment Channel",
+   "options": "\nEmail\nPhone",
+   "read_only": 1
+  },
+  {
    "fieldname": "payment_order",
    "fieldtype": "Link",
    "label": "Payment Order",
@@ -367,36 +404,6 @@
    "read_only": 1
   },
   {
-   "fetch_from": "payment_gateway_account.payment_channel",
-   "fieldname": "payment_channel",
-   "fieldtype": "Select",
-   "label": "Payment Channel",
-   "options": "\nEmail\nPhone",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "accounting_dimensions_section",
-   "fieldtype": "Section Break",
-   "label": "Accounting Dimensions"
-  },
-  {
-   "fieldname": "cost_center",
-   "fieldtype": "Link",
-   "label": "Cost Center",
-   "options": "Cost Center"
-  },
-  {
-   "fieldname": "dimension_col_break",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "project",
-   "fieldtype": "Link",
-   "label": "Project",
-   "options": "Project"
-  },
-  {
    "depends_on": "eval: doc.docstatus === 1",
    "description": "Amount in party's bank account currency",
    "fieldname": "outstanding_amount",
@@ -408,18 +415,41 @@
    "read_only": 1
   },
   {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
+  },
+  {
    "fieldname": "party_account_currency",
    "fieldtype": "Link",
    "label": "Party Account Currency",
    "options": "Currency",
    "read_only": 1
+  },
+  {
+   "fieldname": "party_name",
+   "fieldtype": "Data",
+   "label": "Party Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_iiuv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "phone_number",
+   "fieldtype": "Data",
+   "label": "Phone Number"
   }
  ],
+ "grid_page_length": 50,
  "in_create": 1,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2024-09-16 17:50:54.440090",
+ "modified": "2025-08-29 11:52:48.555415",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Payment Request",
@@ -454,6 +484,7 @@
    "write": 1
   }
  ],
+ "row_format": "Dynamic",
  "show_preview_popup": 1,
  "sort_field": "modified",
  "sort_order": "DESC",

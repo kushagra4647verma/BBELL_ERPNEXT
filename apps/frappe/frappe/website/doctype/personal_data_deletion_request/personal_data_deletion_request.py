@@ -14,6 +14,23 @@ from frappe.utils.verified_command import get_signed_params, verify_request
 
 
 class PersonalDataDeletionRequest(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+		from frappe.website.doctype.personal_data_deletion_step.personal_data_deletion_step import (
+			PersonalDataDeletionStep,
+		)
+
+		anonymization_matrix: DF.Code | None
+		deletion_steps: DF.Table[PersonalDataDeletionStep]
+		email: DF.Data
+		status: DF.Literal["Pending Verification", "Pending Approval", "On Hold", "Deleted"]
+
+	# end: auto-generated types
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 
@@ -220,9 +237,10 @@ class PersonalDataDeletionRequest(Document):
 		filter_by_meta = meta.get_field(filter_by)
 
 		if filter_by_meta and filter_by_meta.fieldtype != "Link":
-			if self.email in doc[filter_by]:
-				value = re.sub(self.full_name_regex, self.anonymization_value_map["Data"], doc[filter_by])
+			value = doc[filter_by]
+			if self.email in value:
 				value = re.sub(self.email_regex, self.anon, value)
+				value = re.sub(self.full_name_regex, self.anonymization_value_map["Data"], value)
 				self.anonymize_fields_dict[filter_by] = value
 
 		frappe.db.set_value(

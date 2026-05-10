@@ -7,7 +7,7 @@ from math import ceil
 
 import frappe
 from frappe import _
-from frappe.utils import add_days, cint, flt, nowdate
+from frappe.utils import add_days, cint, escape_html, flt, nowdate
 
 import erpnext
 
@@ -60,7 +60,7 @@ def _reorder_item():
 		else:
 			projected_qty = flt(item_warehouse_projected_qty.get(kwargs.item_code, {}).get(kwargs.warehouse))
 
-		if (reorder_level or reorder_qty) and projected_qty < reorder_level:
+		if (reorder_level or reorder_qty) and projected_qty <= reorder_level:
 			deficiency = reorder_level - projected_qty
 			if deficiency > reorder_qty:
 				reorder_qty = deficiency
@@ -219,15 +219,6 @@ def create_material_request(material_requests):
 	mr_list = []
 	exceptions_list = []
 
-	def _log_exception(mr):
-		if frappe.local.message_log:
-			exceptions_list.extend(frappe.local.message_log)
-			frappe.local.message_log = []
-		else:
-			exceptions_list.append(frappe.get_traceback(with_context=True))
-
-		mr.log_error("Unable to create material request")
-
 	company_wise_mr = frappe._dict({})
 	for request_type in material_requests:
 		for company in material_requests[request_type]:
@@ -297,8 +288,9 @@ def create_material_request(material_requests):
 
 				company_wise_mr.setdefault(company, []).append(mr)
 
-			except Exception:
-				_log_exception(mr)
+			except Exception as exception:
+				exceptions_list.append(exception)
+				mr.log_error("Unable to create material request")
 
 	if company_wise_mr:
 		if getattr(frappe.local, "reorder_email_notify", None) is None:
@@ -356,9 +348,14 @@ def get_email_list(company):
 
 
 def get_comapny_wise_users(company):
+	companies = [company]
+
+	if parent_company := frappe.db.get_value("Company", company, "parent_company"):
+		companies.append(parent_company)
+
 	users = frappe.get_all(
 		"User Permission",
-		filters={"allow": "Company", "for_value": company, "apply_to_all_doctypes": 1},
+		filters={"allow": "Company", "for_value": ("in", companies), "apply_to_all_doctypes": 1},
 		fields=["user"],
 	)
 
@@ -378,10 +375,7 @@ def notify_errors(exceptions_list):
 
 	for exception in exceptions_list:
 		try:
-			exception = json.loads(exception)
-			error_message = """<div class='small text-muted'>{}</div><br>""".format(
-				_(exception.get("message"))
-			)
+			error_message = f"<div class='small text-muted'>{escape_html(str(exception))}</div><br>"
 			content += error_message
 		except Exception:
 			pass

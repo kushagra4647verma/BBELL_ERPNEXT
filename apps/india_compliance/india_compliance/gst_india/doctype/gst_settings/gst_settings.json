@@ -9,6 +9,7 @@
   "hsn_wise_tax_breakup",
   "enable_reverse_charge_in_sales",
   "enable_overseas_transactions",
+  "enable_sales_through_ecommerce_operators",
   "round_off_gst_values",
   "require_supplier_invoice_no",
   "column_break_4",
@@ -22,27 +23,38 @@
   "is_retry_einv_ewb_generation_pending",
   "column_break_rk3h",
   "sandbox_mode",
+  "use_fallback_for_nic",
   "e_waybill_section",
   "enable_e_waybill",
   "enable_e_waybill_from_dn",
   "enable_e_waybill_from_pi",
   "enable_e_waybill_from_pr",
+  "enable_e_waybill_for_sc",
   "fetch_e_waybill_data",
   "attach_e_waybill_print",
   "column_break_10",
   "auto_generate_e_waybill",
+  "auto_cancel_e_waybill",
+  "reason_for_e_waybill_cancellation",
+  "section_break_qtlk",
   "e_waybill_threshold",
+  "e_waybill_threshold_for_intrastate",
   "e_invoice_section",
   "enable_e_invoice",
-  "auto_generate_e_invoice",
   "generate_e_waybill_with_e_invoice",
-  "apply_e_invoice_only_for_selected_companies",
+  "auto_generate_e_invoice",
+  "auto_cancel_e_invoice",
+  "restrict_cancel_if_e_invoice_final",
+  "reason_for_e_invoice_cancellation",
+  "e_invoice_reporting_time_limit_days",
   "column_break_17",
+  "fetch_e_invoice_details_from_gst_portal",
+  "apply_e_invoice_only_for_selected_companies",
   "e_invoice_applicable_from",
   "e_invoice_applicable_companies",
   "gstr_1_section_break",
-  "compare_gstr_1_data",
-  "filing_frequency",
+  "enable_gstr_1_api",
+  "compare_unfiled_data",
   "column_break_cxmn",
   "restrict_changes_after_gstr_1",
   "role_allowed_to_modify",
@@ -87,7 +99,8 @@
   "credentials_tab",
   "credentials",
   "api_secret",
-  "gstn_public_certificate"
+  "gstn_public_certificate",
+  "nic_public_key"
  ],
  "fields": [
   {
@@ -121,7 +134,7 @@
   },
   {
    "default": "1",
-   "description": "As per <a href=\"https://old.cbic.gov.in/resources/htdocs-cbec/gst/notfctn-78-central-tax-english-2020.pdf\">Central Tax Notification No. 78/2020</a>, HSN/SAC code must be specified in Sales Invoice with atleast 4 or 6 digits (based on turnover)",
+   "description": "As per <a href=\"https://old.cbic.gov.in/resources/htdocs-cbec/gst/notfctn-78-central-tax-english-2020.pdf\" rel=\"noopener noreferrer\">Central Tax Notification No. 78/2020</a>, HSN/SAC code must be specified in Sales Invoice with atleast 4 or 6 digits (based on turnover)",
    "fieldname": "validate_hsn_code",
    "fieldtype": "Check",
    "label": "Validate HSN/SAC Code in Sales Items and Transactions"
@@ -133,7 +146,7 @@
    "fieldtype": "Select",
    "label": "Minimum HSN/SAC Code Digits",
    "mandatory_depends_on": "eval: doc.validate_hsn_code",
-   "options": "4\n6"
+   "options": "4\n6\n8"
   },
   {
    "fieldname": "accounts_tab",
@@ -212,7 +225,7 @@
    "description": "When selling goods with total Sales Invoice value greater than this amount, a prompt will be displayed if e-Waybill hasn't been generated upon submission",
    "fieldname": "e_waybill_threshold",
    "fieldtype": "Currency",
-   "label": "Invoice Value Threshold for e-Waybill Generation"
+   "label": "Default Threshold Value for e-Waybill Generation"
   },
   {
    "default": "1",
@@ -312,7 +325,7 @@
   {
    "default": "0",
    "depends_on": "eval:doc.enable_e_invoice",
-   "description": "e-Invoice will be generated for only selected companies.",
+   "description": "e-Invoice will be generated for only selected companies",
    "fieldname": "apply_e_invoice_only_for_selected_companies",
    "fieldtype": "Check",
    "label": "Apply e-Invoice for Selected Companies"
@@ -352,7 +365,7 @@
   {
    "default": "30",
    "depends_on": "eval:doc.validate_gstin_status",
-   "description": "Will auto refresh status if its older than days set here",
+   "description": "Will auto refresh status if its older than days set here (set 15 days or above)",
    "fieldname": "gstin_status_refresh_interval",
    "fieldtype": "Int",
    "label": "GSTIN Status Refresh Interval (In Days)"
@@ -366,21 +379,21 @@
   },
   {
    "default": "0",
-   "description": "Reverse Charge will automatically be applied if the Supplier is Unregistered and Reverse Charge value threshold is met. ",
+   "description": "Reverse Charge will automatically be applied if the Supplier is Unregistered and Reverse Charge value threshold is met",
    "fieldname": "enable_rcm_for_unregistered_supplier",
    "fieldtype": "Check",
    "label": "Enable Reverse Charge for Purchase from Unregistered Supplier"
   },
   {
    "default": "1",
-   "description": "If checked, Supplier Invoice Number will be mandatory for all purchases (except from unregistered suppliers). This will help ensure smooth purchase reconciliation.",
+   "description": "If checked, Vendor Reference No will be mandatory for transactions (except from unregistered suppliers) to facilitate purchase reconciliation and e-Waybill generation",
    "fieldname": "require_supplier_invoice_no",
    "fieldtype": "Check",
-   "label": "Require Supplier Invoice Number for GST Purchases"
+   "label": "Require Vendor Document Reference for GST Purchases or Receipts"
   },
   {
    "default": "1",
-   "description": "Ensures valid GSTIN and GST Transporter ID in transactions by refreshing status periodically from government database",
+   "description": "Ensures valid GSTIN and GST Transporter ID when creating transactions",
    "fieldname": "validate_gstin_status",
    "fieldtype": "Check",
    "label": "Refresh and Validate GSTIN Status in Transactions"
@@ -390,6 +403,12 @@
    "fieldtype": "Code",
    "hidden": 1,
    "label": "GSTN Public Certificate"
+  },
+  {
+   "fieldname": "nic_public_key",
+   "fieldtype": "Code",
+   "hidden": 1,
+   "label": "NIC Public Key"
   },
   {
    "default": "0",
@@ -568,6 +587,12 @@
    "label": "Is Retry e-Invoice/e-Waybill Pending"
   },
   {
+   "default": "0",
+   "fieldname": "enable_sales_through_ecommerce_operators",
+   "fieldtype": "Check",
+   "label": "Enable Sales through E-commerce Operators"
+  },
+  {
    "fieldname": "gstr_1_section_break",
    "fieldtype": "Section Break",
    "label": "GSTR-1"
@@ -575,12 +600,6 @@
   {
    "fieldname": "column_break_cxmn",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "filing_frequency",
-   "fieldtype": "Select",
-   "label": "Filing Frequency",
-   "options": "Monthly\nQuarterly"
   },
   {
    "depends_on": "eval: doc.restrict_changes_after_gstr_1",
@@ -599,17 +618,112 @@
   },
   {
    "default": "0",
-   "depends_on": "eval: india_compliance.is_api_enabled(doc)",
-   "description": "Use APIs to compare records with GST Portal Data Before and After Filing",
-   "fieldname": "compare_gstr_1_data",
+   "depends_on": "eval: doc.enable_e_waybill",
+   "fieldname": "enable_e_waybill_for_sc",
    "fieldtype": "Check",
-   "label": "Compare Data with GST Portal"
+   "label": "Enable e-Waybill Generation for Subcontracting and Material Transfer"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval:doc.enable_e_invoice",
+   "description": "The system will attempt to get e-Invoice details from the GST Portal if it can't find them on the e-Invoice Portal",
+   "fieldname": "fetch_e_invoice_details_from_gst_portal",
+   "fieldtype": "Check",
+   "label": "Fetch e-Invoice details from GST Portal"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval: doc.enable_e_waybill",
+   "description": "e-Waybill will be automatically cancelled after Sales Invoice, Delivery Note, Purchase Invoice, Purchase Receipt, Stock Entry and Subcontracting Receipt cancellation if possible",
+   "fieldname": "auto_cancel_e_waybill",
+   "fieldtype": "Check",
+   "label": "Automatically Cancel e-Waybill on Cancellation",
+   "read_only_depends_on": "eval: doc.enable_e_invoice"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval: doc.enable_e_invoice",
+   "description": "e-Invoice will be automatically cancelled after Sales Invoice cancellation if possible",
+   "fieldname": "auto_cancel_e_invoice",
+   "fieldtype": "Check",
+   "label": "Automatically Cancel e-Invoice on Invoice Cancellation"
+  },
+  {
+   "default": "Data Entry Mistake",
+   "depends_on": "eval: doc.enable_e_waybill",
+   "fieldname": "reason_for_e_waybill_cancellation",
+   "fieldtype": "Select",
+   "label": "Default Reason for e-Waybill Cancellation",
+   "mandatory_depends_on": "eval: doc.auto_cancel_e_waybill",
+   "options": "Duplicate\nOrder Cancelled\nData Entry Mistake",
+   "read_only_depends_on": "eval: doc.enable_e_invoice"
+  },
+  {
+   "default": "Data Entry Mistake",
+   "depends_on": "eval: doc.enable_e_invoice",
+   "fieldname": "reason_for_e_invoice_cancellation",
+   "fieldtype": "Select",
+   "label": "Default Reason for e-Invoice Cancellation",
+   "mandatory_depends_on": "eval: doc.auto_cancel_e_invoice",
+   "options": "Duplicate\nOrder Cancelled\nData Entry Mistake"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval: india_compliance.is_api_enabled(doc) && doc.enable_gstr_1_api",
+   "description": "Use API to compare records with GST Portal Before Filing.",
+   "fieldname": "compare_unfiled_data",
+   "fieldtype": "Check",
+   "label": "Compare Data with GST Portal Before Filing"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval: india_compliance.is_api_enabled(doc)",
+   "description": "Use APIs to compare records with GST Portal and File GST Returns",
+   "fieldname": "enable_gstr_1_api",
+   "fieldtype": "Check",
+   "label": "Enable GSTR-1 API Features"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval: doc.enable_e_invoice",
+   "description": "If the e-Invoice is not cancellable, the Sales Invoice will not be allowed to be cancelled.",
+   "fieldname": "restrict_cancel_if_e_invoice_final",
+   "fieldtype": "Check",
+   "label": "Restrict Cancellation if e-Invoice not Cancellable"
+  },
+  {
+   "default": "30",
+   "depends_on": "eval: doc.enable_e_invoice",
+   "description": "Maximum number of days allowed for e-invoice generation after posting date",
+   "fieldname": "e_invoice_reporting_time_limit_days",
+   "fieldtype": "Int",
+   "label": "e-Invoice Reporting Time Limit (in Days)"
+  },
+  {
+   "default": "1",
+   "depends_on": "eval: india_compliance.is_api_enabled(doc)",
+   "description": "Check this box only if API requests are failing with invalid certificate error",
+   "fieldname": "use_fallback_for_nic",
+   "fieldtype": "Check",
+   "label": "Use Fallback APIs for e-Waybill and e-Invoice"
+  },
+  {
+   "depends_on": "eval: india_compliance.is_api_enabled(doc) && doc.enable_e_waybill",
+   "fieldname": "section_break_qtlk",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "e_waybill_threshold_for_intrastate",
+   "fieldtype": "Table",
+   "label": "e-Waybill Threshold for Intrastate",
+   "options": "State-wise e-Waybill Threshold"
   }
  ],
+ "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2024-06-09 17:27:54.720233",
+ "modified": "2026-03-10 15:27:22.646389",
  "modified_by": "Administrator",
  "module": "GST India",
  "name": "GST Settings",
@@ -635,7 +749,9 @@
   }
  ],
  "quick_entry": 1,
- "sort_field": "modified",
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],
  "track_changes": 1

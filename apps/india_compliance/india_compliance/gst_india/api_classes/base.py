@@ -1,12 +1,18 @@
+from base64 import b64decode
+from typing import ClassVar
 from urllib.parse import urljoin
 
-import requests
-
 import frappe
+import requests
 from frappe import _
 from frappe.utils import sbool
+from frappe.utils.scheduler import is_scheduler_disabled
 
-from india_compliance.exceptions import GatewayTimeoutError, GSPServerError
+from india_compliance.exceptions import (
+    GatewayTimeoutError,
+    GSPLimitExceededError,
+    GSPServerError,
+)
 from india_compliance.gst_india.utils import is_api_enabled
 from india_compliance.gst_india.utils.api import enqueue_integration_request
 
@@ -21,12 +27,10 @@ class BaseAPI:
     def __init__(self, *args, **kwargs):
         self.settings = frappe.get_cached_doc("GST Settings")
         if not is_api_enabled(self.settings):
-            frappe.throw(
-                _("Please enable API in GST Settings to use the {0} API").format(
-                    self.API_NAME
-                )
-            )
+            frappe.throw(_("Please enable API in GST Settings to use the {0} API").format(self.API_NAME))
 
+        self.company_gstin = None
+        self.auth_strategy = None
         self.sandbox_mode = self.settings.sandbox_mode
         self.default_headers = {
             "x-api-key": (
@@ -49,8 +53,7 @@ class BaseAPI:
         else:
             frappe.throw(
                 _(
-                    "Please set the relevant credentials for GSTIN {0} in GST Settings to use the"
-                    " {1} API"
+                    "Please set the relevant credentials for GSTIN {0} in GST Settings to use the {1} API"
                 ).format(gstin, self.API_NAME),
                 frappe.DoesNotExistError,
                 title=_("Credentials Unavailable"),
@@ -58,13 +61,22 @@ class BaseAPI:
 
         self.username = row.username
         self.company = row.company
+        self.app_key = row.app_key or self.generate_app_key(service)
         self._fetch_credentials(row, require_password=require_password)
 
     def _fetch_credentials(self, row, require_password=True):
         self.password = row.get_password(raise_exception=require_password)
+        self.session_key = b64decode(row.session_key or "")
+        self.session_expiry = row.session_expiry
+        self.auth_token = row.auth_token
+        self.session_ip = row.session_ip
 
     def get_url(self, *parts):
         parts = list(parts)
+
+        # If the first part is a URL, return it as it is
+        if parts and parts[0].startswith("https"):
+            return parts[0]
 
         if self.BASE_PATH:
             parts.insert(0, self.BASE_PATH)
@@ -80,6 +92,9 @@ class BaseAPI:
     def post(self, *args, **kwargs):
         return self._make_request("POST", *args, **kwargs)
 
+    def put(self, *args, **kwargs):
+        return self._make_request("PUT", *args, **kwargs)
+
     def _make_request(
         self,
         method,
@@ -89,7 +104,7 @@ class BaseAPI:
         json=None,
     ):
         method = method.upper()
-        if method not in ("GET", "POST"):
+        if method not in ("GET", "POST", "PUT"):
             frappe.throw(_("Invalid method {0}").format(method))
 
         request_args = frappe._dict(
@@ -103,7 +118,6 @@ class BaseAPI:
         )
 
         log_headers = request_args.headers.copy()
-
         log = frappe._dict(
             **self.default_log_values,
             url=request_args.url,
@@ -111,7 +125,7 @@ class BaseAPI:
             request_headers=log_headers,
         )
 
-        if method == "POST" and json:
+        if method in ["POST", "PUT"] and json:
             request_args.json = json
 
             json_data = json.copy()
@@ -123,6 +137,7 @@ class BaseAPI:
                     "body": json_data,
                 }
 
+        response = None
         response_json = None
 
         try:
@@ -130,6 +145,7 @@ class BaseAPI:
 
             response = requests.request(method, **request_args)
             if api_request_id := response.headers.get("x-amzn-RequestId"):
+                self.request_id = api_request_id
                 log.request_id = api_request_id
 
             try:
@@ -149,9 +165,7 @@ class BaseAPI:
                     response_json = response.content
 
                 else:
-                    frappe.throw(
-                        _("Error parsing response: {0}").format(response.content)
-                    )
+                    frappe.throw(_("Error parsing response: {0}").format(response.content))
 
             response_json = self.process_response(response_json)
 
@@ -167,6 +181,11 @@ class BaseAPI:
         finally:
             if response_json:
                 log.output = response_json.copy()
+            elif response:
+                log.output = {
+                    "status_code": response.status_code,
+                    "content": response.text,
+                }
 
             self.mask_sensitive_info(log)
 
@@ -180,10 +199,15 @@ class BaseAPI:
                 frappe.flags.ic_sandbox_message_shown = True
 
     def before_request(self, request_args):
-        return
+        if getattr(self, "auth_strategy", None):
+            self.auth_strategy.prepare_request(request_args)
 
     def process_response(self, response):
         self.handle_error_response(response)
+
+        if getattr(self, "auth_strategy", None):
+            response = self.auth_strategy.process_response(response)
+
         self.response = response
         return response
 
@@ -194,7 +218,7 @@ class BaseAPI:
             success_value = sbool(success_value)
 
         if not success_value:
-            self.handle_server_error(response_json)
+            self.handle_server_error([response_json.get("message")])
 
         if not success_value and not self.is_ignored_error(response_json):
             frappe.throw(
@@ -204,29 +228,34 @@ class BaseAPI:
                 title=_("API Request Failed"),
             )
 
-    def handle_server_error(self, response_json):
-        error_message_list = [
+    ERROR_MESSAGES: ClassVar[dict] = {
+        GSPServerError: (
             "GSPGSTDOWN",
             "GSPERR300",
             "Connection reset",
             "No route to host",
-        ]
+        ),
+        GSPLimitExceededError: ("GEN5005",),
+    }
 
-        for error in error_message_list:
-            if error in response_json.get("message"):
-                raise GSPServerError
+    def handle_server_error(self, error_messages):
+        for exception, error_message_list in self.ERROR_MESSAGES.items():
+            for error_pattern in error_message_list:
+                if any(error_pattern in msg for msg in error_messages if msg):
+                    frappe.throw(
+                        msg=exception.message,
+                        exc=exception,
+                        title=exception.title,
+                    )
 
     def is_ignored_error(self, response_json):
         # Override in subclass, return truthy value to stop frappe.throw
         pass
 
     def handle_http_code(self, status_code, response_json):
-
         # GSP connectivity issues
         if status_code == 401 or (
-            status_code == 403
-            and response_json
-            and response_json.get("error") == "access_denied"
+            status_code == 403 and response_json and response_json.get("error") == "access_denied"
         ):
             frappe.throw(
                 _(
@@ -253,33 +282,45 @@ class BaseAPI:
             raise GatewayTimeoutError
 
     def generate_request_id(self, length=12):
-        return frappe.generate_hash(length=length)
+        return f"IC{frappe.generate_hash(length=length - 2)}".upper()
 
     def mask_sensitive_info(self, log):
         request_headers = log.request_headers
         output = log.output
         data = log.data
         request_body = data and data.get("body")
+        placeholder = "*****"
 
         for key in self.SENSITIVE_INFO:
             if key in request_headers:
-                request_headers[key] = "*****"
+                request_headers[key] = placeholder
 
             if output and key in output:
-                output[key] = "*****"
+                output[key] = placeholder
 
             if not data:
                 continue
 
             if key in data:
-                data[key] = "*****"
+                data[key] = placeholder
 
             if request_body and key in request_body:
-                request_body[key] = "*****"
+                request_body[key] = placeholder
 
+    def generate_app_key(self, service):
+        app_key = frappe.generate_hash(length=32)
 
-def get_public_ip():
-    return requests.get("https://api.ipify.org").text
+        frappe.db.set_value(
+            "GST Credential",
+            {
+                "gstin": self.company_gstin,
+                "username": self.username,
+                "service": service,
+            },
+            {"app_key": app_key},
+        )
+
+        return app_key
 
 
 def check_scheduler_status():
@@ -290,7 +331,7 @@ def check_scheduler_status():
     if frappe.flags.in_test or frappe.conf.developer_mode:
         return
 
-    if frappe.utils.scheduler.is_scheduler_disabled():
+    if is_scheduler_disabled():
         frappe.throw(
             _(
                 "The Scheduler is currently disabled, which needs to be enabled to use e-Invoicing and e-Waybill features. "
@@ -304,3 +345,22 @@ def check_scheduler_status():
                 """
             )
         )
+
+
+def change_base_path(new_base_path):
+    """
+    Decorator to change the base path of the API class for wrapped method only.
+    """
+
+    def decorator(func):
+        def wrapper(self, *args, **kwargs):
+            original_base_path = self.BASE_PATH
+            self.BASE_PATH = new_base_path
+            try:
+                return func(self, *args, **kwargs)
+            finally:
+                self.BASE_PATH = original_base_path
+
+        return wrapper
+
+    return decorator

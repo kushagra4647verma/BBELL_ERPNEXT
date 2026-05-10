@@ -9,8 +9,11 @@ frappe.ui.form.Layout = class Layout {
 		this.tabs = [];
 		this.sections = [];
 		this.page_breaks = [];
+		this.sections_dict = {};
 		this.fields_list = [];
 		this.fields_dict = {};
+		this.section_count = 0;
+		this.column_count = 0;
 
 		$.extend(this, opts);
 	}
@@ -20,7 +23,9 @@ frappe.ui.form.Layout = class Layout {
 			this.parent = this.body;
 		}
 		this.wrapper = $('<div class="form-layout">').appendTo(this.parent);
-		this.message = $('<div class="form-message hidden"></div>').appendTo(this.wrapper);
+		this.message = $('<div class="form-message-container hidden"></div>').appendTo(
+			this.wrapper
+		);
 		this.page = $('<div class="form-page"></div>').appendTo(this.wrapper);
 
 		if (!this.fields) {
@@ -31,7 +36,7 @@ frappe.ui.form.Layout = class Layout {
 			this.setup_tabbed_layout();
 		}
 
-		this.setup_tab_events();
+		this.frm && this.setup_tooltip_events();
 		this.render();
 	}
 
@@ -41,7 +46,7 @@ frappe.ui.form.Layout = class Layout {
 				<ul class="nav form-tabs" id="form-tabs" role="tablist"></ul>
 			</div>
 		`).appendTo(this.page);
-		this.tabs_list = this.page.find(".form-tabs");
+		this.tab_link_container = this.page.find(".form-tabs");
 		this.tabs_content = $(`<div class="form-tab-content tab-content"></div>`).appendTo(
 			this.page
 		);
@@ -93,23 +98,42 @@ frappe.ui.form.Layout = class Layout {
 		return fields;
 	}
 
-	show_message(html, color) {
-		if (this.message_color) {
-			// remove previous color
-			this.message.removeClass(this.message_color);
-		}
-		this.message_color =
-			color && ["yellow", "blue", "red", "green", "orange"].includes(color) ? color : "blue";
-		if (html) {
-			if (html.substr(0, 1) !== "<") {
-				// wrap in a block
-				html = "<div>" + html + "</div>";
-			}
-			this.message.removeClass("hidden").addClass(this.message_color);
-			$(html).appendTo(this.message);
-		} else {
+	/**Render a message block with its own color and close button
+	 * @param {String} html - message or HTML to be displayed
+	 * @param {String} color - color of the block. One of "yellow", "blue", "red", "green" or "orange". Defaults to "blue".
+	 * @param {Boolean} permanent - if true, the block will not have a close button
+	 */
+	show_message(html, color, permanent = false) {
+		if (!html) {
 			this.message.empty().addClass("hidden");
+			return;
 		}
+
+		// Prepare Block
+		let $html;
+		if (!frappe.utils.is_html(html)) {
+			// wrap in a block if `html` does not contain html tags
+			$html = $("<div class='form-message'></div>").text(html);
+		} else {
+			// Wrap in a block just in case the string does not begin with a tag
+			// as Jquery assumes it to be a CSS selector and breaks.
+			$html = $("<div class='form-message'>").html(html);
+		}
+
+		// Add close button to block if not permanent
+		const close_message = $(`<div class="close-message">${frappe.utils.icon("close")}</div>`);
+		if (!permanent) {
+			close_message.appendTo($html);
+			close_message.on("click", () => $html.remove());
+		}
+
+		// Add block color and append to parent container `form-message-container`
+		const block_color =
+			color && ["yellow", "blue", "red", "green", "orange"].includes(color) ? color : "blue";
+		$html.addClass(block_color).appendTo(this.message);
+
+		// Show parent container if hidden
+		this.message.removeClass("hidden");
 	}
 
 	render(new_fields) {
@@ -203,7 +227,7 @@ frappe.ui.form.Layout = class Layout {
 		!this.section && this.make_section();
 		!this.column && this.make_column();
 
-		const parent = this.column.wrapper.get(0);
+		const parent = this.column.form.get(0);
 		const fieldobj = this.init_field(df, parent, render);
 
 		// An invalid control name will return in a null fieldobj
@@ -212,14 +236,11 @@ frappe.ui.form.Layout = class Layout {
 		this.fields_list.push(fieldobj);
 		this.fields_dict[df.fieldname] = fieldobj;
 
-		this.section.fields_list.push(fieldobj);
-		this.section.fields_dict[df.fieldname] = fieldobj;
-		fieldobj.section = this.section;
+		this.section.add_field(fieldobj);
+		this.column.add_field(fieldobj);
 
 		if (this.current_tab) {
-			fieldobj.tab = this.current_tab;
-			this.current_tab.fields_list.push(fieldobj);
-			this.current_tab.fields_dict[df.fieldname] = fieldobj;
+			this.current_tab.add_field(fieldobj);
 		}
 	}
 
@@ -247,7 +268,6 @@ frappe.ui.form.Layout = class Layout {
 	}
 
 	make_page(df) {
-		// eslint-disable-line no-unused-vars
 		let me = this;
 		let head = $(`
 			<div class="form-clickable-section text-center">
@@ -281,13 +301,21 @@ frappe.ui.form.Layout = class Layout {
 		this.fold_btn.trigger("click");
 	}
 
-	make_section(df) {
+	make_section(df = {}) {
+		this.section_count++;
+		if (!df.fieldname) {
+			df.fieldname = `__section_${this.section_count}`;
+			df.fieldtype = "Section Break";
+		}
+
 		this.section = new Section(
 			this.current_tab ? this.current_tab.wrapper : this.page,
 			df,
 			this.card_layout,
 			this
 		);
+		this.sections.push(this.section);
+		this.sections_dict[df.fieldname] = this.section;
 
 		// append to layout fields
 		if (df) {
@@ -298,7 +326,13 @@ frappe.ui.form.Layout = class Layout {
 		this.column = null;
 	}
 
-	make_column(df) {
+	make_column(df = {}) {
+		this.column_count++;
+		if (!df.fieldname) {
+			df.fieldname = `__column_${this.section_count}`;
+			df.fieldtype = "Column Break";
+		}
+
 		this.column = new Column(this.section, df);
 		if (df && df.fieldname) {
 			this.fields_list.push(this.column);
@@ -307,7 +341,7 @@ frappe.ui.form.Layout = class Layout {
 
 	make_tab(df) {
 		this.section = null;
-		let tab = new Tab(this, df, this.frm, this.tabs_list, this.tabs_content);
+		let tab = new Tab(this, df, this.frm, this.tab_link_container, this.tabs_content);
 		this.current_tab = tab;
 		this.make_section({ fieldtype: "Section Break" });
 		this.tabs.push(tab);
@@ -358,7 +392,10 @@ frappe.ui.form.Layout = class Layout {
 			const section = $(this).removeClass("empty-section visible-section");
 			if (section.find(".frappe-control:not(.hide-control)").length) {
 				section.addClass("visible-section");
-			} else {
+			} else if (
+				section.parent().hasClass("tab-pane") ||
+				section.parent().hasClass("form-page")
+			) {
 				// nothing visible, hide the section
 				section.addClass("empty-section");
 			}
@@ -375,13 +412,25 @@ frappe.ui.form.Layout = class Layout {
 
 		const visible_tabs = this.tabs.filter((tab) => !tab.hidden);
 		if (visible_tabs && visible_tabs.length == 1) {
-			visible_tabs[0].parent.toggleClass("hide show");
+			visible_tabs[0].tab_link.toggleClass("hide show");
 		}
 		this.set_tab_as_active();
 	}
 
+	select_tab(label_or_fieldname) {
+		for (let tab of this.tabs) {
+			if (
+				tab.label.toLowerCase() === label_or_fieldname.toLowerCase() ||
+				tab.df.fieldname?.toLowerCase() === label_or_fieldname.toLowerCase()
+			) {
+				tab.set_active();
+				return;
+			}
+		}
+	}
+
 	set_tab_as_active() {
-		let frm_active_tab = this?.frm.get_active_tab?.();
+		let frm_active_tab = this.frm?.get_active_tab?.();
 		if (frm_active_tab) {
 			frm_active_tab.set_active();
 		} else if (this.tabs.length) {
@@ -449,12 +498,6 @@ frappe.ui.form.Layout = class Layout {
 		}
 	}
 
-	refresh_section_count() {
-		this.wrapper.find(".section-count-label:visible").each(function (i) {
-			$(this).html(i + 1);
-		});
-	}
-
 	setup_events() {
 		let last_scroll = 0;
 		let tabs_list = $(".form-tabs-list");
@@ -475,7 +518,7 @@ frappe.ui.form.Layout = class Layout {
 			}, 500)
 		);
 
-		this.tabs_list.off("click").on("click", ".nav-link", (e) => {
+		this.tab_link_container.off("click").on("click", ".nav-link", (e) => {
 			e.preventDefault();
 			e.stopImmediatePropagation();
 			$(e.currentTarget).tab("show");
@@ -501,6 +544,25 @@ frappe.ui.form.Layout = class Layout {
 				}
 			}
 		});
+	}
+
+	setup_tooltip_events() {
+		$(document).on("keydown", (e) => {
+			if (e.altKey) {
+				this.wrapper.addClass("show-tooltip");
+			}
+		});
+		$(document).on("keyup", (e) => {
+			if (!e.altKey) {
+				this.wrapper.removeClass("show-tooltip");
+			}
+		});
+		this.frm.page &&
+			frappe.ui.keys.add_shortcut({
+				shortcut: "alt+hover",
+				page: this.frm.page,
+				description: __("Show Fieldname (click to copy on clipboard)"),
+			});
 	}
 
 	handle_tab(doctype, fieldname, shift) {
@@ -580,7 +642,7 @@ frappe.ui.form.Layout = class Layout {
 					return true;
 				} else if (
 					field.df.fieldtype === "Table MultiSelect" ||
-					!in_list(frappe.model.no_value_type, field.df.fieldtype)
+					!frappe.model.no_value_type.includes(field.df.fieldtype)
 				) {
 					this.set_focus(field);
 					return true;
@@ -623,40 +685,16 @@ frappe.ui.form.Layout = class Layout {
 			build dependants' dictionary
 		*/
 
-		let has_dep = false;
-
 		const fields = this.fields_list.concat(this.tabs);
 
-		for (let fkey in fields) {
-			let f = fields[fkey];
-			if (f.df.depends_on || f.df.mandatory_depends_on || f.df.read_only_depends_on) {
-				has_dep = true;
-				break;
-			}
-		}
-
-		if (!has_dep) return;
-
 		// show / hide based on values
-		for (let i = fields.length - 1; i >= 0; i--) {
-			let f = fields[i];
-			f.guardian_has_value = true;
+		for (const f of fields) {
 			if (f.df.depends_on) {
-				// evaluate guardian
+				const should_hide = !this.evaluate_depends_on_value(f.df.depends_on);
 
-				f.guardian_has_value = this.evaluate_depends_on_value(f.df.depends_on);
-
-				// show / hide
-				if (f.guardian_has_value) {
-					if (f.df.hidden_due_to_dependency) {
-						f.df.hidden_due_to_dependency = false;
-						f.refresh();
-					}
-				} else {
-					if (!f.df.hidden_due_to_dependency) {
-						f.df.hidden_due_to_dependency = true;
-						f.refresh();
-					}
+				if (f.df.hidden_due_to_dependency !== should_hide) {
+					f.df.hidden_due_to_dependency = should_hide;
+					f.refresh();
 				}
 			}
 
@@ -671,9 +709,13 @@ frappe.ui.form.Layout = class Layout {
 					"read_only"
 				);
 			}
-		}
 
-		this.refresh_section_count();
+			if (f.df.fieldtype === "Table") {
+				for (const row of f.grid?.grid_rows || []) {
+					row?.refresh_dependency();
+				}
+			}
+		}
 	}
 
 	set_dependant_property(condition, fieldname, property) {
@@ -727,9 +769,6 @@ frappe.ui.form.Layout = class Layout {
 		} else if (expression.substr(0, 5) == "eval:") {
 			try {
 				out = frappe.utils.eval(expression.substr(5), { doc, parent });
-				if (parent && parent.istable && expression.includes("is_submittable")) {
-					out = true;
-				}
 			} catch (e) {
 				frappe.throw(__('Invalid "depends_on" expression'));
 			}

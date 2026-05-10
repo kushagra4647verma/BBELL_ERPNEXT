@@ -82,14 +82,17 @@ export default class NumberCardWidget extends Widget {
 			type: is_document_type ? "doctype" : "report",
 			is_query_report: !is_document_type,
 		});
-
+		const filters = this.get_filters();
 		if (is_document_type) {
-			const filters = JSON.parse(this.card_doc.filters_json);
 			frappe.route_options = filters.reduce((acc, filter) => {
 				return Object.assign(acc, {
 					[`${filter[0]}.${filter[1]}`]: [filter[2], filter[3]],
 				});
 			}, {});
+		} else {
+			if (filters && Object.keys(filters).length) {
+				frappe.route_options = filters;
+			}
 		}
 
 		frappe.set_route(route);
@@ -151,13 +154,14 @@ export default class NumberCardWidget extends Widget {
 	}
 
 	get_filters() {
-		const filters = frappe.dashboard_utils.get_all_filters(this.card_doc);
-		return filters;
+		return frappe.dashboard_utils.get_all_filters(this.card_doc);
 	}
 
 	async render_card() {
 		this.prepare_actions();
 		this.set_title();
+		this.card_doc?.background_color &&
+			this.widget.css("background-color", this.card_doc.background_color);
 		this.set_loading_state();
 
 		if (!this.card_doc.type) {
@@ -214,19 +218,56 @@ export default class NumberCardWidget extends Widget {
 		}, []);
 		const col = res.columns.find((col) => col.fieldname == field);
 		this.number = frappe.report_utils.get_result_of_fn(this.card_doc.report_function, vals);
-		this.set_formatted_number(col);
+		this.set_formatted_number(col, this._generate_common_doc(res.result));
 	}
 
-	set_formatted_number(df) {
+	set_formatted_number(df, doc) {
+		if (this.number === null) {
+			this.formatted_number = __("N/A", null, "Number not available");
+			return;
+		}
+
 		const default_country = frappe.sys_defaults.country;
-		const shortened_number = frappe.utils.shorten_number(this.number, default_country, 5);
-		let number_parts = shortened_number.split(" ");
+		let number_parts;
 
+		// Use full number if the checkbox is enabled
+		if (this.card_doc.show_full_number) {
+			number_parts = [this.number.toString(), ""];
+		} else {
+			const shortened_number = frappe.utils.shorten_number(this.number, default_country, 5);
+			number_parts = shortened_number.split(" ");
+		}
 		const symbol = number_parts[1] || "";
-		number_parts[0] = window.convert_old_to_new_number_format(number_parts[0]);
-		const formatted_number = $(frappe.format(number_parts[0], df)).text();
 
-		this.formatted_number = formatted_number + " " + __(symbol);
+		// done to add multicurrency support in number card
+		if (this.card_doc.currency) {
+			this.formatted_number =
+				format_currency(parseFloat(number_parts[0]), this.card_doc.currency) +
+				(symbol ? " " + symbol : "");
+			return;
+		}
+
+		number_parts[0] = window.convert_old_to_new_number_format(number_parts[0]);
+		const formatted_number = frappe.format(number_parts[0], df, null, doc);
+		this.formatted_number =
+			($(formatted_number).text() || formatted_number) + (symbol ? " " + symbol : "");
+	}
+
+	_generate_common_doc(rows) {
+		if (!rows || !rows.length) return {};
+		// init with first doc, for each other doc if values are common then keep else discard
+		// Whatever is left should be same in all objects
+		const common_doc = Object.assign({}, rows[0]);
+		rows.forEach((row) => {
+			if (Array.isArray(row)) return; // totals row
+
+			for (const [key, value] of Object.entries(common_doc)) {
+				if (value !== row[key]) {
+					delete common_doc[key];
+				}
+			}
+		});
+		return common_doc;
 	}
 
 	render_number() {
@@ -250,12 +291,12 @@ export default class NumberCardWidget extends Widget {
 				color_class = "grey-stat";
 			} else if (this.percentage_stat > 0) {
 				caret_html = `<span class="indicator-pill-round green">
-						${frappe.utils.icon("arrow-up-right", "xs")}
+						${frappe.utils.icon("es-line-arrow-up-right", "xs")}
 					</span>`;
 				color_class = "green-stat";
 			} else {
 				caret_html = `<span class="indicator-pill-round red">
-						${frappe.utils.icon("arrow-down-left", "xs")}
+						${frappe.utils.icon("arrow-down-right", "xs")}
 					</span>`;
 				color_class = "red-stat";
 			}
@@ -280,13 +321,7 @@ export default class NumberCardWidget extends Widget {
 
 			$(this.body).find(".widget-content").append(`<div class="card-stats ${color_class}">
 				<span class="percentage-stat-area">
-					${caret_html}
-					<span class="percentage-stat">
-						${stat} %
-					</span>
-				</span>
-				<span class="stat-period text-muted">
-					${stats_qualifier}
+					${caret_html} ${stat} % ${stats_qualifier}
 				</span>
 			</div>`);
 		});
@@ -331,7 +366,6 @@ export default class NumberCardWidget extends Widget {
 	}
 
 	set_card_actions(actions) {
-		/* eslint-disable indent */
 		this.card_actions = $(`<div class="card-actions dropdown pull-right">
 				<a data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
 				...
@@ -347,7 +381,6 @@ export default class NumberCardWidget extends Widget {
 						.join("")}
 				</ul>
 			</div>`);
-		/* eslint-disable indent */
 
 		this.card_actions.find("a[data-action]").each((i, o) => {
 			const action = o.dataset.action;

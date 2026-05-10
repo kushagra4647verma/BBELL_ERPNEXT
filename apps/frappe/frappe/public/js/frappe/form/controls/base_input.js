@@ -138,7 +138,7 @@ frappe.ui.form.ControlInput = class ControlInput extends frappe.ui.form.Control 
 
 	set_disp_area(value) {
 		if (
-			in_list(["Currency", "Int", "Float"], this.df.fieldtype) &&
+			["Currency", "Int", "Float"].includes(this.df.fieldtype) &&
 			(this.value === 0 || value === 0)
 		) {
 			// to set the 0 value in readonly for currency, int, float field
@@ -160,7 +160,8 @@ frappe.ui.form.ControlInput = class ControlInput extends frappe.ui.form.Control 
 
 		var icon = "";
 		this.label_span.innerHTML =
-			(icon ? '<i class="' + icon + '"></i> ' : "") + __(this.df.label) || "&nbsp;";
+			(icon ? '<i class="' + icon + '"></i> ' : "") +
+				__(this.df.label, null, this.df.parent) || "&nbsp;";
 		this._label = this.df.label;
 	}
 
@@ -172,13 +173,13 @@ frappe.ui.form.ControlInput = class ControlInput extends frappe.ui.form.Control 
 		if (
 			!this.df.label ||
 			!this.df?.documentation_url ||
-			in_list(unsupported_fieldtypes, this.df.fieldtype)
+			unsupported_fieldtypes.includes(this.df.fieldtype)
 		)
 			return;
 
 		let $help = this.$wrapper.find("span.help");
 		$help.empty();
-		$(`<a href="${this.df.documentation_url}" target="_blank">
+		$(`<a href="${this.df.documentation_url}" target="_blank" title="${__("Documentation")}">
 			${frappe.utils.icon("help", "sm")}
 		</a>`).appendTo($help);
 	}
@@ -191,7 +192,7 @@ frappe.ui.form.ControlInput = class ControlInput extends frappe.ui.form.Control 
 			return;
 		}
 		if (this.df.description) {
-			this.$wrapper.find(".help-box").html(__(this.df.description));
+			this.$wrapper.find(".help-box").html(__(this.df.description, null, this.df.parent));
 		} else {
 			this.set_empty_description();
 		}

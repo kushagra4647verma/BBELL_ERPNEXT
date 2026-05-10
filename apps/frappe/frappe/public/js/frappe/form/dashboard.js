@@ -175,10 +175,9 @@ frappe.ui.form.Dashboard = class FormDashboard {
 
 	make_progress_chart(title) {
 		this.progress_area.show();
-		let progress_chart = $(
-			'<div class="progress-chart" title="' + (title || "") + '"></div>'
-		).appendTo(this.progress_area.body);
-		return progress_chart;
+		return $('<div class="progress-chart" title="' + (title || "") + '"></div>').appendTo(
+			this.progress_area.body
+		);
 	}
 
 	refresh() {
@@ -458,18 +457,14 @@ frappe.ui.form.Dashboard = class FormDashboard {
 		$.each(count.internal_links_found, function (i, d) {
 			me.frm.dashboard.set_badge_count_for_internal_link(
 				d.doctype,
-				cint(d.open_count),
-				cint(d.count),
+				d.open_count,
+				d.count,
 				d.names
 			);
 		});
 
 		$.each(count.external_links_found, function (i, d) {
-			me.frm.dashboard.set_badge_count_for_external_link(
-				d.doctype,
-				cint(d.open_count),
-				cint(d.count)
-			);
+			me.frm.dashboard.set_badge_count_for_external_link(d.doctype, d.open_count, d.count);
 		});
 	}
 
@@ -500,14 +495,20 @@ frappe.ui.form.Dashboard = class FormDashboard {
 			$link
 				.find(".open-notification")
 				.removeClass("hidden")
-				.html(open_count > 99 ? "99+" : open_count);
+				.html(cint(open_count) > 99 ? "99+" : open_count);
 		}
 
 		if (count) {
 			$link
 				.find(".count")
 				.removeClass("hidden")
-				.text(count > 99 ? "99+" : count);
+				.text(cint(count) > 99 ? "99+" : count)
+				.attr(
+					"title",
+					count != "?"
+						? __("Count of linked documents")
+						: __("Accurate count can not be fetched, click here to view all documents")
+				);
 		}
 	}
 
@@ -563,7 +564,7 @@ frappe.ui.form.Dashboard = class FormDashboard {
 				.addClass("indicator-column");
 		}
 
-		let indicator = $(
+		return $(
 			'<div class="col-sm-' +
 				colspan +
 				' indicator-column"><span class="indicator ' +
@@ -572,8 +573,6 @@ frappe.ui.form.Dashboard = class FormDashboard {
 				label +
 				"</span></div>"
 		).appendTo(this.stats_area_row);
-
-		return indicator;
 	}
 
 	// graphs

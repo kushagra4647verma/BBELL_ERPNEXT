@@ -5,17 +5,40 @@ from erpnext.stock.doctype.item.test_item import create_item
 
 
 class AccountsTestMixin:
-	def create_customer(self, customer_name="_Test Customer", currency=None):
+	def create_customer(
+		self, customer_name="_Test Customer", currency=None, default_account=None, company=None
+	):
 		if not frappe.db.exists("Customer", customer_name):
 			customer = frappe.new_doc("Customer")
 			customer.customer_name = customer_name
 			customer.type = "Individual"
+			customer.customer_group = "Individual"
 
 			if currency:
 				customer.default_currency = currency
+			if company and default_account:
+				customer.append(
+					"accounts",
+					{
+						"company": company,
+						"account": default_account,
+					},
+				)
 			customer.save()
 			self.customer = customer.name
 		else:
+			if company and default_account:
+				customer = frappe.get_doc("Customer", customer_name)
+				customer.accounts = []
+				customer.append(
+					"accounts",
+					{
+						"company": company,
+						"account": default_account,
+					},
+				)
+				customer.customer_group = "Individual"
+				customer.save()
 			self.customer = customer_name
 
 	def create_supplier(self, supplier_name="_Test Supplier", currency=None):
@@ -85,6 +108,23 @@ class AccountsTestMixin:
 					"attribute_name": "bank",
 					"account_name": "HDFC",
 					"parent_account": "Bank Accounts - " + abbr,
+					"account_type": "Bank",
+				}
+			),
+			frappe._dict(
+				{
+					"attribute_name": "advance_received",
+					"account_name": "Advance Received",
+					"parent_account": "Current Liabilities - " + abbr,
+					"account_type": "Receivable",
+				}
+			),
+			frappe._dict(
+				{
+					"attribute_name": "advance_paid",
+					"account_name": "Advance Paid",
+					"parent_account": "Current Assets - " + abbr,
+					"account_type": "Payable",
 				}
 			),
 		]
@@ -101,8 +141,30 @@ class AccountsTestMixin:
 						"company": self.company,
 					}
 				)
+				new_acc.account_type = acc.get("account_type", None)
 				new_acc.save()
 				setattr(self, acc.attribute_name, new_acc.name)
+
+		self.identify_default_warehouses()
+
+	def enable_advance_as_liability(self):
+		company = frappe.get_doc("Company", self.company)
+		company.book_advance_payments_in_separate_party_account = True
+		company.default_advance_received_account = self.advance_received
+		company.default_advance_paid_account = self.advance_paid
+		company.save()
+
+	def disable_advance_as_liability(self):
+		company = frappe.get_doc("Company", self.company)
+		company.book_advance_payments_in_separate_party_account = False
+		company.default_advance_paid_account = company.default_advance_received_account = None
+		company.save()
+
+	def identify_default_warehouses(self):
+		for w in frappe.db.get_all(
+			"Warehouse", filters={"company": self.company}, fields=["name", "warehouse_name"]
+		):
+			setattr(self, "warehouse_" + w.warehouse_name.lower().strip().replace(" ", "_"), w.name)
 
 	def create_usd_receivable_account(self):
 		account_name = "Debtors USD"
@@ -158,6 +220,8 @@ class AccountsTestMixin:
 			"Journal Entry",
 			"Sales Order",
 			"Exchange Rate Revaluation",
+			"Bank Account",
+			"Bank Transaction",
 		]
 		for doctype in doctype_list:
 			qb.from_(qb.DocType(doctype)).delete().where(qb.DocType(doctype).company == self.company).run()

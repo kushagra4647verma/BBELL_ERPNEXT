@@ -28,9 +28,7 @@ def update_party_gstin_and_gst_category(doc, method=None):
         if doctype not in ["Customer", "Supplier"]:
             continue
 
-        party_gst_category, party_pan = frappe.db.get_value(
-            doctype, docname, ["gst_category", "pan"]
-        )
+        party_gst_category, party_pan = frappe.db.get_value(doctype, docname, ["gst_category", "pan"])
         if party_gst_category != "Unregistered":
             continue
 
@@ -60,11 +58,7 @@ def validate(doc, method=None):
 
 
 def validate_overseas_gst_category(doc):
-    if doc.country == "India" and doc.gst_category == "Overseas":
-        frappe.throw(
-            _("Cannot set GST Category as Overseas for Indian Address"),
-            title=_("Invalid GST Category"),
-        )
+    # High Seas Sales is possible (Indian Address with Overseas GST Category)
 
     if doc.country != "India" and doc.gst_category != "Overseas":
         frappe.throw(
@@ -102,8 +96,8 @@ def validate_state(doc):
 
     if doc.gstin and doc.gst_state_number != doc.gstin[:2]:
         frappe.throw(
-            _(
-                "First 2 digits of GSTIN should match with State Number for {0} ({1})"
-            ).format(frappe.bold(doc.gst_state), doc.gst_state_number),
+            _("First 2 digits of GSTIN should match with State Number for {0} ({1})").format(
+                frappe.bold(doc.gst_state), doc.gst_state_number
+            ),
             title=_("Invalid GSTIN or State"),
         )

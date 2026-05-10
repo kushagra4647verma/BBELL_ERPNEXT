@@ -1,6 +1,6 @@
 import frappe
 
-from india_compliance.gst_india.utils.custom_fields import delete_old_fields
+from india_compliance.utils.custom_fields import delete_old_fields
 
 
 def execute():
@@ -13,9 +13,7 @@ def execute():
 
     doctypes = ("Sales Invoice", "Purchase Invoice")
     for doctype in doctypes:
-        if not frappe.db.exists(
-            "Custom Field", {"dt": doctype, "fieldname": "invoice_type"}
-        ):
+        if not frappe.db.exists("Custom Field", {"dt": doctype, "fieldname": "invoice_type"}):
             continue
 
         for invoice_type, gst_category in invoice_type_gst_category_map.items():

@@ -1,0 +1,1202 @@
+2026-05-10 13:05:49,785 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 378, in <module>
+    from india_compliance.gst_india.api_classes.returns import PublicCertificate
+ModuleNotFoundError: No module named 'india_compliance.gst_india.api_classes.returns'
+2026-05-10 13:06:49,903 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 378, in <module>
+    from india_compliance.gst_india.api_classes.returns import PublicCertificate
+ModuleNotFoundError: No module named 'india_compliance.gst_india.api_classes.returns'
+2026-05-10 13:07:50,039 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 378, in <module>
+    from india_compliance.gst_india.api_classes.returns import PublicCertificate
+ModuleNotFoundError: No module named 'india_compliance.gst_india.api_classes.returns'
+2026-05-10 13:08:50,120 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 378, in <module>
+    from india_compliance.gst_india.api_classes.returns import PublicCertificate
+ModuleNotFoundError: No module named 'india_compliance.gst_india.api_classes.returns'
+2026-05-10 13:09:50,284 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 378, in <module>
+    from india_compliance.gst_india.api_classes.returns import PublicCertificate
+ModuleNotFoundError: No module named 'india_compliance.gst_india.api_classes.returns'
+2026-05-10 13:10:50,377 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 378, in <module>
+    from india_compliance.gst_india.api_classes.returns import PublicCertificate
+ModuleNotFoundError: No module named 'india_compliance.gst_india.api_classes.returns'
+2026-05-10 13:11:50,429 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 378, in <module>
+    from india_compliance.gst_india.api_classes.returns import PublicCertificate
+ModuleNotFoundError: No module named 'india_compliance.gst_india.api_classes.returns'
+2026-05-10 13:12:50,476 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 382, in <module>
+    from finbyzerp.returns import returns_api_setup
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/returns.py", line 3, in <module>
+    from india_compliance.gst_india.api_classes.base import get_public_ip
+ImportError: cannot import name 'get_public_ip' from 'india_compliance.gst_india.api_classes.base' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/api_classes/base.py)
+2026-05-10 13:13:50,529 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 382, in <module>
+    from finbyzerp.returns import returns_api_setup
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/returns.py", line 3, in <module>
+    from india_compliance.gst_india.api_classes.base import get_public_ip
+ImportError: cannot import name 'get_public_ip' from 'india_compliance.gst_india.api_classes.base' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/api_classes/base.py)
+2026-05-10 13:14:50,570 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 382, in <module>
+    from finbyzerp.returns import returns_api_setup
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/returns.py", line 3, in <module>
+    from india_compliance.gst_india.api_classes.base import get_public_ip
+ImportError: cannot import name 'get_public_ip' from 'india_compliance.gst_india.api_classes.base' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/api_classes/base.py)
+2026-05-10 13:15:50,681 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 382, in <module>
+    from finbyzerp.returns import returns_api_setup
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/returns.py", line 3, in <module>
+    from india_compliance.gst_india.api_classes.base import get_public_ip
+ImportError: cannot import name 'get_public_ip' from 'india_compliance.gst_india.api_classes.base' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/api_classes/base.py)
+2026-05-10 13:16:50,727 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 382, in <module>
+    from finbyzerp.returns import returns_api_setup
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/returns.py", line 3, in <module>
+    from india_compliance.gst_india.api_classes.base import get_public_ip
+ImportError: cannot import name 'get_public_ip' from 'india_compliance.gst_india.api_classes.base' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/api_classes/base.py)
+2026-05-10 13:17:50,769 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 382, in <module>
+    from finbyzerp.returns import returns_api_setup
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/returns.py", line 3, in <module>
+    from india_compliance.gst_india.api_classes.base import get_public_ip
+ImportError: cannot import name 'get_public_ip' from 'india_compliance.gst_india.api_classes.base' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/api_classes/base.py)
+2026-05-10 13:18:50,836 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 382, in <module>
+    from finbyzerp.returns import returns_api_setup
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/returns.py", line 3, in <module>
+    from india_compliance.gst_india.api_classes.base import get_public_ip
+ImportError: cannot import name 'get_public_ip' from 'india_compliance.gst_india.api_classes.base' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/api_classes/base.py)
+2026-05-10 13:19:50,931 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 440, in <module>
+    from finbyzerp.finbyzerp.transaction import validate_gst_accounts
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/finbyzerp/transaction.py", line 20, in <module>
+    from india_compliance.gst_india.doctype.gstin.gstin import (
+ImportError: cannot import name '_validate_gstin_info' from 'india_compliance.gst_india.doctype.gstin.gstin' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/doctype/gstin/gstin.py)
+2026-05-10 13:20:50,966 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 440, in <module>
+    from finbyzerp.finbyzerp.transaction import validate_gst_accounts
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/finbyzerp/transaction.py", line 20, in <module>
+    from india_compliance.gst_india.doctype.gstin.gstin import (
+ImportError: cannot import name '_validate_gstin_info' from 'india_compliance.gst_india.doctype.gstin.gstin' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/doctype/gstin/gstin.py)
+2026-05-10 13:21:51,010 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 440, in <module>
+    from finbyzerp.finbyzerp.transaction import validate_gst_accounts
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/finbyzerp/transaction.py", line 20, in <module>
+    from india_compliance.gst_india.doctype.gstin.gstin import (
+ImportError: cannot import name '_validate_gstin_info' from 'india_compliance.gst_india.doctype.gstin.gstin' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/doctype/gstin/gstin.py)
+2026-05-10 13:22:51,069 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 440, in <module>
+    from finbyzerp.finbyzerp.transaction import validate_gst_accounts
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/finbyzerp/transaction.py", line 20, in <module>
+    from india_compliance.gst_india.doctype.gstin.gstin import (
+ImportError: cannot import name '_validate_gstin_info' from 'india_compliance.gst_india.doctype.gstin.gstin' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/doctype/gstin/gstin.py)
+2026-05-10 13:23:51,110 ERROR scheduler Exception in Enqueue Events for Site local.client.test
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 57, in wrapper
+    return frappe.local.request_cache[func][args_key]
+KeyError: 5740354900026072187
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 99, in enqueue_events_for_site
+    if is_scheduler_inactive():
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 143, in is_scheduler_inactive
+    if is_scheduler_disabled(verbose=verbose):
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/scheduler.py", line 156, in is_scheduler_disabled
+    frappe.db.get_single_value("System Settings", "enable_scheduler")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/database/database.py", line 845, in get_single_value
+    df = frappe.get_meta(doctype).get_field(fieldname)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1344, in get_meta
+    return frappe.model.meta.get_meta(doctype, cached=cached)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 71, in get_meta
+    meta = Meta(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 125, in __init__
+    super().__init__("DocType", doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 126, in __init__
+    self.load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/meta.py", line 131, in load_from_db
+    super().load_from_db()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/document.py", line 207, in load_from_db
+    self.set(df.fieldname, children)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 237, in set
+    self.extend(key, value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 304, in extend
+    self.append(key, v)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 263, in append
+    d = self._init_child(value, key)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 322, in _init_child
+    value = get_controller(doctype)(value)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 67, in get_controller
+    return import_controller(doctype)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/model/base_document.py", line 89, in import_controller
+    class_overrides = frappe.get_hooks("override_doctype_class")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1627, in get_hooks
+    hooks = _dict(cache.get_value("app_hooks", _load_app_hooks))
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/redis_wrapper.py", line 101, in get_value
+    val = generator()
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/utils/caching.py", line 59, in wrapper
+    return_val = func(*args, **kwargs)
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1594, in _load_app_hooks
+    app_hooks = get_module(f"{app}.hooks")
+  File "/Users/kushagraverma/frappe/client-bench/apps/frappe/frappe/__init__.py", line 1460, in get_module
+    return importlib.import_module(modulename)
+  File "/opt/homebrew/Cellar/python@3.10/3.10.19_1/Frameworks/Python.framework/Versions/3.10/lib/python3.10/importlib/__init__.py", line 126, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+  File "<frozen importlib._bootstrap>", line 1050, in _gcd_import
+  File "<frozen importlib._bootstrap>", line 1027, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1006, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 688, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 883, in exec_module
+  File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/hooks.py", line 440, in <module>
+    from finbyzerp.finbyzerp.transaction import validate_gst_accounts
+  File "/Users/kushagraverma/frappe/client-bench/apps/finbyzerp/finbyzerp/finbyzerp/transaction.py", line 20, in <module>
+    from india_compliance.gst_india.doctype.gstin.gstin import (
+ImportError: cannot import name '_validate_gstin_info' from 'india_compliance.gst_india.doctype.gstin.gstin' (/Users/kushagraverma/frappe/client-bench/apps/india_compliance/india_compliance/gst_india/doctype/gstin/gstin.py)

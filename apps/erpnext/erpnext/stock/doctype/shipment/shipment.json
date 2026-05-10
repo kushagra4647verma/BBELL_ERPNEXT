@@ -34,6 +34,7 @@
   "shipment_parcel",
   "parcel_template",
   "add_template",
+  "total_weight",
   "column_break_28",
   "shipment_delivery_note",
   "shipment_details_section",
@@ -381,6 +382,7 @@
    "print_hide": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "tracking_status",
    "fieldtype": "Select",
    "label": "Tracking Status",
@@ -429,11 +431,17 @@
    "label": "Pickup Contact Person",
    "mandatory_depends_on": "eval:doc.pickup_from_type === 'Company'",
    "options": "User"
+  },
+  {
+   "fieldname": "total_weight",
+   "fieldtype": "Float",
+   "label": "Total Weight (kg)",
+   "read_only": 1
   }
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2022-11-17 17:23:27.025802",
+ "modified": "2026-01-07 19:24:23.566312",
  "modified_by": "Administrator",
  "module": "Stock",
  "name": "Shipment",

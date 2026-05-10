@@ -10,6 +10,29 @@ from erpnext.controllers.status_updater import StatusUpdater
 
 
 class PackingSlip(StatusUpdater):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.stock.doctype.packing_slip_item.packing_slip_item import PackingSlipItem
+
+		amended_from: DF.Link | None
+		delivery_note: DF.Link
+		from_case_no: DF.Int
+		gross_weight_pkg: DF.Float
+		gross_weight_uom: DF.Link | None
+		items: DF.Table[PackingSlipItem]
+		letter_head: DF.Link | None
+		naming_series: DF.Literal["MAT-PAC-.YYYY.-"]
+		net_weight_pkg: DF.Float
+		net_weight_uom: DF.Link | None
+		to_case_no: DF.Int
+	# end: auto-generated types
+
 	def __init__(self, *args, **kwargs) -> None:
 		super().__init__(*args, **kwargs)
 		self.status_updater = [
@@ -136,11 +159,10 @@ class PackingSlip(StatusUpdater):
 			self.from_case_no = self.get_recommended_case_no()
 
 		for item in self.items:
-			stock_uom, weight_per_unit, weight_uom = frappe.db.get_value(
-				"Item", item.item_code, ["stock_uom", "weight_per_unit", "weight_uom"]
+			weight_per_unit, weight_uom = frappe.db.get_value(
+				"Item", item.item_code, ["weight_per_unit", "weight_uom"]
 			)
 
-			item.stock_uom = stock_uom
 			if weight_per_unit and not item.net_weight:
 				item.net_weight = weight_per_unit
 			if weight_uom and not item.weight_uom:

@@ -32,8 +32,7 @@ def get_data():
 			},
 			{
 				"label": _("Sub-contracting"),
-				"items": ["Subcontracting Order", "Stock Entry"],
+				"items": ["Subcontracting Order", "Subcontracting Receipt", "Stock Entry"],
 			},
-			{"label": _("Internal"), "items": ["Sales Order"]},
 		],
 	}

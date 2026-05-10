@@ -1,6 +1,8 @@
+import faulthandler
 import json
 import os
 import re
+import signal
 import sys
 import time
 import unittest
@@ -41,7 +43,7 @@ class ParallelTestRunner:
 		self.before_test_setup()
 
 	def before_test_setup(self):
-		start_time = time.time()
+		start_time = time.monotonic()
 		for fn in frappe.get_hooks("before_tests", app_name=self.app):
 			frappe.get_attr(fn)()
 
@@ -51,7 +53,7 @@ class ParallelTestRunner:
 			for doctype in test_module.global_test_dependencies:
 				make_test_records(doctype, commit=True)
 
-		elapsed = time.time() - start_time
+		elapsed = time.monotonic() - start_time
 		elapsed = click.style(f" ({elapsed:.03}s)", fg="red")
 		click.echo(f"Before Test {elapsed}")
 
@@ -96,7 +98,7 @@ class ParallelTestRunner:
 					make_test_records(doctype, commit=True)
 
 	def get_module(self, path, filename):
-		app_path = frappe.get_pymodule_path(self.app)
+		app_path = frappe.get_app_path(self.app)
 		relative_path = os.path.relpath(path, app_path)
 		if relative_path == ".":
 			module_name = self.app
@@ -108,6 +110,11 @@ class ParallelTestRunner:
 		return frappe.get_module(module_name)
 
 	def print_result(self):
+		# XXX: Added to debug tests getting stuck AFTER completion
+		# the process should terminate before this, we don't need to reset the signal.
+		signal.alarm(60)
+		faulthandler.register(signal.SIGALRM)
+
 		self.test_result.printErrors()
 		click.echo(self.test_result)
 		if self.test_result.failures or self.test_result.errors:
@@ -161,7 +168,7 @@ def split_by_weight(work, weights, chunk_count):
 class ParallelTestResult(unittest.TextTestResult):
 	def startTest(self, test):
 		self.tb_locals = True
-		self._started_at = time.time()
+		self._started_at = time.monotonic()
 		super(unittest.TextTestResult, self).startTest(test)
 		test_class = unittest.util.strclass(test.__class__)
 		if not hasattr(self, "current_test_class") or self.current_test_class != test_class:
@@ -173,7 +180,7 @@ class ParallelTestResult(unittest.TextTestResult):
 
 	def addSuccess(self, test):
 		super(unittest.TextTestResult, self).addSuccess(test)
-		elapsed = time.time() - self._started_at
+		elapsed = time.monotonic() - self._started_at
 		threshold_passed = elapsed >= SLOW_TEST_THRESHOLD
 		elapsed = click.style(f" ({elapsed:.03}s)", fg="red") if threshold_passed else ""
 		click.echo(f"  {click.style(' ✔ ', fg='green')} {self.getTestMethodName(test)}{elapsed}")
@@ -216,7 +223,7 @@ class ParallelTestResult(unittest.TextTestResult):
 
 def get_all_tests(app):
 	test_file_list = []
-	for path, folders, files in os.walk(frappe.get_pymodule_path(app)):
+	for path, folders, files in os.walk(frappe.get_app_path(app)):
 		for dontwalk in ("locals", ".git", "public", "__pycache__"):
 			if dontwalk in folders:
 				folders.remove(dontwalk)
@@ -229,10 +236,11 @@ def get_all_tests(app):
 			# in /doctype/doctype/boilerplate/
 			continue
 
-		for filename in files:
-			if filename.startswith("test_") and filename.endswith(".py") and filename != "test_runner.py":
-				test_file_list.append([path, filename])
-
+		test_file_list.extend(
+			[path, filename]
+			for filename in files
+			if filename.startswith("test_") and filename.endswith(".py") and filename != "test_runner.py"
+		)
 	return test_file_list
 
 

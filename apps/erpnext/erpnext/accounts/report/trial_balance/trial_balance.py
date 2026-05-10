@@ -15,9 +15,11 @@ from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
 from erpnext.accounts.report.financial_statements import (
 	filter_accounts,
 	filter_out_zero_value_rows,
+	get_cost_centers_with_children,
 	set_gl_entries_by_account,
 )
 from erpnext.accounts.report.utils import convert_to_presentation_currency, get_currency
+from erpnext.accounts.utils import get_zero_cutoff
 
 value_fields = (
 	"opening_debit",
@@ -81,7 +83,7 @@ def validate_filters(filters):
 
 def get_data(filters):
 	accounts = frappe.db.sql(
-		"""select name, account_number, parent_account, account_name, root_type, report_type, lft, rgt
+		"""select name, account_number, parent_account, account_name, root_type, report_type, is_group, lft, rgt
 
 		from `tabAccount` where company=%s order by lft""",
 		filters.company,
@@ -98,30 +100,21 @@ def get_data(filters):
 
 	accounts, accounts_by_name, parent_children_map = filter_accounts(accounts)
 
-	min_lft, max_rgt = frappe.db.sql(
-		"""select min(lft), max(rgt) from `tabAccount`
-		where company=%s""",
-		(filters.company,),
-	)[0]
-
 	gl_entries_by_account = {}
 
 	opening_balances = get_opening_balances(filters, ignore_is_opening)
-
-	# add filter inside list so that the query in financial_statements.py doesn't break
-	if filters.project:
-		filters.project = [filters.project]
 
 	set_gl_entries_by_account(
 		filters.company,
 		filters.from_date,
 		filters.to_date,
-		min_lft,
-		max_rgt,
 		filters,
 		gl_entries_by_account,
+		root_lft=None,
+		root_rgt=None,
 		ignore_closing_entries=not flt(filters.with_period_closing_entry_for_current_period),
 		ignore_opening_entries=True,
+		group_by_account=True,
 	)
 
 	calculate_values(
@@ -160,9 +153,9 @@ def get_rootwise_opening_balances(filters, report_type, ignore_is_opening):
 	if not ignore_closing_balances:
 		last_period_closing_voucher = frappe.db.get_all(
 			"Period Closing Voucher",
-			filters={"docstatus": 1, "company": filters.company, "posting_date": ("<", filters.from_date)},
-			fields=["posting_date", "name"],
-			order_by="posting_date desc",
+			filters={"docstatus": 1, "company": filters.company, "period_end_date": ("<", filters.from_date)},
+			fields=["period_end_date", "name"],
+			order_by="period_end_date desc",
 			limit=1,
 		)
 
@@ -179,8 +172,8 @@ def get_rootwise_opening_balances(filters, report_type, ignore_is_opening):
 		)
 
 		# Report getting generate from the mid of a fiscal year
-		if getdate(last_period_closing_voucher[0].posting_date) < getdate(add_days(filters.from_date, -1)):
-			start_date = add_days(last_period_closing_voucher[0].posting_date, 1)
+		if getdate(last_period_closing_voucher[0].period_end_date) < getdate(add_days(filters.from_date, -1)):
+			start_date = add_days(last_period_closing_voucher[0].period_end_date, 1)
 			gle += get_opening_balance(
 				"GL Entry",
 				filters,
@@ -220,7 +213,7 @@ def get_opening_balance(
 	ignore_is_opening=0,
 ):
 	closing_balance = frappe.qb.DocType(doctype)
-	account = frappe.qb.DocType("Account")
+	accounts = frappe.db.get_all("Account", filters={"report_type": report_type}, pluck="name")
 
 	opening_balance = (
 		frappe.qb.from_(closing_balance)
@@ -232,14 +225,7 @@ def get_opening_balance(
 			Sum(closing_balance.debit_in_account_currency).as_("debit_in_account_currency"),
 			Sum(closing_balance.credit_in_account_currency).as_("credit_in_account_currency"),
 		)
-		.where(
-			(closing_balance.company == filters.company)
-			& (
-				closing_balance.account.isin(
-					frappe.qb.from_(account).select("name").where(account.report_type == report_type)
-				)
-			)
-		)
+		.where((closing_balance.company == filters.company) & (closing_balance.account.isin(accounts)))
 		.groupby(closing_balance.account)
 	)
 
@@ -281,34 +267,31 @@ def get_opening_balance(
 			opening_balance = opening_balance.where(closing_balance.voucher_type != "Period Closing Voucher")
 
 	if filters.cost_center:
-		lft, rgt = frappe.db.get_value("Cost Center", filters.cost_center, ["lft", "rgt"])
-		cost_center = frappe.qb.DocType("Cost Center")
 		opening_balance = opening_balance.where(
-			closing_balance.cost_center.isin(
-				frappe.qb.from_(cost_center)
-				.select("name")
-				.where((cost_center.lft >= lft) & (cost_center.rgt <= rgt))
-			)
+			closing_balance.cost_center.isin(get_cost_centers_with_children(filters.get("cost_center")))
 		)
 
 	if filters.project:
-		opening_balance = opening_balance.where(closing_balance.project == filters.project)
+		opening_balance = opening_balance.where(closing_balance.project.isin(filters.project))
 
-	if filters.get("include_default_book_entries"):
-		company_fb = frappe.get_cached_value("Company", filters.company, "default_finance_book")
+	if frappe.db.count("Finance Book"):
+		if filters.get("include_default_book_entries"):
+			company_fb = frappe.get_cached_value("Company", filters.company, "default_finance_book")
 
-		if filters.finance_book and company_fb and cstr(filters.finance_book) != cstr(company_fb):
-			frappe.throw(_("To use a different finance book, please uncheck 'Include Default FB Entries'"))
+			if filters.finance_book and company_fb and cstr(filters.finance_book) != cstr(company_fb):
+				frappe.throw(
+					_("To use a different finance book, please uncheck 'Include Default FB Entries'")
+				)
 
-		opening_balance = opening_balance.where(
-			(closing_balance.finance_book.isin([cstr(filters.finance_book), cstr(company_fb), ""]))
-			| (closing_balance.finance_book.isnull())
-		)
-	else:
-		opening_balance = opening_balance.where(
-			(closing_balance.finance_book.isin([cstr(filters.finance_book), ""]))
-			| (closing_balance.finance_book.isnull())
-		)
+			opening_balance = opening_balance.where(
+				(closing_balance.finance_book.isin([cstr(filters.finance_book), cstr(company_fb), ""]))
+				| (closing_balance.finance_book.isnull())
+			)
+		else:
+			opening_balance = opening_balance.where(
+				(closing_balance.finance_book.isin([cstr(filters.finance_book), ""]))
+				| (closing_balance.finance_book.isnull())
+			)
 
 	if accounting_dimensions:
 		for dimension in accounting_dimensions:
@@ -362,7 +345,7 @@ def calculate_values(accounts, gl_entries_by_account, opening_balances, show_net
 			prepare_opening_closing(d)
 
 
-def calculate_total_row(accounts, company_currency):
+def calculate_total_row(data, company_currency, show_group_accounts=True):
 	total_row = {
 		"account": "'" + _("Total") + "'",
 		"account_name": "'" + _("Total") + "'",
@@ -379,10 +362,16 @@ def calculate_total_row(accounts, company_currency):
 		"currency": company_currency,
 	}
 
-	for d in accounts:
-		if not d.parent_account:
-			for field in value_fields:
-				total_row[field] += d[field]
+	def sum_value_fields(row):
+		for field in value_fields:
+			total_row[field] += row[field]
+
+	for d in data:
+		if not show_group_accounts:
+			sum_value_fields(d)
+
+		elif show_group_accounts and not d.get("parent_account"):
+			sum_value_fields(d)
 
 	return total_row
 
@@ -410,22 +399,29 @@ def prepare_data(accounts, filters, parent_children_map, company_currency):
 			"from_date": filters.from_date,
 			"to_date": filters.to_date,
 			"currency": company_currency,
+			"is_group_account": d.is_group,
 			"account_name": (
 				f"{d.account_number} - {d.account_name}" if d.account_number else d.account_name
 			),
 		}
 
 		for key in value_fields:
-			row[key] = flt(d.get(key, 0.0), 3)
+			row[key] = flt(d.get(key, 0.0))
 
-			if abs(row[key]) >= 0.005:
+			if abs(row[key]) >= get_zero_cutoff(company_currency):
 				# ignore zero values
 				has_value = True
 
 		row["has_value"] = has_value
 		data.append(row)
 
-	total_row = calculate_total_row(accounts, company_currency)
+	if not filters.get("show_group_accounts"):
+		data = hide_group_accounts(data)
+
+	total_row = calculate_total_row(
+		data, company_currency, show_group_accounts=filters.get("show_group_accounts")
+	)
+
 	data.extend([{}, total_row])
 
 	return data
@@ -505,3 +501,12 @@ def prepare_opening_closing(row):
 			row[valid_col] = 0.0
 		else:
 			row[reverse_col] = 0.0
+
+
+def hide_group_accounts(data):
+	non_group_accounts_data = []
+	for d in data:
+		if not d.get("is_group_account"):
+			d.update(indent=0)
+			non_group_accounts_data.append(d)
+	return non_group_accounts_data

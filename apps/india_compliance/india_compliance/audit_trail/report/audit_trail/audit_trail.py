@@ -3,7 +3,13 @@
 
 import frappe
 from frappe import _
-from frappe.utils.data import format_datetime, get_timespan_date_range, getdate
+from frappe.utils.data import (
+    format_date,
+    format_datetime,
+    get_timespan_date_range,
+    get_user_date_format,
+    getdate,
+)
 
 from india_compliance.audit_trail.utils import get_audit_trail_doctypes
 
@@ -98,7 +104,7 @@ class BaseAuditTrail:
             return ["in", users]
 
     def get_doctypes(self):
-        doctypes = list(get_relavant_doctypes())
+        doctypes = list(get_relevant_doctypes())
         return doctypes
 
     def update_count(self):
@@ -146,9 +152,8 @@ class DetailedReport(BaseAuditTrail):
             },
             {
                 "label": _("DocType"),
-                "fieldtype": "Link",
+                "fieldtype": "Data",
                 "fieldname": "doctype",
-                "options": "DocType",
                 "width": 120,
             },
             {
@@ -166,10 +171,9 @@ class DetailedReport(BaseAuditTrail):
             },
             {
                 "label": _("Party Type"),
-                "fieldtype": "Link",
+                "fieldtype": "Data",
                 "fieldname": "party_type",
                 "width": 100,
-                "options": "DocType",
             },
             {
                 "label": _("Party Name"),
@@ -234,9 +238,7 @@ class DetailedReport(BaseAuditTrail):
         ]
 
         if doctype == "Payment Entry":
-            fields.extend(
-                ["party_type", "party_name", "total_allocated_amount as amount"]
-            )
+            fields.extend(["party_type", "party_name", "total_allocated_amount as amount"])
 
         # Amount
         if doctype == "Subcontracting Receipt":
@@ -271,7 +273,7 @@ class DetailedReport(BaseAuditTrail):
         for row in records:
             row["date_time"] = format_datetime(row["date_time"])
             row["doctype"] = doctype
-            row["creation_date"] = getdate(row["date_time"])
+            row["creation_date"] = getdate(format_date(row["date_time"], get_user_date_format()))
 
             if doctype == "Bill of Entry":
                 row["party_name"] = ""
@@ -294,9 +296,8 @@ class DocTypeReport(BaseAuditTrail):
         columns = [
             {
                 "label": _("DocType"),
-                "fieldtype": "Link",
+                "fieldtype": "Data",
                 "fieldname": "doctype",
-                "options": "DocType",
                 "width": 150,
             },
             {
@@ -399,7 +400,7 @@ class UserReport(BaseAuditTrail):
 
 
 @frappe.whitelist()
-def get_relavant_doctypes():
+def get_relevant_doctypes():
     doctypes = get_audit_trail_doctypes()
     doctypes.remove("Accounts Settings")
 

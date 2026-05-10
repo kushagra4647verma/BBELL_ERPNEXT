@@ -105,7 +105,7 @@ class PrintFormatGenerator:
 		pdf: a bytes sequence
 		        The rendered PDF.
 		"""
-		HTML, CSS = import_weasyprint()
+		HTML, _CSS = import_weasyprint()
 
 		self._make_header_footer()
 
@@ -117,9 +117,7 @@ class PrintFormatGenerator:
 
 		if self.header_html or self.footer_html:
 			self._apply_overlay_on_main(main_doc, self.header_body, self.footer_body)
-		pdf = main_doc.write_pdf()
-
-		return pdf
+		return main_doc.write_pdf()
 
 	def _compute_overlay_element(self, element: str):
 		"""

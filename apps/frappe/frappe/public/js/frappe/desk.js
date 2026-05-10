@@ -31,19 +31,18 @@ frappe.Application = class Application {
 	}
 
 	startup() {
-		frappe.socketio.init();
+		frappe.realtime.init();
 		frappe.model.init();
 
-		this.setup_frappe_vue();
 		this.load_bootinfo();
 		this.load_user_permissions();
 		this.make_nav_bar();
 		this.set_favicon();
-		this.setup_analytics();
 		this.set_fullwidth_if_enabled();
 		this.add_browser_class();
 		this.setup_energy_point_listeners();
 		this.setup_copy_doc_listener();
+		this.setup_broadcast_listeners();
 
 		frappe.ui.keys.setup();
 
@@ -152,6 +151,11 @@ frappe.Application = class Application {
 
 		// REDESIGN-TODO: Fix preview popovers
 		this.link_preview = new frappe.ui.LinkPreview();
+
+		frappe.broadcast.emit("boot", {
+			csrf_token: frappe.csrf_token,
+			user: frappe.session.user,
+		});
 	}
 
 	set_route() {
@@ -165,11 +169,6 @@ frappe.Application = class Application {
 		frappe.router.on("change", () => {
 			$(".tooltip").hide();
 		});
-	}
-
-	setup_frappe_vue() {
-		Vue.prototype.__ = window.__;
-		Vue.prototype.frappe = window.frappe;
 	}
 
 	set_password(user) {
@@ -266,6 +265,8 @@ frappe.Application = class Application {
 			if (frappe.boot.print_css) {
 				frappe.dom.set_style(frappe.boot.print_css, "print-style");
 			}
+
+			frappe.boot.setup_complete = frappe.boot.sysdefaults["setup_complete"];
 			frappe.user.name = frappe.boot.user.name;
 			frappe.router.setup();
 		} else {
@@ -315,58 +316,6 @@ frappe.Application = class Application {
 			.replace("mm", "%m")
 			.replace("yyyy", "%Y");
 		frappe.boot.user.last_selected_values = {};
-
-		// Proxy for user globals
-		Object.defineProperties(window, {
-			user: {
-				get: function () {
-					console.warn(
-						"Please use `frappe.session.user` instead of `user`. It will be deprecated soon."
-					);
-					return frappe.session.user;
-				},
-			},
-			user_fullname: {
-				get: function () {
-					console.warn(
-						"Please use `frappe.session.user_fullname` instead of `user_fullname`. It will be deprecated soon."
-					);
-					return frappe.session.user;
-				},
-			},
-			user_email: {
-				get: function () {
-					console.warn(
-						"Please use `frappe.session.user_email` instead of `user_email`. It will be deprecated soon."
-					);
-					return frappe.session.user_email;
-				},
-			},
-			user_defaults: {
-				get: function () {
-					console.warn(
-						"Please use `frappe.user_defaults` instead of `user_defaults`. It will be deprecated soon."
-					);
-					return frappe.user_defaults;
-				},
-			},
-			roles: {
-				get: function () {
-					console.warn(
-						"Please use `frappe.user_roles` instead of `roles`. It will be deprecated soon."
-					);
-					return frappe.user_roles;
-				},
-			},
-			sys_defaults: {
-				get: function () {
-					console.warn(
-						"Please use `frappe.sys_defaults` instead of `sys_defaults`. It will be deprecated soon."
-					);
-					return frappe.user_roles;
-				},
-			},
-		});
 	}
 	sync_pages() {
 		// clear cached pages if timestamp is not found
@@ -411,73 +360,26 @@ frappe.Application = class Application {
 	logout() {
 		var me = this;
 		me.logged_out = true;
-		return frappe.call({
-			method: "logout",
-			callback: function (r) {
-				if (r.exc) {
-					return;
-				}
-				me.redirect_to_login();
-			},
+		frappe.confirm(__("Are you sure you want to log out?"), function () {
+			return frappe.call({
+				method: "logout",
+				callback: function (r) {
+					if (r.exc) {
+						return;
+					}
+
+					me.redirect_to_login();
+				},
+			});
 		});
 	}
 	handle_session_expired() {
-		if (!frappe.app.session_expired_dialog) {
-			var dialog = new frappe.ui.Dialog({
-				title: __("Session Expired"),
-				keep_open: true,
-				fields: [
-					{
-						fieldtype: "Password",
-						fieldname: "password",
-						label: __("Please Enter Your Password to Continue"),
-					},
-				],
-				onhide: () => {
-					if (!dialog.logged_in) {
-						frappe.app.redirect_to_login();
-					}
-				},
-			});
-			dialog.get_field("password").disable_password_checks();
-			dialog.set_primary_action(__("Login"), () => {
-				dialog.set_message(__("Authenticating..."));
-				frappe.call({
-					method: "login",
-					args: {
-						usr: frappe.session.user,
-						pwd: dialog.get_values().password,
-					},
-					callback: (r) => {
-						if (r.message === "Logged In") {
-							dialog.logged_in = true;
-
-							// revert backdrop
-							$(".modal-backdrop").css({
-								opacity: "",
-								"background-color": "#334143",
-							});
-						}
-						dialog.hide();
-					},
-					statusCode: () => {
-						dialog.hide();
-					},
-				});
-			});
-			frappe.app.session_expired_dialog = dialog;
-		}
-		if (!frappe.app.session_expired_dialog.display) {
-			frappe.app.session_expired_dialog.show();
-			// add backdrop
-			$(".modal-backdrop").css({
-				opacity: 1,
-				"background-color": "#4B4C9D",
-			});
-		}
+		frappe.app.redirect_to_login();
 	}
 	redirect_to_login() {
-		window.location.href = "/";
+		window.location.href = `/login?redirect-to=${encodeURIComponent(
+			window.location.pathname + window.location.search
+		)}`;
 	}
 	set_favicon() {
 		var link = $('link[type="image/x-icon"]').remove().attr("href");
@@ -539,23 +441,8 @@ frappe.Application = class Application {
 	}
 
 	show_update_available() {
-		if (frappe.boot.sysdefaults.disable_system_update_notification) return;
-
-		frappe.call({
-			method: "frappe.utils.change_log.show_update_popup",
-		});
-	}
-
-	setup_analytics() {
-		if (window.mixpanel) {
-			window.mixpanel.identify(frappe.session.user);
-			window.mixpanel.people.set({
-				$first_name: frappe.boot.user.first_name,
-				$last_name: frappe.boot.user.last_name,
-				$created: frappe.boot.user.creation,
-				$email: frappe.session.user,
-			});
-		}
+		if (!frappe.boot.has_app_updates) return;
+		frappe.xcall("frappe.utils.change_log.show_update_popup");
 	}
 
 	add_browser_class() {
@@ -571,11 +458,12 @@ frappe.Application = class Application {
 		if (frappe.boot.notes.length) {
 			frappe.boot.notes.forEach(function (note) {
 				if (!note.seen || note.notify_on_every_login) {
-					var d = frappe.msgprint({ message: note.content, title: note.title });
+					var d = new frappe.ui.Dialog({ content: note.content, title: note.title });
 					d.keep_open = true;
-					d.custom_onhide = function () {
+					d.msg_area = $('<div class="msgprint">').appendTo(d.body);
+					d.msg_area.append(note.content);
+					d.onhide = function () {
 						note.seen = true;
-
 						// Mark note as read if the Notify On Every Login flag is not set
 						if (!note.notify_on_every_login) {
 							frappe.call({
@@ -584,11 +472,13 @@ frappe.Application = class Application {
 									note: note.name,
 								},
 							});
+						} else {
+							frappe.call({
+								method: "frappe.desk.doctype.note.note.reset_notes",
+							});
 						}
-
-						// next note
-						me.show_notes();
 					};
+					d.show();
 				}
 			});
 		}
@@ -625,14 +515,43 @@ frappe.Application = class Application {
 							delete doc.name;
 							newdoc.idx = null;
 							newdoc.__run_link_triggers = false;
+							newdoc.on_paste_event = true;
+							newdoc = JSON.parse(JSON.stringify(newdoc));
 							frappe.set_route("Form", newdoc.doctype, newdoc.name);
 							frappe.dom.unfreeze();
 						});
-						res && res.fail(frappe.dom.unfreeze);
+						res && res.fail?.(frappe.dom.unfreeze);
 					});
 				}
 			} catch (e) {
 				//
+			}
+		});
+	}
+
+	/// Setup event listeners for events across browser tabs / web workers.
+	setup_broadcast_listeners() {
+		// booted in another tab -> refresh csrf to avoid invalid requests.
+		frappe.broadcast.on("boot", ({ csrf_token, user }) => {
+			if (user && user != frappe.session.user) {
+				frappe.msgprint({
+					message: __(
+						"You've logged in as another user from another tab. Refresh this page to continue using system."
+					),
+					title: __("User Changed"),
+					primary_action: {
+						label: __("Refresh"),
+						action: () => {
+							window.location.reload();
+						},
+					},
+				});
+				return;
+			}
+
+			if (csrf_token) {
+				// If user re-logged in then their other tabs won't be usable without this update.
+				frappe.csrf_token = csrf_token;
 			}
 		});
 	}

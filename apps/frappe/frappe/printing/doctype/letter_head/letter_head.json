@@ -113,7 +113,7 @@
    "description": "Footer will display correctly only in PDF",
    "fieldname": "footer",
    "fieldtype": "HTML Editor",
-   "label": "Footer HTML (visible only in PDF)"
+   "label": "Footer HTML"
   },
   {
    "default": "Left",
@@ -220,11 +220,11 @@
   },
   {
    "read": 1,
-   "role": "All"
+   "role": "Desk User"
   }
  ],
  "sort_field": "modified",
- "sort_order": "ASC",
+ "sort_order": "DESC",
  "states": [],
  "track_changes": 1
 }

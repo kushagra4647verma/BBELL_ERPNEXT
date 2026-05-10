@@ -1,14 +1,15 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 # License: MIT. See LICENSE
 
+
 from markdownify import markdownify as md
 
 import frappe
 
 
 def get_parent_doc(doc):
-	"""Returns document of `reference_doctype`, `reference_doctype`"""
-	if not hasattr(doc, "parent_doc"):
+	"""Return document of `reference_doctype`, `reference_doctype`."""
+	if not getattr(doc, "parent_doc", None):
 		if doc.reference_doctype and doc.reference_name:
 			doc.parent_doc = frappe.get_doc(doc.reference_doctype, doc.reference_name)
 		else:
@@ -66,11 +67,7 @@ def find_all(list_of_dict, match_function):
 
 	        red_shapes = find_all(colored_shapes, lambda d: d['color'] == 'red')
 	"""
-	found = []
-	for entry in list_of_dict:
-		if match_function(entry):
-			found.append(entry)
-	return found
+	return [entry for entry in list_of_dict if match_function(entry)]
 
 
 def ljust_list(_list, length, fill_word=None):
@@ -93,3 +90,42 @@ def ljust_list(_list, length, fill_word=None):
 def html2text(html, strip_links=False, wrap=True):
 	strip = ["a"] if strip_links else None
 	return md(html, heading_style="ATX", strip=strip, wrap=wrap)
+
+
+def html_to_plain_text(html: str) -> str:
+	"""Return the given `html` as plain text."""
+
+	if not html:
+		return ""
+
+	from bs4 import BeautifulSoup
+
+	soup = BeautifulSoup(html, "html.parser")
+
+	for element in soup(["script", "style"]):
+		element.decompose()
+
+	# Introduce explicit newlines for block-level elements while keeping inline content on the same line.
+	for br in soup.find_all("br"):
+		br.replace_with("\n")
+
+	for block in soup.find_all(["p", "div", "tr", "li", "h1", "h2", "h3", "h4", "h5", "h6"]):
+		block.append("\n")
+
+	# Use a space separator between text nodes so inline tags don't break lines
+	text = soup.get_text(separator=" ")
+
+	lines = [line.strip() for line in text.splitlines()]
+	cleaned = []
+	previous_blank = False
+
+	for line in lines:
+		if line:
+			cleaned.append(line)
+			previous_blank = False
+		else:
+			if not previous_blank:
+				cleaned.append("")
+			previous_blank = True
+
+	return "\n".join(cleaned).strip()

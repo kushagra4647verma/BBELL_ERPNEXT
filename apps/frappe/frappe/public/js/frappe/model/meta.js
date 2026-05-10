@@ -88,8 +88,8 @@ $.extend(frappe.meta, {
 		};
 	},
 
-	get_docfields: function (doctype, name, filters) {
-		var docfield_map = frappe.meta.get_docfield_copy(doctype, name);
+	get_docfields: function (doctype, name, filters, docfield_list = null) {
+		var docfield_map = frappe.meta.get_docfield_copy(doctype, name, docfield_list);
 
 		var docfields = frappe.meta.sort_docfields(docfield_map);
 
@@ -122,11 +122,11 @@ $.extend(frappe.meta, {
 		});
 	},
 
-	get_docfield_copy: function (doctype, name) {
+	get_docfield_copy: function (doctype, name, docfield_list = null) {
 		if (!name) return frappe.meta.docfield_map[doctype];
 
 		if (!(frappe.meta.docfield_copy[doctype] && frappe.meta.docfield_copy[doctype][name])) {
-			frappe.meta.make_docfield_copy_for(doctype, name);
+			frappe.meta.make_docfield_copy_for(doctype, name, docfield_list);
 		}
 
 		return frappe.meta.docfield_copy[doctype][name];
@@ -154,7 +154,7 @@ $.extend(frappe.meta, {
 
 	get_doctype_for_field: function (doctype, key) {
 		var out = null;
-		if (in_list(frappe.model.std_fields_list, key)) {
+		if (frappe.model.std_fields_list.includes(key)) {
 			// standard
 			out = doctype;
 		} else if (frappe.meta.has_field(doctype, key)) {
@@ -164,7 +164,7 @@ $.extend(frappe.meta, {
 			frappe.meta.get_table_fields(doctype).every(function (d) {
 				if (
 					frappe.meta.has_field(d.options, key) ||
-					in_list(frappe.model.child_table_field_list, key)
+					frappe.model.child_table_field_list.includes(key)
 				) {
 					out = d.options;
 					return false;
@@ -173,7 +173,6 @@ $.extend(frappe.meta, {
 			});
 
 			if (!out) {
-				// eslint-disable-next-line
 				console.log(
 					__("Warning: Unable to find {0} in any table related to {1}", [
 						key,
@@ -265,7 +264,7 @@ $.extend(frappe.meta, {
 			});
 		$.each(print_formats, function (i, d) {
 			if (
-				!in_list(print_format_list, d.name) &&
+				!print_format_list.includes(d.name) &&
 				d.print_format_type !== "JS" &&
 				(cint(enable_raw_printing) || !d.raw_printing)
 			) {
@@ -289,9 +288,8 @@ $.extend(frappe.meta, {
 	},
 
 	get_field_currency: function (df, doc) {
-		var currency = frappe.boot.sysdefaults.currency;
+		var currency = frappe.boot.sysdefaults.currency || "USD";
 		if (!doc && cur_frm) doc = cur_frm.doc;
-
 		if (df && df.options) {
 			if (df.options.indexOf(":") != -1) {
 				var options = df.options.split(":");
@@ -303,7 +301,8 @@ $.extend(frappe.meta, {
 						if (!docname && cur_frm) {
 							docname = cur_frm.doc[options[1]];
 						}
-					} else {
+					}
+					if (!docname) {
 						// Try to get default value, useful for cases like Company overridden in session defaults
 						docname = frappe.defaults.get_user_default(options[1]);
 					}

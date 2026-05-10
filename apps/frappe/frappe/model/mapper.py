@@ -81,6 +81,8 @@ def get_mapped_doc(
 		if not source_doc.has_permission("read"):
 			source_doc.raise_no_permission_to("read")
 
+	target_doc.run_method("before_mapping", source_doc, table_maps)
+
 	map_doc(source_doc, target_doc, table_maps[source_doc.doctype])
 
 	row_exists_for_parentfield = {}
@@ -105,6 +107,12 @@ def get_mapped_doc(
 						table_map = {"doctype": target_child_doctype}
 
 			if table_map:
+				target_child_doctype = table_map["doctype"]
+				target_parentfield = target_doc.get_parentfield_of_doctype(target_child_doctype)
+
+				if table_map.get("reset_value"):
+					setattr(target_doc, target_parentfield, [])
+
 				for source_d in source_doc.get(df.fieldname):
 					if "condition" in table_map:
 						if not table_map["condition"](source_d):
@@ -118,9 +126,6 @@ def get_mapped_doc(
 						and source_d.name not in frappe.flags.selected_children[df.fieldname]
 					):
 						continue
-
-					target_child_doctype = table_map["doctype"]
-					target_parentfield = target_doc.get_parentfield_of_doctype(target_child_doctype)
 
 					# does row exist for a parentfield?
 					if target_parentfield not in row_exists_for_parentfield:
@@ -228,9 +233,6 @@ def map_fetch_fields(target_doc, df, no_copy_fields):
 
 	# options should be like "link_fieldname.fieldname_in_liked_doc"
 	for fetch_df in target_doc.meta.get("fields", {"fetch_from": f"^{df.fieldname}."}):
-		if not (fetch_df.fieldtype == "Read Only" or fetch_df.read_only):
-			continue
-
 		if (
 			not target_doc.get(fetch_df.fieldname) or fetch_df.fieldtype == "Read Only"
 		) and fetch_df.fieldname not in no_copy_fields:
@@ -251,7 +253,7 @@ def map_fetch_fields(target_doc, df, no_copy_fields):
 def map_child_doc(source_d, target_parent, table_map, source_parent=None):
 	target_child_doctype = table_map["doctype"]
 	target_parentfield = target_parent.get_parentfield_of_doctype(target_child_doctype)
-	target_d = frappe.new_doc(target_child_doctype, target_parent, target_parentfield)
+	target_d = frappe.new_doc(target_child_doctype, parent_doc=target_parent, parentfield=target_parentfield)
 
 	map_doc(source_d, target_d, table_map, source_parent)
 

@@ -1,7 +1,7 @@
 frappe.ui.FilterGroup = class {
 	constructor(opts) {
 		$.extend(this, opts);
-		this.filters = [];
+		this.filters = this.filters || [];
 		window.fltr = this;
 		if (!this.filter_button) {
 			this.wrapper = this.parent;
@@ -130,9 +130,7 @@ frappe.ui.FilterGroup = class {
 	update_filter_button() {
 		const filters_applied = this.filters.length > 0;
 		const button_label = filters_applied
-			? this.filters.length > 1
-				? __("{0} filters", [this.filters.length])
-				: __("{0} filter", [this.filters.length])
+			? __("Filters {0}", [`<span class="filter-label">${this.filters.length}</span>`])
 			: __("Filter");
 
 		this.filter_button
@@ -142,6 +140,10 @@ frappe.ui.FilterGroup = class {
 		this.filter_button.find(".filter-icon").toggleClass("active", filters_applied);
 
 		this.filter_button.find(".button-label").html(button_label);
+		this.filter_button.attr(
+			"title",
+			`${this.filters.length} Filter${this.filters.length > 1 ? "s" : ""} Applied`
+		);
 	}
 
 	set_filter_events() {
@@ -239,6 +241,7 @@ frappe.ui.FilterGroup = class {
 			},
 			filter_list: this.base_list || this,
 		};
+
 		let filter = new frappe.ui.Filter(args);
 		this.filters.push(filter);
 		return filter;
@@ -292,7 +295,6 @@ frappe.ui.FilterGroup = class {
 	}
 
 	get_filter_area_template() {
-		/* eslint-disable indent */
 		return $(`
 			<div class="filter-area">
 				<div class="filter-edit-area">
@@ -319,16 +321,14 @@ frappe.ui.FilterGroup = class {
 					</div>
 				</div>
 			</div>`);
-		/* eslint-disable indent */
 	}
 
 	get_filters_as_object() {
-		let filters = this.get_filters().reduce((acc, filter) => {
+		return this.get_filters().reduce((acc, filter) => {
 			return Object.assign(acc, {
 				[filter[1]]: [filter[2], filter[3]],
 			});
 		}, {});
-		return filters;
 	}
 
 	add_filters_to_filter_group(filters) {

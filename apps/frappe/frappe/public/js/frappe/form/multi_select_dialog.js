@@ -191,7 +191,7 @@ frappe.ui.form.MultiSelectDialog = class MultiSelectDialog {
 	get_child_datatable_columns() {
 		const parent = this.doctype;
 		return [parent, ...this.child_columns].map((d) => ({
-			name: frappe.unscrub(d),
+			name: __(frappe.unscrub(d)),
 			editable: false,
 		}));
 	}
@@ -259,6 +259,8 @@ frappe.ui.form.MultiSelectDialog = class MultiSelectDialog {
 					label: df_prop.label,
 					fieldname: setter,
 					options: df_prop.options,
+					read_only:
+						(this?.read_only_setters && this.read_only_setters.includes(setter)) || 0,
 					default: this.setters[setter],
 				});
 			});
@@ -552,7 +554,7 @@ frappe.ui.form.MultiSelectDialog = class MultiSelectDialog {
 			}
 		} else {
 			Object.keys(this.setters).forEach(function (setter) {
-				var value = me.dialog.fields_dict[setter].get_value();
+				var value = me.dialog.fields_dict[setter].get_value() || me.setters[setter];
 				if (me.dialog.fields_dict[setter].df.fieldtype == "Data" && value) {
 					filters[setter] = ["like", "%" + value + "%"];
 				} else {
@@ -590,22 +592,22 @@ frappe.ui.form.MultiSelectDialog = class MultiSelectDialog {
 			no_spinner: true,
 			args: args,
 		});
-		const more = res.values.length && res.values.length > this.page_length ? 1 : 0;
+		const more = res.message.length && res.message.length > this.page_length ? 1 : 0;
 
-		return [res, more];
+		return [res.message, more];
 	}
 
 	async get_results() {
 		const args = this.get_args_for_search();
-		const [res, more] = await this.perform_search(args);
+		let [results, more] = await this.perform_search(args);
 
 		if (more) {
-			res.values = res.values.splice(0, this.page_length);
+			results = results.splice(0, this.page_length);
 		}
 
 		this.results = [];
-		if (res.values.length) {
-			res.values.forEach((result) => {
+		if (results.length) {
+			results.forEach((result) => {
 				result.checked = 0;
 				this.results.push(result);
 			});
@@ -616,12 +618,11 @@ frappe.ui.form.MultiSelectDialog = class MultiSelectDialog {
 	async get_filtered_parents_for_child_search() {
 		const parent_search_args = this.get_args_for_search();
 		parent_search_args.filter_fields = ["name"];
-		// eslint-disable-next-line no-unused-vars
-		const [response, _] = await this.perform_search(parent_search_args);
+		const [results, _] = await this.perform_search(parent_search_args);
 
 		let parent_names = [];
-		if (response.values.length) {
-			parent_names = response.values.map((v) => v.name);
+		if (results.length) {
+			parent_names = results.map((v) => v.name);
 		}
 		return parent_names;
 	}

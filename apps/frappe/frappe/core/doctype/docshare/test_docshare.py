@@ -56,6 +56,24 @@ class TestDocShare(FrappeTestCase):
 		with self.assertRowsRead(1):
 			self.assertTrue(self.event.has_permission())
 
+	def test_list_permission(self):
+		frappe.set_user(self.user)
+		with self.assertRaises(frappe.PermissionError):
+			frappe.get_list("Web Page")
+
+		frappe.set_user("Administrator")
+		doc = frappe.new_doc("Web Page")
+		doc.update({"title": "test document for docshare permissions"})
+		doc.insert()
+		frappe.share.add("Web Page", doc.name, self.user)
+
+		frappe.set_user(self.user)
+		self.assertEqual(len(frappe.get_list("Web Page")), 1)
+
+		doc.delete(ignore_permissions=True)
+		with self.assertRaises(frappe.PermissionError):
+			frappe.get_list("Web Page")
+
 	def test_share_permission(self):
 		frappe.share.add("Event", self.event.name, self.user, write=1, share=1)
 
@@ -206,3 +224,26 @@ class TestDocShare(FrappeTestCase):
 			add,
 			{"doctype": "Event", "name": self.event.name, "assign_to": ["test1@example.com"]},
 		)
+
+	def test_cannot_share_without_permission(self):
+		"""Test that users cannot share permissions they don't have."""
+		# Users don't have write permission on Communication
+		doc = frappe.new_doc("Communication", subject="Hello World").save()
+
+		try:
+			frappe.set_user(self.user)
+
+			# Attempting to share with write permission should fail
+			self.assertRaises(
+				frappe.PermissionError,
+				frappe.share.add,
+				"Communication",
+				doc.name,
+				"test1@example.com",
+				write=1,
+			)
+
+			# Can share read
+			frappe.share.add("Communication", doc.name, "test1@example.com")
+		finally:
+			doc.delete()

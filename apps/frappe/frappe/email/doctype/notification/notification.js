@@ -17,7 +17,7 @@ frappe.notification = {
 
 				return {
 					value: select_value,
-					label: df.fieldname + " (" + __(df.label) + ")",
+					label: df.fieldname + " (" + __(df.label, null, df.parent) + ")",
 				};
 			};
 
@@ -36,7 +36,7 @@ frappe.notification = {
 
 			let fields = frappe.get_doc("DocType", frm.doc.document_type).fields;
 			let options = $.map(fields, function (d) {
-				return in_list(frappe.model.no_value_type, d.fieldtype)
+				return frappe.model.no_value_type.includes(d.fieldtype)
 					? null
 					: get_select_options(d);
 			});
@@ -68,7 +68,7 @@ frappe.notification = {
 							: null;
 					}
 				});
-			} else if (in_list(["WhatsApp", "SMS"], frm.doc.channel)) {
+			} else if (["WhatsApp", "SMS"].includes(frm.doc.channel)) {
 				receiver_fields = $.map(fields, function (d) {
 					return d.options == "Phone" ? get_select_options(d) : null;
 				});
@@ -80,6 +80,16 @@ frappe.notification = {
 				"options",
 				[""].concat(["owner"]).concat(receiver_fields)
 			);
+
+			// set options for "From Attach Field"
+			let attach_fields = fields.filter((d) =>
+				["Attach", "Attach Image"].includes(d.fieldtype)
+			);
+			let attach_options = $.map(attach_fields, function (d) {
+				return get_select_options(d);
+			});
+
+			frm.set_df_property("from_attach_field", "options", [""].concat(attach_options));
 		});
 	},
 	setup_example_message: function (frm) {
@@ -104,7 +114,7 @@ Last comment: {{ comments[-1].comment }} by {{ comments[-1].by }}
 &lt;/ul&gt;
 </pre>
 			`;
-		} else if (in_list(["Slack", "System Notification", "SMS"], frm.doc.channel)) {
+		} else if (["Slack", "System Notification", "SMS"].includes(frm.doc.channel)) {
 			template = `<h5>Message Example</h5>
 
 <pre>*Order Overdue*

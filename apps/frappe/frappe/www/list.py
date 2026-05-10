@@ -36,8 +36,6 @@ def get(
 ):
 	"""Return processed HTML page for a standard listing."""
 	limit_start = cint(limit_start)
-	limit = cint(limit)
-
 	raw_result = get_list_data(doctype, txt, limit_start, limit=limit + 1, **kwargs)
 	show_more = len(raw_result) > limit
 	if show_more:
@@ -95,7 +93,6 @@ def get_list_data(
 ):
 	"""Returns processed HTML page for a standard listing."""
 	limit_start = cint(limit_start)
-	limit = cint(limit)
 
 	if frappe.is_table(doctype):
 		frappe.throw(_("Child DocTypes are not allowed"), title=_("Invalid DocType"))
@@ -247,14 +244,11 @@ def get_list(
 
 	if txt:
 		if meta.search_fields:
-			for f in meta.get_search_fields():
-				if f == "name" or meta.get_field(f).fieldtype in (
-					"Data",
-					"Text",
-					"Small Text",
-					"Text Editor",
-				):
-					or_filters.append([doctype, f, "like", "%" + txt + "%"])
+			or_filters.extend(
+				[doctype, f, "like", "%" + txt + "%"]
+				for f in meta.get_search_fields()
+				if f == "name" or meta.get_field(f).fieldtype in ("Data", "Text", "Small Text", "Text Editor")
+			)
 		else:
 			if isinstance(filters, dict):
 				filters["name"] = ("like", "%" + txt + "%")

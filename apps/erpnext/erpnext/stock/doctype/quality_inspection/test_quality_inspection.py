@@ -2,7 +2,7 @@
 # See license.txt
 
 import frappe
-from frappe.tests.utils import FrappeTestCase
+from frappe.tests.utils import FrappeTestCase, change_settings
 from frappe.utils import nowdate
 
 from erpnext.controllers.stock_controller import (
@@ -140,7 +140,8 @@ class TestQualityInspection(FrappeTestCase):
 		dn = create_delivery_note(item_code="_Test Item with QA", do_not_submit=True)
 		for item in dn.items:
 			item.sample_size = item.qty
-		quality_inspections = make_quality_inspections(dn.doctype, dn.name, dn.items)
+
+		quality_inspections = make_quality_inspections(dn.company, dn.doctype, dn.name, dn.items)
 		self.assertEqual(len(dn.items), len(quality_inspections))
 
 		# cleanup
@@ -165,13 +166,13 @@ class TestQualityInspection(FrappeTestCase):
 			reference_type="Stock Entry", reference_name=se.name, readings=readings, status="Rejected"
 		)
 
-		frappe.db.set_value("Stock Settings", None, "action_if_quality_inspection_is_rejected", "Stop")
+		frappe.db.set_single_value("Stock Settings", "action_if_quality_inspection_is_rejected", "Stop")
 		se.reload()
 		self.assertRaises(
 			QualityInspectionRejectedError, se.submit
 		)  # when blocked in Stock settings, block rejected QI
 
-		frappe.db.set_value("Stock Settings", None, "action_if_quality_inspection_is_rejected", "Warn")
+		frappe.db.set_single_value("Stock Settings", "action_if_quality_inspection_is_rejected", "Warn")
 		se.reload()
 		se.submit()  # when allowed in Stock settings, allow rejected QI
 
@@ -180,7 +181,7 @@ class TestQualityInspection(FrappeTestCase):
 		qa.cancel()
 		se.reload()
 		se.cancel()
-		frappe.db.set_value("Stock Settings", None, "action_if_quality_inspection_is_rejected", "Stop")
+		frappe.db.set_single_value("Stock Settings", "action_if_quality_inspection_is_rejected", "Stop")
 
 	def test_qi_status(self):
 		make_stock_entry(
@@ -213,6 +214,40 @@ class TestQualityInspection(FrappeTestCase):
 		qa.readings[0].status = "Rejected"
 		qa.save()
 		self.assertEqual(qa.status, "Accepted")
+
+	@change_settings("System Settings", {"number_format": "#.###,##"})
+	def test_diff_number_format(self):
+		self.assertEqual(frappe.db.get_default("number_format"), "#.###,##")  # sanity check
+
+		# Test QI based on acceptance values (Non formula)
+		dn = create_delivery_note(item_code="_Test Item with QA", do_not_submit=True)
+		readings = [
+			{
+				"specification": "Iron Content",  # numeric reading
+				"min_value": 60,
+				"max_value": 100,
+				"reading_1": "70,000",
+			},
+			{
+				"specification": "Iron Content",  # numeric reading
+				"min_value": 60,
+				"max_value": 100,
+				"reading_1": "1.100,00",
+			},
+		]
+
+		qa = create_quality_inspection(
+			reference_type="Delivery Note", reference_name=dn.name, readings=readings, do_not_save=True
+		)
+
+		qa.save()
+
+		# status must be auto set as per formula
+		self.assertEqual(qa.readings[0].status, "Accepted")
+		self.assertEqual(qa.readings[1].status, "Rejected")
+
+		qa.delete()
+		dn.delete()
 
 	def test_delete_quality_inspection_linked_with_stock_entry(self):
 		item_code = create_item("_Test Cicuular Dependecy Item with QA").name
@@ -256,7 +291,7 @@ def create_quality_inspection(**args):
 
 	if not args.readings:
 		create_quality_inspection_parameter("Size")
-		readings = {"specification": "Size", "min_value": 0, "max_value": 10}
+		readings = {"specification": "Size", "min_value": 0, "max_value": 10, "reading_1": "5"}
 		if args.status == "Rejected":
 			readings["reading_1"] = "12"  # status is auto set in child on save
 	else:

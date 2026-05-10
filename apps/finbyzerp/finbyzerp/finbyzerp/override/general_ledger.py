@@ -39,7 +39,7 @@ def check_freezing_date(posting_date, adv_adj=False):
 			)
 		)
 
-from erpnext.accounts.report.general_ledger.general_ledger import get_result,update_translations,validate_filters ,validate_party,set_account_currency,get_columns
+from erpnext.accounts.report.general_ledger.general_ledger import get_result, validate_filters, validate_party, set_account_currency, get_columns
 
 def execute(filters=None):
 	if not filters:
@@ -64,7 +64,7 @@ def execute(filters=None):
 
 	columns = get_columns(filters)
 
-	update_translations()
+	#update_translations()
 
 	res = get_result(filters, account_details)
 

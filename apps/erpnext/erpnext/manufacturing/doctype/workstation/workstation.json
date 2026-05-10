@@ -8,10 +8,22 @@
  "document_type": "Setup",
  "engine": "InnoDB",
  "field_order": [
+  "dashboard_tab",
+  "workstation_dashboard",
+  "details_tab",
   "workstation_name",
-  "production_capacity",
-  "column_break_3",
   "workstation_type",
+  "plant_floor",
+  "column_break_3",
+  "production_capacity",
+  "warehouse",
+  "workstation_status_tab",
+  "status",
+  "column_break_glcv",
+  "illustration_section",
+  "on_status_image",
+  "column_break_etmc",
+  "off_status_image",
   "over_heads",
   "hour_rate_electricity",
   "hour_rate_consumable",
@@ -24,7 +36,9 @@
   "description",
   "working_hours_section",
   "holiday_list",
-  "working_hours"
+  "working_hours",
+  "total_working_hours",
+  "connections_tab"
  ],
  "fields": [
   {
@@ -58,6 +72,7 @@
    "fieldname": "hour_rate_electricity",
    "fieldtype": "Currency",
    "label": "Electricity Cost",
+   "non_negative": 1,
    "oldfieldname": "hour_rate_electricity",
    "oldfieldtype": "Currency"
   },
@@ -67,6 +82,7 @@
    "fieldname": "hour_rate_consumable",
    "fieldtype": "Currency",
    "label": "Consumable Cost",
+   "non_negative": 1,
    "oldfieldname": "hour_rate_consumable",
    "oldfieldtype": "Currency"
   },
@@ -80,6 +96,7 @@
    "fieldname": "hour_rate_rent",
    "fieldtype": "Currency",
    "label": "Rent Cost",
+   "non_negative": 1,
    "oldfieldname": "hour_rate_rent",
    "oldfieldtype": "Currency"
   },
@@ -89,6 +106,7 @@
    "fieldname": "hour_rate_labour",
    "fieldtype": "Currency",
    "label": "Wages",
+   "non_negative": 1,
    "oldfieldname": "hour_rate_labour",
    "oldfieldtype": "Currency"
   },
@@ -120,9 +138,11 @@
   },
   {
    "default": "1",
+   "description": "Run parallel job cards in a workstation",
    "fieldname": "production_capacity",
    "fieldtype": "Int",
-   "label": "Production Capacity",
+   "label": "Job Capacity",
+   "non_negative": 1,
    "reqd": 1
   },
   {
@@ -145,12 +165,87 @@
   {
    "fieldname": "section_break_11",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "plant_floor",
+   "fieldtype": "Link",
+   "label": "Plant Floor",
+   "options": "Plant Floor"
+  },
+  {
+   "fieldname": "workstation_status_tab",
+   "fieldtype": "Tab Break",
+   "label": "Workstation Status"
+  },
+  {
+   "fieldname": "illustration_section",
+   "fieldtype": "Section Break",
+   "label": "Status Illustration"
+  },
+  {
+   "fieldname": "column_break_etmc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Production\nOff\nIdle\nProblem\nMaintenance\nSetup"
+  },
+  {
+   "fieldname": "column_break_glcv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "on_status_image",
+   "fieldtype": "Attach Image",
+   "label": "Active Status"
+  },
+  {
+   "fieldname": "off_status_image",
+   "fieldtype": "Attach Image",
+   "label": "Inactive Status"
+  },
+  {
+   "fieldname": "warehouse",
+   "fieldtype": "Link",
+   "label": "Warehouse",
+   "options": "Warehouse"
+  },
+  {
+   "fieldname": "total_working_hours",
+   "fieldtype": "Float",
+   "label": "Total Working Hours"
+  },
+  {
+   "depends_on": "eval:!doc.__islocal",
+   "fieldname": "dashboard_tab",
+   "fieldtype": "Tab Break",
+   "label": "Job Cards"
+  },
+  {
+   "fieldname": "details_tab",
+   "fieldtype": "Tab Break",
+   "label": "Details"
+  },
+  {
+   "fieldname": "connections_tab",
+   "fieldtype": "Tab Break",
+   "label": "Connections",
+   "show_dashboard": 1
+  },
+  {
+   "fieldname": "workstation_dashboard",
+   "fieldtype": "HTML",
+   "label": "Workstation Dashboard"
   }
  ],
  "icon": "icon-wrench",
  "idx": 1,
+ "image_field": "on_status_image",
  "links": [],
- "modified": "2022-11-04 17:39:01.549346",
+ "modified": "2025-07-13 16:02:13.615001",
  "modified_by": "Administrator",
  "module": "Manufacturing",
  "name": "Workstation",
@@ -170,6 +265,7 @@
   }
  ],
  "quick_entry": 1,
+ "row_format": "Dynamic",
  "show_name_in_global_search": 1,
  "sort_field": "modified",
  "sort_order": "ASC",

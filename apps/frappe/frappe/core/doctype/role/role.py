@@ -4,17 +4,35 @@
 import frappe
 from frappe.model.document import Document
 from frappe.website.path_resolver import validate_path
+from frappe.website.router import clear_routing_cache
 
 STANDARD_ROLES = ("Administrator", "System Manager", "Script Manager", "All", "Guest")
 
 
 class Role(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		desk_access: DF.Check
+		disabled: DF.Check
+		home_page: DF.Data | None
+		is_custom: DF.Check
+		restrict_to_domain: DF.Link | None
+		role_name: DF.Data
+		two_factor_auth: DF.Check
+
+	# end: auto-generated types
 	def before_rename(self, old, new, merge=False):
 		if old in STANDARD_ROLES:
 			frappe.throw(frappe._("Standard roles cannot be renamed"))
 
 	def after_insert(self):
-		frappe.cache().hdel("roles", "Administrator")
+		frappe.cache.hdel("roles", "Administrator")
 
 	def validate(self):
 		if self.disabled:
@@ -32,6 +50,9 @@ class Role(Document):
 	def validate_homepage(self):
 		if frappe.request and self.home_page:
 			validate_path(self.home_page)
+
+		if self.has_value_changed("home_page"):
+			clear_routing_cache()
 
 	def set_desk_properties(self):
 		# set if desk_access is not allowed, unset all desk properties
@@ -68,6 +89,12 @@ class Role(Document):
 
 def get_info_based_on_role(role, field="email", ignore_permissions=False):
 	"""Get information of all users that have been assigned this role"""
+	# Administrator is a superuser account, not a typical role with assigned users
+	# so we resolve it directly to the Administrator user
+	if role == "Administrator":
+		user = frappe.db.get_value("User", "Administrator", field)
+		return [user] if user else []
+
 	users = frappe.get_list(
 		"Has Role",
 		filters={"role": role, "parenttype": "User"},

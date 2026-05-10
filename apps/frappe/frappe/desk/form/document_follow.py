@@ -10,8 +10,8 @@ from frappe.utils import get_url_to_form
 
 
 @frappe.whitelist()
-def update_follow(doctype, doc_name, following):
-	if frappe.sbool(following):
+def update_follow(doctype: str, doc_name: str, following: bool):
+	if following:
 		return follow_document(doctype, doc_name, frappe.session.user)
 	else:
 		return unfollow_document(doctype, doc_name, frappe.session.user)
@@ -225,7 +225,7 @@ def get_comments(doctype, doc_name, frequency, user):
 
 def is_document_followed(doctype, doc_name, user):
 	return frappe.db.exists(
-		"Document Follow", {"ref_doctype": doctype, "ref_docname": doc_name, "user": user}
+		"Document Follow", {"ref_doctype": doctype, "ref_docname": str(doc_name), "user": user}
 	)
 
 
@@ -265,19 +265,17 @@ def get_row_changed(row_changed, time, doctype, doc_name, v):
 
 
 def get_added_row(added, time, doctype, doc_name, v):
-	items = []
-	for d in added:
-		items.append(
-			{
-				"time": v.modified,
-				"data": {"to": d[0], "time": time},
-				"doctype": doctype,
-				"doc_name": doc_name,
-				"type": "row added",
-				"by": v.modified_by,
-			}
-		)
-	return items
+	return [
+		{
+			"time": v.modified,
+			"data": {"to": d[0], "time": time},
+			"doctype": doctype,
+			"doc_name": doc_name,
+			"type": "row added",
+			"by": v.modified_by,
+		}
+		for d in added
+	]
 
 
 def get_field_changed(changed, time, doctype, doc_name, v):

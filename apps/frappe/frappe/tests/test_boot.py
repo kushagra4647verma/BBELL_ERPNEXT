@@ -1,6 +1,6 @@
 import frappe
 from frappe.boot import get_unseen_notes, get_user_pages_or_reports
-from frappe.desk.doctype.note.note import mark_as_seen
+from frappe.desk.doctype.note.note import _get_unseen_notes, mark_as_seen
 from frappe.tests.utils import FrappeTestCase
 
 
@@ -20,12 +20,20 @@ class TestBootData(FrappeTestCase):
 		note.insert()
 
 		frappe.set_user("test@example.com")
+		_get_unseen_notes()
 		unseen_notes = [d.title for d in get_unseen_notes()]
 		self.assertListEqual(unseen_notes, ["Test Note"])
 
 		mark_as_seen(note.name)
 		unseen_notes = [d.title for d in get_unseen_notes()]
 		self.assertListEqual(unseen_notes, [])
+
+
+class TestPermissionQueries(FrappeTestCase):
+	@classmethod
+	def setUpClass(cls) -> None:
+		cls.enable_safe_exec()
+		return super().setUpClass()
 
 	def test_get_user_pages_or_reports_with_permission_query(self):
 		# Create a ToDo custom report with admin user
@@ -65,7 +73,7 @@ class TestBootData(FrappeTestCase):
 		).insert(ignore_permissions=True)
 
 		get_user_pages_or_reports("Report")
-		allowed_reports = frappe.cache().get_value("has_role:Report", user=frappe.session.user)
+		allowed_reports = frappe.cache.get_value("has_role:Report", user=frappe.session.user)
 
 		# Test user must not see admin user's report
 		self.assertNotIn("Test Admin Report", allowed_reports)

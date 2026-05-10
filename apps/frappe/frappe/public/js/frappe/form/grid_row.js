@@ -1,5 +1,11 @@
 import GridRowForm from "./grid_row_form";
 
+const DEPENDENCY_PROPERTIES = [
+	{ expr: "depends_on", prop: "hidden_due_to_dependency", negate: true },
+	{ expr: "mandatory_depends_on", prop: "reqd", negate: false },
+	{ expr: "read_only_depends_on", prop: "read_only", negate: false },
+];
+
 export default class GridRow {
 	constructor(opts) {
 		this.on_grid_fields_dict = {};
@@ -8,7 +14,8 @@ export default class GridRow {
 		this.set_docfields();
 		this.columns = {};
 		this.columns_list = [];
-		this.row_check_html = '<input type="checkbox" class="grid-row-check">';
+		this.row_check_html = '<input type="checkbox" class="grid-row-check" tabIndex="-1">';
+		this.default_rows_threshold_for_grid_search = 20;
 		this.make();
 	}
 	make() {
@@ -40,31 +47,20 @@ export default class GridRow {
 			render_row = this.render_row();
 		}
 
-		if (!this.render_row) return;
+		if (!render_row) return;
 
 		this.set_data();
 		this.wrapper.appendTo(this.parent);
 	}
 
-	set_docfields(update = false) {
+	set_docfields() {
 		if (this.doc && this.parent_df.options) {
-			frappe.meta.make_docfield_copy_for(
+			this.docfields = frappe.meta.get_docfields(
 				this.parent_df.options,
 				this.doc.name,
-				this.docfields
+				null,
+				this.grid.docfields
 			);
-			const docfields = frappe.meta.get_docfields(this.parent_df.options, this.doc.name);
-			if (update) {
-				// to maintain references
-				this.docfields.forEach((df) => {
-					Object.assign(
-						df,
-						docfields.find((d) => d.fieldname === df.fieldname)
-					);
-				});
-			} else {
-				this.docfields = docfields;
-			}
 		}
 	}
 
@@ -95,11 +91,10 @@ export default class GridRow {
 	remove() {
 		var me = this;
 		if (this.grid.is_editable()) {
+			if (this.get_open_form()) {
+				this.hide_form();
+			}
 			if (this.frm) {
-				if (this.get_open_form()) {
-					this.hide_form();
-				}
-
 				frappe
 					.run_serially([
 						() => {
@@ -123,7 +118,7 @@ export default class GridRow {
 					])
 					.catch((e) => {
 						// aborted
-						console.trace(e); // eslint-disable-line
+						console.trace(e);
 					});
 			} else {
 				let data = null;
@@ -157,7 +152,7 @@ export default class GridRow {
 		this.grid.add_new_row(idx, null, show, copy_doc);
 	}
 	move() {
-		// promopt the user where they want to move this row
+		// prompt the user where they want to move this row
 		var me = this;
 		frappe.prompt(
 			{
@@ -192,11 +187,6 @@ export default class GridRow {
 		);
 	}
 	refresh() {
-		// update docfields for new record
-		if (this.frm && this.doc && this.doc.__islocal) {
-			this.set_docfields(true);
-		}
-
 		if (this.frm && this.doc) {
 			this.doc = locals[this.doc.doctype][this.doc.name];
 		}
@@ -251,6 +241,10 @@ export default class GridRow {
 			const txt = this.doc
 				? this.doc.idx
 				: __("No.", null, "Title of the 'row number' column");
+
+			if (this.header_row) {
+				this.row_check_html = $(this.row_check_html).attr("tabindex", -1).get(0).outerHTML;
+			}
 
 			this.row_check = $(
 				`<div class="row-check sortable-handle col">
@@ -333,6 +327,10 @@ export default class GridRow {
 			// remove row
 			if (!this.open_form_button) {
 				this.open_form_button = $('<div class="col"></div>').appendTo(this.row);
+				this.open_form_button.on("click", function (e) {
+					me.toggle_view();
+					return false;
+				});
 
 				if (!this.configure_columns) {
 					const edit_msg = __("Edit", "", "Edit grid row");
@@ -340,11 +338,15 @@ export default class GridRow {
 						<div class="btn-open-row" data-toggle="tooltip" data-placement="right" title="${edit_msg}">
 							<a>${frappe.utils.icon("edit", "xs")}</a>
 						</div>
-					`)
-						.appendTo(this.open_form_button)
-						.on("click", function () {
-							me.toggle_view();
-							return false;
+					`).appendTo(this.open_form_button);
+
+					$(this.open_form_button)
+						.parent()
+						.on("keydown", function (ev) {
+							if (ev.key == "Enter") {
+								me.toggle_view();
+								return false;
+							}
 						});
 
 					this.open_form_button.tooltip({ delay: { show: 600, hide: 100 } });
@@ -354,6 +356,10 @@ export default class GridRow {
 					// narrow
 					this.open_form_button.css({ "margin-right": "-2px" });
 				}
+				// focus open form button after escape
+				$(document).on("escape", function () {
+					me.open_form_button.parent().focus();
+				});
 			}
 		}
 	}
@@ -553,23 +559,25 @@ export default class GridRow {
 
 				fields += `
 					<div class='control-input flex align-center form-control fields_order sortable-handle sortable'
-						style='display: block; margin-bottom: 5px; cursor: pointer;' data-fieldname='${docfield.fieldname}'
+						style='display: block; margin-bottom: 5px; padding: 0 8px; cursor: pointer; height: 32px;' data-fieldname='${
+							docfield.fieldname
+						}'
 						data-label='${docfield.label}' data-type='${docfield.fieldtype}'>
 
 						<div class='row'>
-							<div class='col-1'>
+							<div class='col-1' style='padding-top: 4px;'>
 								<a style='cursor: grabbing;'>${frappe.utils.icon("drag", "xs")}</a>
 							</div>
-							<div class='col-6'>
+							<div class='col-6' style='padding-top: 5px;'>
 								${__(docfield.label, null, docfield.parent)}
 							</div>
-							<div class='col-4' title='${__("Columns")}'>
-								<input class='form-control column-width input-xs text-right'
-								style='margin-top: -1px;height: 24px; max-width: 80px; background: var(--bg-color);'
+							<div class='col-4' style='padding-top: 2px; margin-top:-2px;' title='${__("Columns")}'>
+								<input class='form-control column-width my-1 input-xs text-right'
+								style='height: 24px; max-width: 80px; background: var(--bg-color);'
 									value='${docfield.columns || cint(d.columns)}'
 									data-fieldname='${docfield.fieldname}' style='background-color: var(--modal-bg); display: inline'>
 							</div>
-							<div class='col-1'>
+							<div class='col-1' style='padding-top: 3px;'>
 								<a class='text-muted remove-field' data-fieldname='${docfield.fieldname}'>
 									<i class='fa fa-trash-o' aria-hidden='true'></i>
 								</a>
@@ -707,7 +715,7 @@ export default class GridRow {
 
 			let txt = this.doc
 				? frappe.format(this.doc[df.fieldname], df, null, this.doc)
-				: __(df.label);
+				: __(df.label, null, df.parent);
 
 			if (this.doc && df.fieldtype === "Select") {
 				txt = __(txt);
@@ -742,20 +750,31 @@ export default class GridRow {
 	}
 
 	set_dependant_property(df) {
-		if (
-			!df.reqd &&
-			df.mandatory_depends_on &&
-			this.evaluate_depends_on_value(df.mandatory_depends_on)
-		) {
-			df.reqd = 1;
+		let changed = false;
+
+		for (const { expr, prop, negate } of DEPENDENCY_PROPERTIES) {
+			if (df[expr]) {
+				const result = this.evaluate_depends_on_value(df[expr]);
+				const new_value = (negate ? !result : result) ? 1 : 0;
+				changed ||= df[prop] !== new_value;
+				df[prop] = new_value;
+			}
 		}
 
-		if (
-			!df.read_only &&
-			df.read_only_depends_on &&
-			this.evaluate_depends_on_value(df.read_only_depends_on)
-		) {
-			df.read_only = 1;
+		return changed;
+	}
+
+	refresh_dependency() {
+		// re-evaluate dependency expressions of visible columns
+		// refresh if some property changed
+		let changed = false;
+		for (const { df } of this.columns_list) {
+			if (DEPENDENCY_PROPERTIES.some((d) => df[d.expr])) {
+				changed ||= this.set_dependant_property(df);
+			}
+		}
+		if (changed) {
+			this.refresh();
 		}
 	}
 
@@ -774,9 +793,6 @@ export default class GridRow {
 		} else if (expression.substr(0, 5) == "eval:") {
 			try {
 				out = frappe.utils.eval(expression.substr(5), { doc, parent });
-				if (parent && parent.istable && expression.includes("is_submittable")) {
-					out = true;
-				}
 			} catch (e) {
 				frappe.throw(__('Invalid "depends_on" expression'));
 			}
@@ -800,8 +816,13 @@ export default class GridRow {
 
 	show_search_row() {
 		// show or remove search columns based on grid rows
+		let show_length =
+			this.grid?.meta?.rows_threshold_for_grid_search > 0
+				? this.grid.meta.rows_threshold_for_grid_search
+				: this.default_rows_threshold_for_grid_search;
 		this.show_search =
-			this.show_search && (this.grid?.data?.length >= 20 || this.grid.filter_applied);
+			this.show_search &&
+			(this.grid?.data?.length >= show_length || this.grid.filter_applied);
 		!this.show_search && this.wrapper.remove();
 		return this.show_search;
 	}
@@ -925,7 +946,7 @@ export default class GridRow {
 			}
 		}
 
-		// Delay date_picker widget to prevent temparary layout shift (UX).
+		// Delay date_picker widget to prevent temporary layout shift (UX).
 		function handle_date_picker() {
 			let date_time_picker = document.querySelectorAll(".datepicker.active")[0];
 
@@ -935,6 +956,14 @@ export default class GridRow {
 			setTimeout(() => {
 				date_time_picker.classList.add("active");
 			}, 600);
+		}
+
+		function trigger_focus(input_field, col_df) {
+			if (["Date", "Datetime", "Time"].includes(col_df.fieldtype) && col_df?.read_only) {
+				return;
+			}
+
+			input_field.trigger("focus");
 		}
 
 		var $col = $(
@@ -1013,7 +1042,7 @@ export default class GridRow {
 						}
 					});
 
-				!input_in_focus && first_input_field.trigger("focus");
+				!input_in_focus && trigger_focus(first_input_field, $(col).data("df"));
 
 				if (event.pointerType == "touch") {
 					first_input_field.length && on_input_focus(first_input_field);
@@ -1040,7 +1069,17 @@ export default class GridRow {
 
 		this.columns[df.fieldname] = $col;
 		this.columns_list.push($col);
-
+		if (ci == 0 && this.header_row) {
+			$col.attr("tabIndex", 0);
+			$col.on("focus", function () {
+				if (me.grid.grid_rows.length == 0) {
+					me.grid.add_new_row();
+				}
+				me.grid.grid_rows[me.grid.grid_rows.length - 1].toggle_editable_row(true);
+				me.grid.set_focus_on_row(0);
+				$col.attr("tabIndex", "");
+			});
+		}
 		return $col;
 	}
 
@@ -1084,7 +1123,7 @@ export default class GridRow {
 
 					let txt = this.doc
 						? frappe.format(this.doc[df.fieldname], df, null, this.doc)
-						: __(df.label);
+						: __(df.label, null, df.parent);
 
 					this.refresh_field(df.fieldname, txt);
 				}
@@ -1105,7 +1144,6 @@ export default class GridRow {
 		var me = this,
 			parent = column.field_area,
 			df = column.df;
-
 		var field = frappe.ui.form.make_control({
 			df: df,
 			parent: parent,
@@ -1121,13 +1159,13 @@ export default class GridRow {
 		});
 		// sync get_query
 		field.get_query = this.grid.get_field(df.fieldname).get_query;
-
 		// df.onchange is common for all rows in grid
 		let field_onchange_function = df.onchange;
 		let field_change_function = df.change;
 
 		if (!field.df.change) {
 			field.df.change = (e) => {
+				this.refresh_dependency();
 				// trigger onchange with current grid row field as "this"
 				if (field_onchange_function) {
 					field_onchange_function.apply(field, [e]);
@@ -1148,6 +1186,8 @@ export default class GridRow {
 			// flag list input
 			if (this.columns_list && this.columns_list.slice(-1)[0] === column) {
 				field.$input.attr("data-last-input", 1);
+			} else if (this.columns_list && this.columns_list.slice(0)[0] === column) {
+				field.$input.attr("data-first-input", 1);
 			}
 		}
 
@@ -1156,14 +1196,13 @@ export default class GridRow {
 		this.on_grid_fields_dict[df.fieldname] = field;
 		this.on_grid_fields.push(field);
 	}
-
 	set_arrow_keys(field) {
 		var me = this;
 		let ignore_fieldtypes = ["Text", "Small Text", "Code", "Text Editor", "HTML Editor"];
 		if (field.$input) {
 			field.$input.on("keydown", function (e) {
 				var { TAB, UP: UP_ARROW, DOWN: DOWN_ARROW } = frappe.ui.keyCode;
-				if (!in_list([TAB, UP_ARROW, DOWN_ARROW], e.which)) {
+				if (![TAB, UP_ARROW, DOWN_ARROW].includes(e.which)) {
 					return;
 				}
 
@@ -1172,7 +1211,7 @@ export default class GridRow {
 				var fieldtype = $(this).attr("data-fieldtype");
 
 				let ctrl_key = e.metaKey || e.ctrlKey;
-				if (!in_list(ignore_fieldtypes, fieldtype) && ctrl_key && e.which !== TAB) {
+				if (!ignore_fieldtypes.includes(fieldtype) && ctrl_key && e.which !== TAB) {
 					me.add_new_row_using_keys(e);
 					return;
 				}
@@ -1183,7 +1222,7 @@ export default class GridRow {
 				}
 
 				var move_up_down = function (base) {
-					if (in_list(ignore_fieldtypes, fieldtype) && !e.altKey) {
+					if (ignore_fieldtypes.includes(fieldtype) && !e.altKey) {
 						return false;
 					}
 					if (field.autocomplete_open) {
@@ -1200,7 +1239,7 @@ export default class GridRow {
 
 				// TAB
 				if (e.which === TAB && !e.shiftKey) {
-					var last_column = me.wrapper.find(":input:enabled:last").get(0);
+					var last_column = me.wrapper.find("input:enabled:last").get(0);
 					var is_last_column = $(this).attr("data-last-input") || last_column === this;
 
 					if (is_last_column) {
@@ -1233,6 +1272,18 @@ export default class GridRow {
 						if (move_up_down(next)) {
 							return false;
 						}
+					}
+				} else if (e.which === TAB && e.shiftKey) {
+					var first_column = me.wrapper
+						.find("input:enabled:not([type='checkbox'])")
+						.first()
+						.get(0);
+					var is_first_column =
+						$(this).attr("data-first-input") || first_column === this;
+					if (is_first_column) {
+						let ri = me.grid.get_current_row(e.target);
+						if (ri == 0) return;
+						me.grid.grid_rows[ri - 1].toggle_editable_row(true);
 					}
 				}
 			});
@@ -1317,7 +1368,6 @@ export default class GridRow {
 			this.hide_form();
 		}
 		callback && callback();
-
 		return this;
 	}
 	show_form() {
@@ -1330,6 +1380,7 @@ export default class GridRow {
 				row: this,
 			});
 		}
+		this.grid_form.wrapper.css("display", "block");
 		this.grid_form.render();
 		this.row.toggle(false);
 		// this.form_panel.toggle(true);
@@ -1374,7 +1425,14 @@ export default class GridRow {
 		}
 		this.refresh();
 		if (cur_frm) cur_frm.cur_grid = null;
+		if (this.grid_form) {
+			this.grid_form.wrapper.css("display", "none");
+		}
 		this.wrapper.removeClass("grid-row-open");
+
+		if (this.grid.meta?.editable_grid) {
+			this.open_form_button?.parent().focus();
+		}
 	}
 	open_prev() {
 		if (!this.doc) return;
@@ -1441,7 +1499,9 @@ export default class GridRow {
 		let field = this.on_grid_fields_dict[fieldname];
 		// reset field value
 		if (field) {
-			field.docname = this.doc.name;
+			// the below if statement is added to factor in the exception when this.doc is undefined -
+			// - after row removals via customize_form.js on links, actions and states child-tables
+			if (this.doc) field.docname = this.doc.name;
 			field.refresh();
 		}
 
@@ -1468,8 +1528,8 @@ export default class GridRow {
 				!df.hidden &&
 				df.in_list_view &&
 				me.grid.frm.get_perm(df.permlevel, "read") &&
-				!in_list(frappe.model.layout_fields, df.fieldtype) &&
-				!in_list(blacklist, df.fieldname);
+				!frappe.model.layout_fields.includes(df.fieldtype) &&
+				!blacklist.includes(df.fieldname);
 
 			return visible ? df : null;
 		});

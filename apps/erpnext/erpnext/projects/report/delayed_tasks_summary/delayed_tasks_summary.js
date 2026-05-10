@@ -1,9 +1,14 @@
 // Copyright (c) 2016, Frappe Technologies Pvt. Ltd. and contributors
 // For license information, please see license.txt
-/* eslint-disable */
 
 frappe.query_reports["Delayed Tasks Summary"] = {
 	filters: [
+		{
+			fieldname: "project",
+			label: __("Project"),
+			fieldtype: "Link",
+			options: "Project",
+		},
 		{
 			fieldname: "from_date",
 			label: __("From Date"),

@@ -25,7 +25,7 @@ def cache_source(function):
 		if int(kwargs.get("refresh") or 0):
 			results = generate_and_cache_results(kwargs, function, cache_key, chart)
 		else:
-			cached_results = frappe.cache().get_value(cache_key)
+			cached_results = frappe.cache.get_value(cache_key)
 			if cached_results:
 				results = frappe.parse_json(frappe.safe_decode(cached_results))
 			else:
@@ -72,7 +72,6 @@ def generate_and_cache_results(args, function, cache_key, chart):
 
 
 def get_dashboards_with_link(docname, doctype):
-	dashboards = []
 	links = []
 
 	if doctype == "Dashboard Chart":
@@ -80,8 +79,7 @@ def get_dashboards_with_link(docname, doctype):
 	elif doctype == "Number Card":
 		links = frappe.get_all("Number Card Link", fields=["parent"], filters={"card": docname})
 
-	dashboards = [link.parent for link in links]
-	return dashboards
+	return [link.parent for link in links]
 
 
 def sync_dashboards(app=None):

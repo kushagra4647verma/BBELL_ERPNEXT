@@ -5,7 +5,7 @@ export default class GridPagination {
 	}
 
 	setup_pagination() {
-		this.page_length = 50;
+		this.page_length = this.grid.meta?.grid_page_length || 50;
 		this.page_index = 1;
 		this.total_pages = Math.ceil(this.grid.data.length / this.page_length);
 
@@ -150,8 +150,7 @@ export default class GridPagination {
 		} else {
 			this.page_index = index;
 		}
-		let $rows = $(this.grid.parent).find(".rows").empty();
-		this.grid.render_result_rows($rows, true);
+		this.grid.render_result_rows();
 		if (this.$page_number) {
 			this.$page_number.val(index);
 			this.$page_number.css("width", (index.toString().length + 1) * 8 + "px");

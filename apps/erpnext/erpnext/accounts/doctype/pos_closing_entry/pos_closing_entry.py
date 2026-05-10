@@ -14,6 +14,43 @@ from erpnext.controllers.status_updater import StatusUpdater
 
 
 class POSClosingEntry(StatusUpdater):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.accounts.doctype.pos_closing_entry_detail.pos_closing_entry_detail import (
+			POSClosingEntryDetail,
+		)
+		from erpnext.accounts.doctype.pos_closing_entry_taxes.pos_closing_entry_taxes import (
+			POSClosingEntryTaxes,
+		)
+		from erpnext.accounts.doctype.pos_invoice_reference.pos_invoice_reference import (
+			POSInvoiceReference,
+		)
+
+		amended_from: DF.Link | None
+		company: DF.Link
+		error_message: DF.SmallText | None
+		grand_total: DF.Currency
+		net_total: DF.Currency
+		payment_reconciliation: DF.Table[POSClosingEntryDetail]
+		period_end_date: DF.Datetime
+		period_start_date: DF.Datetime
+		pos_opening_entry: DF.Link
+		pos_profile: DF.Link
+		pos_transactions: DF.Table[POSInvoiceReference]
+		posting_date: DF.Date
+		posting_time: DF.Time
+		status: DF.Literal["Draft", "Submitted", "Queued", "Failed", "Cancelled"]
+		taxes: DF.Table[POSClosingEntryTaxes]
+		total_quantity: DF.Float
+		user: DF.Link
+	# end: auto-generated types
+
 	def validate(self):
 		self.posting_date = self.posting_date or frappe.utils.nowdate()
 		self.posting_time = self.posting_time or frappe.utils.nowtime()
@@ -50,19 +87,15 @@ class POSClosingEntry(StatusUpdater):
 				as_dict=1,
 			)[0]
 			if pos_invoice.consolidated_invoice:
-				invalid_row.setdefault("msg", []).append(
-					_("POS Invoice is {}").format(frappe.bold("already consolidated"))
-				)
+				invalid_row.setdefault("msg", []).append(_("POS Invoice is already consolidated"))
 				invalid_rows.append(invalid_row)
 				continue
 			if pos_invoice.pos_profile != self.pos_profile:
 				invalid_row.setdefault("msg", []).append(
-					_("POS Profile doesn't matches {}").format(frappe.bold(self.pos_profile))
+					_("POS Profile doesn't match {}").format(frappe.bold(self.pos_profile))
 				)
 			if pos_invoice.docstatus != 1:
-				invalid_row.setdefault("msg", []).append(
-					_("POS Invoice is not {}").format(frappe.bold("submitted"))
-				)
+				invalid_row.setdefault("msg", []).append(_("POS Invoice is not submitted"))
 			if pos_invoice.owner != self.user:
 				invalid_row.setdefault("msg", []).append(
 					_("POS Invoice isn't created by user {}").format(frappe.bold(self.owner))
@@ -91,6 +124,11 @@ class POSClosingEntry(StatusUpdater):
 
 	def on_submit(self):
 		consolidate_pos_invoices(closing_entry=self)
+		frappe.publish_realtime(
+			f"poe_{self.pos_opening_entry}_closed",
+			self,
+			docname=f"POS Opening Entry/{self.pos_opening_entry}",
+		)
 
 	def on_cancel(self):
 		unconsolidate_pos_invoices(closing_entry=self)
@@ -123,6 +161,8 @@ def get_pos_invoices(start, end, pos_profile, user):
 		`tabPOS Invoice`
 	where
 		owner = %s and docstatus = 1 and pos_profile = %s and ifnull(consolidated_invoice,'') = ''
+	order by
+		timestamp
 	""",
 		(user, pos_profile),
 		as_dict=1,

@@ -2,6 +2,7 @@
 // don't remove this line (used in test)
 
 window.disable_signup = {{ disable_signup and "true" or "false" }};
+window.show_footer_on_login = {{ show_footer_on_login and "true" or "false" }};
 
 window.login = {};
 
@@ -19,13 +20,12 @@ login.bind_events = function () {
 		args.cmd = "login";
 		args.usr = frappe.utils.xss_sanitise(($("#login_email").val() || "").trim());
 		args.pwd = $("#login_password").val();
-		args.device = "desktop";
 		if (!args.usr || !args.pwd) {
 			{# striptags is used to remove newlines, e is used for escaping #}
 			frappe.msgprint("{{ _('Both login and password required') | striptags | e }}");
 			return false;
 		}
-		login.call(args);
+		login.call(args, null, "/login");
 		return false;
 	});
 
@@ -93,7 +93,6 @@ login.bind_events = function () {
 		args.cmd = "{{ ldap_settings.method }}";
 		args.usr = ($("#login_email").val() || "").trim();
 		args.pwd = $("#login_password").val();
-		args.device = "desktop";
 		if (!args.usr || !args.pwd) {
 			login.set_status({{ _("Both login and password required") | tojson }}, 'red');
 			return false;
@@ -169,11 +168,12 @@ login.signup = function () {
 
 
 // Login
-login.call = function (args, callback) {
+login.call = function (args, callback, url="/") {
 	login.set_status({{ _("Verifying...") | tojson }}, 'blue');
 
 	return frappe.call({
 		type: "POST",
+		url: url,
 		args: args,
 		callback: callback,
 		freeze: true,
@@ -216,12 +216,10 @@ login.login_handlers = (function () {
 				}) || []).join('<br>') || default_message;
 			}
 
-			if (message === default_message) {
-				login.set_invalid(message);
-			} else {
+			login.set_invalid(default_message);
+			if (message !== default_message) {
 				login.reset_sections(false);
 			}
-
 		};
 	}
 
@@ -252,17 +250,9 @@ login.login_handlers = (function () {
 					window.location.href = data.home_page;
 				}
 			} else if (window.location.hash === '#forgot') {
-				if (data.message === 'not found') {
-					login.set_status({{ _("Not a valid user") | tojson }}, 'red');
-				} else if (data.message == 'not allowed') {
-					login.set_status({{ _("Not Allowed") | tojson }}, 'red');
-				} else if (data.message == 'disabled') {
-					login.set_status({{ _("Not Allowed: Disabled User") | tojson }}, 'red');
-				} else {
-					login.set_status({{ _("Instructions Emailed") | tojson }}, 'green');
-				}
-
-
+				// Always show the same message regardless of whether the account
+				// exists or not, to prevent username enumeration (CWE-204).
+				login.set_status({{ _("Instructions Emailed") | tojson }}, 'green');
 			} else if (window.location.hash === '#signup') {
 				if (cint(data.message[0]) == 0) {
 					login.set_status(data.message[1], 'red');
@@ -290,8 +280,8 @@ login.login_handlers = (function () {
 		},
 		401: get_error_handler({{ _("Invalid Login. Try again.") | tojson }}),
 		417: get_error_handler({{ _("Oops! Something went wrong.") | tojson }}),
-		404: get_error_handler({{ _("User does not exist.") | tojson }}),
-		500: get_error_handler({{ _("Something went wrong.") | tojson }})
+		429: get_error_handler({{ _("Too many requests. Please try again later.") | tojson }}),
+		500: get_error_handler({{ _("Something went wrong.") | tojson }}),
 	};
 
 	return login_handlers;
@@ -305,6 +295,10 @@ frappe.ready(function () {
 		window.location.hash = "#login";
 	} else {
 		$(window).trigger("hashchange");
+	}
+
+	if (window.show_footer_on_login) {
+		$("body .web-footer").show();
 	}
 
 	$(".form-signup, .form-forgot, .form-login-with-email-link").removeClass("hide");
@@ -389,3 +383,5 @@ var continue_email = function (setup, prompt) {
 		$('#otp_div').prepend(email_div);
 	}
 }
+
+login.route();

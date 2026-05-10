@@ -2,23 +2,160 @@
 # License: GNU General Public License v3. See license.txt
 
 
+import json
+
 import frappe
 from frappe import _
 from frappe.contacts.doctype.address.address import get_company_address
+from frappe.contacts.doctype.contact.contact import get_default_contact
 from frappe.desk.notifications import clear_doctype_notifications
 from frappe.model.mapper import get_mapped_doc
 from frappe.model.utils import get_fetch_values
+from frappe.query_builder import DocType
+from frappe.query_builder.functions import Abs, Sum
 from frappe.utils import cint, flt
 
+from erpnext.accounts.party import get_due_date
 from erpnext.controllers.accounts_controller import get_taxes_and_charges, merge_taxes
 from erpnext.controllers.selling_controller import SellingController
-from erpnext.stock.doctype.batch.batch import set_batch_nos
-from erpnext.stock.doctype.serial_no.serial_no import get_delivery_note_serial_no
+from erpnext.stock.stock_ledger import validate_reserved_stock
 
 form_grid_templates = {"items": "templates/form_grid/item_grid.html"}
 
 
 class DeliveryNote(SellingController):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.accounts.doctype.pricing_rule_detail.pricing_rule_detail import PricingRuleDetail
+		from erpnext.accounts.doctype.sales_taxes_and_charges.sales_taxes_and_charges import (
+			SalesTaxesandCharges,
+		)
+		from erpnext.selling.doctype.sales_team.sales_team import SalesTeam
+		from erpnext.stock.doctype.delivery_note_item.delivery_note_item import DeliveryNoteItem
+		from erpnext.stock.doctype.packed_item.packed_item import PackedItem
+
+		additional_discount_percentage: DF.Float
+		address_display: DF.SmallText | None
+		amended_from: DF.Link | None
+		amount_eligible_for_commission: DF.Currency
+		apply_discount_on: DF.Literal["", "Grand Total", "Net Total"]
+		auto_repeat: DF.Link | None
+		base_discount_amount: DF.Currency
+		base_grand_total: DF.Currency
+		base_in_words: DF.Data | None
+		base_net_total: DF.Currency
+		base_rounded_total: DF.Currency
+		base_rounding_adjustment: DF.Currency
+		base_total: DF.Currency
+		base_total_taxes_and_charges: DF.Currency
+		campaign: DF.Link | None
+		commission_rate: DF.Float
+		company: DF.Link
+		company_address: DF.Link | None
+		company_address_display: DF.SmallText | None
+		company_contact_person: DF.Link | None
+		contact_display: DF.SmallText | None
+		contact_email: DF.Data | None
+		contact_mobile: DF.SmallText | None
+		contact_person: DF.Link | None
+		conversion_rate: DF.Float
+		cost_center: DF.Link | None
+		currency: DF.Link
+		customer: DF.Link
+		customer_address: DF.Link | None
+		customer_group: DF.Link | None
+		customer_name: DF.Data | None
+		disable_rounded_total: DF.Check
+		discount_amount: DF.Currency
+		dispatch_address: DF.SmallText | None
+		dispatch_address_name: DF.Link | None
+		driver: DF.Link | None
+		driver_name: DF.Data | None
+		excise_page: DF.Data | None
+		grand_total: DF.Currency
+		group_same_items: DF.Check
+		ignore_pricing_rule: DF.Check
+		in_words: DF.Data | None
+		incoterm: DF.Link | None
+		installation_status: DF.Literal[None]
+		instructions: DF.Text | None
+		inter_company_reference: DF.Link | None
+		is_internal_customer: DF.Check
+		is_return: DF.Check
+		issue_credit_note: DF.Check
+		items: DF.Table[DeliveryNoteItem]
+		language: DF.Data | None
+		letter_head: DF.Link | None
+		lr_date: DF.Date | None
+		lr_no: DF.Data | None
+		named_place: DF.Data | None
+		naming_series: DF.Literal["MAT-DN-.YYYY.-", "MAT-DN-RET-.YYYY.-"]
+		net_total: DF.Currency
+		other_charges_calculation: DF.TextEditor | None
+		packed_items: DF.Table[PackedItem]
+		per_billed: DF.Percent
+		per_installed: DF.Percent
+		per_returned: DF.Percent
+		plc_conversion_rate: DF.Float
+		po_date: DF.Date | None
+		po_no: DF.SmallText | None
+		posting_date: DF.Date
+		posting_time: DF.Time
+		price_list_currency: DF.Link
+		pricing_rules: DF.Table[PricingRuleDetail]
+		print_without_amount: DF.Check
+		project: DF.Link | None
+		represents_company: DF.Link | None
+		return_against: DF.Link | None
+		rounded_total: DF.Currency
+		rounding_adjustment: DF.Currency
+		sales_partner: DF.Link | None
+		sales_team: DF.Table[SalesTeam]
+		scan_barcode: DF.Data | None
+		select_print_heading: DF.Link | None
+		selling_price_list: DF.Link
+		set_posting_time: DF.Check
+		set_target_warehouse: DF.Link | None
+		set_warehouse: DF.Link | None
+		shipping_address: DF.SmallText | None
+		shipping_address_name: DF.Link | None
+		shipping_rule: DF.Link | None
+		source: DF.Link | None
+		status: DF.Literal[
+			"",
+			"Draft",
+			"To Bill",
+			"Partially Billed",
+			"Completed",
+			"Return",
+			"Return Issued",
+			"Cancelled",
+			"Closed",
+		]
+		tax_category: DF.Link | None
+		tax_id: DF.Data | None
+		taxes: DF.Table[SalesTaxesandCharges]
+		taxes_and_charges: DF.Link | None
+		tc_name: DF.Link | None
+		terms: DF.TextEditor | None
+		territory: DF.Link | None
+		title: DF.Data | None
+		total: DF.Currency
+		total_commission: DF.Currency
+		total_net_weight: DF.Float
+		total_qty: DF.Float
+		total_taxes_and_charges: DF.Currency
+		transporter: DF.Link | None
+		transporter_name: DF.Data | None
+		vehicle_no: DF.Data | None
+	# end: auto-generated types
+
 	def __init__(self, *args, **kwargs):
 		super().__init__(*args, **kwargs)
 		self.status_updater = [
@@ -52,6 +189,19 @@ class DeliveryNote(SellingController):
 				"percent_join_field": "against_sales_invoice",
 				"overflow_type": "delivery",
 				"no_allowance": 1,
+			},
+			{
+				"source_dt": "Delivery Note Item",
+				"target_dt": "Pick List Item",
+				"join_field": "pick_list_item",
+				"target_field": "delivered_qty",
+				"target_parent_dt": "Pick List",
+				"target_parent_field": "per_delivered",
+				"target_ref_field": "picked_qty",
+				"source_field": "stock_qty",
+				"percent_join_field": "against_pick_list",
+				"status_field": "delivery_status",
+				"keyword": "Delivered",
 			},
 		]
 		if cint(self.is_return):
@@ -87,6 +237,8 @@ class DeliveryNote(SellingController):
 			)
 
 	def onload(self):
+		super().onload()
+
 		if self.docstatus == 0:
 			self.set_onload("has_unpacked_items", self.has_unpacked_items())
 
@@ -139,23 +291,17 @@ class DeliveryNote(SellingController):
 		self.validate_uom_is_integer("stock_uom", "stock_qty")
 		self.validate_uom_is_integer("uom", "qty")
 		self.validate_with_previous_doc()
-
-		if self.get("_action") == "submit":
-			self.validate_duplicate_serial_nos()
+		self.set_serial_and_batch_bundle_from_pick_list()
 
 		from erpnext.stock.doctype.packed_item.packed_item import make_packing_list
 
-		self.set_product_bundle_reference_in_packed_items()  # should be called before `make_packing_list`
 		make_packing_list(self)
-
-		if self._action != "submit" and not self.is_return:
-			set_batch_nos(self, "warehouse", throw=True)
-			set_batch_nos(self, "warehouse", throw=True, child_table="packed_items")
-
 		self.update_current_stock()
 
 		if not self.installation_status:
 			self.installation_status = "Not Installed"
+
+		self.validate_against_stock_reservation_entries()
 		self.reset_default_field_value("set_warehouse", "items", "warehouse")
 
 	def validate_with_previous_doc(self):
@@ -206,6 +352,37 @@ class DeliveryNote(SellingController):
 				]
 			)
 
+	def set_serial_and_batch_bundle_from_pick_list(self):
+		from erpnext.stock.serial_batch_bundle import SerialBatchCreation
+
+		for item in self.items:
+			if item.use_serial_batch_fields or not item.against_pick_list:
+				continue
+
+			if item.pick_list_item and not item.serial_and_batch_bundle:
+				filters = {
+					"item_code": item.item_code,
+					"voucher_type": "Pick List",
+					"voucher_no": item.against_pick_list,
+					"voucher_detail_no": item.pick_list_item,
+				}
+
+				bundle_id = frappe.db.get_value("Serial and Batch Bundle", filters, "name")
+
+				if bundle_id:
+					cls_obj = SerialBatchCreation(
+						{
+							"type_of_transaction": "Outward",
+							"serial_and_batch_bundle": bundle_id,
+							"item_code": item.get("item_code"),
+							"warehouse": item.get("warehouse"),
+						}
+					)
+
+					cls_obj.duplicate_package()
+
+					item.serial_and_batch_bundle = cls_obj.serial_and_batch_bundle
+
 	def validate_references(self):
 		self.validate_sales_order_references()
 		self.validate_sales_invoice_references()
@@ -216,6 +393,9 @@ class DeliveryNote(SellingController):
 		)
 
 	def validate_sales_invoice_references(self):
+		if self.is_return:
+			return
+
 		self._validate_dependent_item_fields(
 			"against_sales_invoice", "si_detail", _("References to Sales Invoices are Incomplete")
 		)
@@ -295,6 +475,21 @@ class DeliveryNote(SellingController):
 			self.check_credit_limit()
 		elif self.issue_credit_note:
 			self.make_return_invoice()
+
+		for table_name in ["items", "packed_items"]:
+			if not self.get(table_name):
+				continue
+
+			self.make_bundle_for_sales_purchase_return(table_name)
+			self.make_bundle_using_old_serial_batch_fields(table_name)
+
+		self.validate_standalone_serial_nos_customer()
+
+		if not self.is_return:
+			self.validate_reserved_stock()
+
+		self.update_stock_reservation_entries()
+
 		# Updating stock ledger should always be called after updating prevdoc status,
 		# because updating reserved qty in bin depends upon updated delivered qty in SO
 		self.update_stock_ledger()
@@ -310,18 +505,133 @@ class DeliveryNote(SellingController):
 		self.update_prevdoc_status()
 		self.update_billing_status()
 
+		self.update_stock_reservation_entries()
+
 		# Updating stock ledger should always be called after updating prevdoc status,
 		# because updating reserved qty in bin depends upon updated delivered qty in SO
 		self.update_stock_ledger()
 
 		self.cancel_packing_slips()
+		self.update_pick_list_status()
 
 		self.make_gl_entries_on_cancel()
 		self.repost_future_sle_and_gle()
-		self.ignore_linked_doctypes = ("GL Entry", "Stock Ledger Entry", "Repost Item Valuation")
+		self.ignore_linked_doctypes = (
+			"GL Entry",
+			"Stock Ledger Entry",
+			"Repost Item Valuation",
+			"Serial and Batch Bundle",
+		)
+
+		self.delete_auto_created_batches()
+
+	def validate_reserved_stock(self):
+		from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+			get_sre_against_so_for_dn,
+		)
+
+		if not frappe.db.get_single_value("Stock Settings", "enable_stock_reservation"):
+			return
+
+		# fetch reserved stock data from bin
+		reserved_stocks = self.get_reserved_stock_details()
+
+		for row in self.items:
+			if flt(reserved_stocks.get((row.item_code, row.warehouse))) > 0:
+				args = frappe._dict(
+					{
+						"item_code": row.item_code,
+						"warehouse": row.warehouse,
+						"batch_nos": [row.batch_no] if row.batch_no else [],
+						"serial_nos": row.serial_no.split("\n") if row.serial_no else [],
+						"serial_and_batch_bundle": row.serial_and_batch_bundle,
+						"voucher_type": self.doctype,
+						"voucher_no": self.name,
+						"voucher_detail_no": row.name,
+						"actual_qty": row.qty * -1,
+						"posting_date": self.posting_date,
+						"posting_time": self.posting_time,
+					}
+				)
+
+				if row.against_sales_order and row.so_detail:
+					args.ignore_voucher_nos = get_sre_against_so_for_dn(
+						row.against_sales_order, row.so_detail
+					)
+
+				validate_reserved_stock(args)
+
+	def get_reserved_stock_details(self):
+		"""
+		Create dict from bin based on item and warehouse:
+		{(item_code, warehouse): reserved_stock}
+
+		Use: to quickly retrieve/check reserved stock value instead of looping n times
+		"""
+		item_codes = set()
+		warehouses = set()
+
+		for row in self.items:
+			item_codes.add(row.item_code)
+			warehouses.add(row.warehouse)
+
+		bins = frappe.db.get_all(
+			"Bin",
+			{"item_code": ["in", item_codes], "warehouse": ["in", warehouses]},
+			["item_code", "warehouse", "reserved_stock"],
+		)
+
+		reserved_stock_lookup = {(b.item_code, b.warehouse): flt(b.reserved_stock) for b in bins}
+
+		return reserved_stock_lookup
+
+	def validate_against_stock_reservation_entries(self):
+		"""Validates if Stock Reservation Entries are available for the Sales Order Item reference."""
+
+		from erpnext.stock.doctype.stock_reservation_entry.stock_reservation_entry import (
+			get_sre_reserved_warehouses_for_voucher,
+		)
+
+		# Don't validate if Return
+		if self.is_return:
+			return
+
+		for item in self.get("items"):
+			# Skip if `Sales Order` or `Sales Order Item` reference is not set.
+			if not item.against_sales_order or not item.so_detail:
+				continue
+
+			reserved_warehouses = get_sre_reserved_warehouses_for_voucher(
+				"Sales Order", item.against_sales_order, item.so_detail
+			)
+
+			# Skip if stock is not reserved.
+			if not reserved_warehouses:
+				continue
+
+			# Set `Warehouse` from SRE if not set.
+			if not item.warehouse:
+				item.warehouse = reserved_warehouses[0]
+			else:
+				# Throw if `Warehouse` not in Reserved Warehouses.
+				if item.warehouse not in reserved_warehouses:
+					msg = _("Row #{0}: Stock is reserved for item {1} in warehouse {2}.").format(
+						item.idx,
+						frappe.bold(item.item_code),
+						frappe.bold(reserved_warehouses[0])
+						if len(reserved_warehouses) == 1
+						else _("{0} and {1}").format(
+							frappe.bold(", ".join(reserved_warehouses[:-1])),
+							frappe.bold(reserved_warehouses[-1]),
+						),
+					)
+					frappe.throw(msg, title=_("Stock Reservation Warehouse Mismatch"))
 
 	def check_credit_limit(self):
 		from erpnext.selling.doctype.customer.customer import check_credit_limit
+
+		if self.per_billed == 100:
+			return
 
 		extra_amount = 0
 		validate_against_credit_limit = False
@@ -370,7 +680,9 @@ class DeliveryNote(SellingController):
 	def update_pick_list_status(self):
 		from erpnext.stock.doctype.pick_list.pick_list import update_pick_list_status
 
-		update_pick_list_status(self.pick_list)
+		pick_lists = {row.against_pick_list for row in self.items if row.against_pick_list}
+		for pick_list in pick_lists:
+			update_pick_list_status(pick_list)
 
 	def check_next_docstatus(self):
 		submit_rv = frappe.db.sql(
@@ -459,32 +771,6 @@ class DeliveryNote(SellingController):
 			filters={"new_item_code": ["in", items_list], "disabled": 0},
 			pluck="name",
 		)
-
-	def validate_duplicate_serial_nos(self):
-		serial_nos = []
-		for item in self.items:
-			if not item.serial_no:
-				continue
-
-			for serial_no in item.serial_no.split("\n"):
-				if serial_no in serial_nos:
-					frappe.throw(
-						_("Row #{0}: Serial No {1} is already selected.").format(item.idx, serial_no),
-						title=_("Duplicate Serial No"),
-					)
-				else:
-					serial_nos.append(serial_no)
-
-	def set_product_bundle_reference_in_packed_items(self):
-		if self.packed_items and ((self.is_return and self.return_against) or self.amended_from):
-			if items_ref_map := {
-				item.dn_detail or item.get("_amended_from"): item.name
-				for item in self.items
-				if item.dn_detail or item.get("_amended_from")
-			}:
-				for item in self.packed_items:
-					if item.parent_detail_docname in items_ref_map:
-						item.parent_detail_docname = items_ref_map[item.parent_detail_docname]
 
 
 def update_billed_amount_based_on_so(so_detail, update_modified=True):
@@ -585,33 +871,39 @@ def get_list_context(context=None):
 
 def get_invoiced_qty_map(delivery_note):
 	"""returns a map: {dn_detail: invoiced_qty}"""
-	invoiced_qty_map = {}
+	sii = DocType("Sales Invoice Item")
 
-	for dn_detail, qty in frappe.db.sql(
-		"""select dn_detail, qty from `tabSales Invoice Item`
-		where delivery_note=%s and docstatus=1""",
-		delivery_note,
-	):
-		if not invoiced_qty_map.get(dn_detail):
-			invoiced_qty_map[dn_detail] = 0
-		invoiced_qty_map[dn_detail] += qty
+	invoiced_qty_map = frappe._dict(
+		(
+			frappe.qb.from_(sii)
+			.select(sii.dn_detail, Sum(sii.qty).as_("qty"))
+			.where((sii.delivery_note == delivery_note) & (sii.docstatus == 1))
+			.groupby(sii.dn_detail)
+		).run()
+	)
 
 	return invoiced_qty_map
 
 
 def get_returned_qty_map(delivery_note):
 	"""returns a map: {so_detail: returned_qty}"""
+	dn = DocType("Delivery Note")
+	dni = DocType("Delivery Note Item")
+
 	returned_qty_map = frappe._dict(
-		frappe.db.sql(
-			"""select dn_item.dn_detail, abs(dn_item.qty) as qty
-		from `tabDelivery Note Item` dn_item, `tabDelivery Note` dn
-		where dn.name = dn_item.parent
-			and dn.docstatus = 1
-			and dn.is_return = 1
-			and dn.return_against = %s
-	""",
-			delivery_note,
-		)
+		(
+			frappe.qb.from_(dni)
+			.join(dn)
+			.on(dn.name == dni.parent)
+			.select(dni.dn_detail, Sum(Abs(dni.qty)).as_("qty"))
+			.where(
+				(dn.docstatus == 1)
+				& (dn.is_return == 1)
+				& (dn.return_against == delivery_note)
+				& (dni.qty <= 0)
+			)
+			.groupby(dni.dn_detail)
+		).run()
 	)
 
 	return returned_qty_map
@@ -619,6 +911,11 @@ def get_returned_qty_map(delivery_note):
 
 @frappe.whitelist()
 def make_sales_invoice(source_name, target_doc=None, args=None):
+	if args is None:
+		args = {}
+	if isinstance(args, str):
+		args = json.loads(args)
+
 	doc = frappe.get_doc("Delivery Note", source_name)
 
 	to_make_invoice_qty_map = {}
@@ -650,11 +947,6 @@ def make_sales_invoice(source_name, target_doc=None, args=None):
 	def update_item(source_doc, target_doc, source_parent):
 		target_doc.qty = to_make_invoice_qty_map[source_doc.name]
 
-		if source_doc.serial_no and source_parent.per_billed > 0 and not source_parent.is_return:
-			target_doc.serial_no = get_delivery_note_serial_no(
-				source_doc.item_code, target_doc.qty, source_parent.name
-			)
-
 	def get_pending_qty(item_row):
 		pending_qty = item_row.qty - invoiced_qty_map.get(item_row.name, 0)
 
@@ -675,6 +967,11 @@ def make_sales_invoice(source_name, target_doc=None, args=None):
 
 		return pending_qty
 
+	def select_item(d):
+		filtered_items = args.get("filtered_children", [])
+		child_filter = d.name in filtered_items if filtered_items else True
+		return child_filter
+
 	doc = get_mapped_doc(
 		"Delivery Note",
 		source_name,
@@ -691,17 +988,17 @@ def make_sales_invoice(source_name, target_doc=None, args=None):
 					"parent": "delivery_note",
 					"so_detail": "so_detail",
 					"against_sales_order": "sales_order",
-					"serial_no": "serial_no",
 					"cost_center": "cost_center",
 				},
 				"postprocess": update_item,
 				"filter": lambda d: get_pending_qty(d) <= 0
 				if not doc.get("is_return")
 				else get_pending_qty(d) > 0,
+				"condition": select_item,
 			},
 			"Sales Taxes and Charges": {
 				"doctype": "Sales Taxes and Charges",
-				"add_if_empty": True,
+				"reset_value": not (args and args.get("merge_taxes")),
 				"ignore": args.get("merge_taxes") if args else 0,
 			},
 			"Sales Team": {
@@ -717,8 +1014,25 @@ def make_sales_invoice(source_name, target_doc=None, args=None):
 	automatically_fetch_payment_terms = cint(
 		frappe.db.get_single_value("Accounts Settings", "automatically_fetch_payment_terms")
 	)
-	if automatically_fetch_payment_terms and not doc.is_return:
-		doc.set_payment_schedule()
+
+	if not doc.is_return:
+		so, doctype, fieldname = doc.get_order_details()
+		if (
+			doc.linked_order_has_payment_terms(so, fieldname, doctype)
+			and not automatically_fetch_payment_terms
+		):
+			payment_terms_template = frappe.db.get_value(doctype, so, "payment_terms_template")
+			doc.payment_terms_template = payment_terms_template
+			doc.due_date = get_due_date(
+				doc.posting_date,
+				"Customer",
+				doc.customer,
+				doc.company,
+				template_name=doc.payment_terms_template,
+			)
+
+		elif automatically_fetch_payment_terms:
+			doc.set_payment_schedule()
 
 	return doc
 
@@ -809,7 +1123,7 @@ def make_packing_slip(source_name, target_doc=None):
 					"batch_no": "batch_no",
 					"description": "description",
 					"qty": "qty",
-					"stock_uom": "stock_uom",
+					"uom": "stock_uom",
 					"name": "dn_detail",
 				},
 				"postprocess": update_item,
@@ -859,18 +1173,25 @@ def make_shipment(source_name, target_doc=None):
 		# As we are using session user details in the pickup_contact then pickup_contact_person will be session user
 		target.pickup_contact_person = frappe.session.user
 
-		contact = frappe.db.get_value(
-			"Contact", source.contact_person, ["email_id", "phone", "mobile_no"], as_dict=1
-		)
-		delivery_contact_display = f"{source.contact_display}"
-		if contact:
-			if contact.email_id:
-				delivery_contact_display += "<br>" + contact.email_id
-			if contact.phone:
-				delivery_contact_display += "<br>" + contact.phone
-			if contact.mobile_no and not contact.phone:
-				delivery_contact_display += "<br>" + contact.mobile_no
-		target.delivery_contact = delivery_contact_display
+		contact_person = source.contact_person or get_default_contact("Customer", source.customer)
+		if contact_person:
+			contact = frappe.db.get_value(
+				"Contact", contact_person, ["email_id", "phone", "mobile_no"], as_dict=1
+			)
+
+			delivery_contact_display = source.contact_display or contact_person or ""
+			if contact and not source.contact_display:
+				if contact.email_id:
+					delivery_contact_display += "<br>" + contact.email_id
+				if contact.phone:
+					delivery_contact_display += "<br>" + contact.phone
+				if contact.mobile_no and not contact.phone:
+					delivery_contact_display += "<br>" + contact.mobile_no
+
+			target.delivery_contact_name = contact_person
+			if contact and contact.email_id and not target.delivery_contact_email:
+				target.delivery_contact_email = contact.email_id
+			target.delivery_contact = delivery_contact_display
 
 		if source.shipping_address_name:
 			target.delivery_address_name = source.shipping_address_name
@@ -971,6 +1292,18 @@ def make_inter_company_transaction(doctype, source_name, target_doc=None):
 			frappe.throw(_("All items have already been received"))
 
 	def update_details(source_doc, target_doc, source_parent):
+		def _validate_address_link(address, link_doctype, link_name):
+			return frappe.db.get_value(
+				"Dynamic Link",
+				{
+					"parent": address,
+					"parenttype": "Address",
+					"link_doctype": link_doctype,
+					"link_name": link_name,
+				},
+				"parent",
+			)
+
 		target_doc.inter_company_invoice_reference = source_doc.name
 		if target_doc.doctype == "Purchase Receipt":
 			target_doc.company = details.get("company")
@@ -980,13 +1313,34 @@ def make_inter_company_transaction(doctype, source_name, target_doc=None):
 			target_doc.inter_company_reference = source_doc.name
 
 			# Invert the address on target doc creation
-			update_address(target_doc, "supplier_address", "address_display", source_doc.company_address)
-			update_address(
-				target_doc, "shipping_address", "shipping_address_display", source_doc.customer_address
-			)
-			update_address(
-				target_doc, "billing_address", "billing_address_display", source_doc.customer_address
-			)
+			if source_doc.company_address and _validate_address_link(
+				source_doc.company_address, "Supplier", details.get("party")
+			):
+				update_address(target_doc, "supplier_address", "address_display", source_doc.company_address)
+			if source_doc.dispatch_address_name and _validate_address_link(
+				source_doc.dispatch_address_name, "Company", details.get("company")
+			):
+				update_address(
+					target_doc,
+					"dispatch_address",
+					"dispatch_address_display",
+					source_doc.dispatch_address_name,
+				)
+			if source_doc.shipping_address_name and _validate_address_link(
+				source_doc.shipping_address_name, "Company", details.get("company")
+			):
+				update_address(
+					target_doc,
+					"shipping_address",
+					"shipping_address_display",
+					source_doc.shipping_address_name,
+				)
+			if source_doc.customer_address and _validate_address_link(
+				source_doc.customer_address, "Company", details.get("company")
+			):
+				update_address(
+					target_doc, "billing_address", "billing_address_display", source_doc.customer_address
+				)
 
 			update_taxes(
 				target_doc,
@@ -1006,13 +1360,22 @@ def make_inter_company_transaction(doctype, source_name, target_doc=None):
 			target_doc.inter_company_reference = source_doc.name
 
 			# Invert the address on target doc creation
-			update_address(
-				target_doc, "company_address", "company_address_display", source_doc.supplier_address
-			)
-			update_address(
-				target_doc, "shipping_address_name", "shipping_address", source_doc.shipping_address
-			)
-			update_address(target_doc, "customer_address", "address_display", source_doc.shipping_address)
+			if source_doc.supplier_address and _validate_address_link(
+				source_doc.supplier_address, "Company", details.get("company")
+			):
+				update_address(
+					target_doc, "company_address", "company_address_display", source_doc.supplier_address
+				)
+			if source_doc.shipping_address and _validate_address_link(
+				source_doc.shipping_address, "Customer", details.get("party")
+			):
+				update_address(
+					target_doc, "shipping_address_name", "shipping_address", source_doc.shipping_address
+				)
+			if source_doc.shipping_address and _validate_address_link(
+				source_doc.shipping_address, "Customer", details.get("party")
+			):
+				update_address(target_doc, "customer_address", "address_display", source_doc.shipping_address)
 
 			update_taxes(
 				target_doc,
@@ -1029,6 +1392,12 @@ def make_inter_company_transaction(doctype, source_name, target_doc=None):
 		if source_parent.doctype == "Delivery Note" and source.received_qty:
 			target.qty = flt(source.qty) + flt(source.returned_qty) - flt(source.received_qty)
 
+		if source.get("use_serial_batch_fields"):
+			target.set("use_serial_batch_fields", 1)
+
+		if (source.get("serial_no") or source.get("batch_no")) and not source.get("serial_and_batch_bundle"):
+			target.set("use_serial_batch_fields", 1)
+
 	doclist = get_mapped_doc(
 		doctype,
 		source_name,
@@ -1037,14 +1406,13 @@ def make_inter_company_transaction(doctype, source_name, target_doc=None):
 				"doctype": target_doctype,
 				"postprocess": update_details,
 				"field_no_map": ["taxes_and_charges", "set_warehouse"],
+				"field_map": {"shipping_address_name": "shipping_address"},
 			},
 			doctype + " Item": {
 				"doctype": target_doctype + " Item",
 				"field_map": {
 					source_document_warehouse_field: target_document_warehouse_field,
 					"name": "delivery_note_item",
-					"batch_no": "batch_no",
-					"serial_no": "serial_no",
 					"purchase_order": "purchase_order",
 					"purchase_order_item": "purchase_order_item",
 					"material_request": "material_request",

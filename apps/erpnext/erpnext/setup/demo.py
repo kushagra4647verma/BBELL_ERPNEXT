@@ -75,7 +75,7 @@ def create_demo_company():
 	frappe.db.set_single_value("Global Defaults", "demo_company", new_company.name)
 	frappe.db.set_default("company", new_company.name)
 
-	bank_account = create_bank_account({"company_name": new_company.name})
+	bank_account = create_bank_account({"company_name": new_company.name}, demo=True)
 	frappe.db.set_value("Company", new_company.name, "default_bank_account", bank_account.name)
 
 	return new_company.name
@@ -205,8 +205,11 @@ def clear_demo_record(document):
 		if key not in valid_columns:
 			filters.pop(key, None)
 
-	doc = frappe.get_doc(document_type, filters)
-	doc.delete(ignore_permissions=True)
+	try:
+		doc = frappe.get_doc(document_type, filters)
+		doc.delete(ignore_permissions=True)
+	except frappe.exceptions.DoesNotExistError:
+		pass
 
 
 def delete_company(company):

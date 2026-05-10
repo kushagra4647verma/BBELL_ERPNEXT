@@ -31,7 +31,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 0.0,
         "taxable_value": -300000.0,
         "total_amount": -300000.0,
-        "total_tax_amount": 0.0,
+        "total_tax": 0.0,
         "invoice_category": "Credit/Debit Notes (Unregistered)",
         "invoice_sub_category": "Credit/Debit Notes (Unregistered)",
         "invoice_type": "EXPWOP",
@@ -50,7 +50,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 0.0,
         "taxable_value": -5000.0,
         "total_amount": -5000.0,
-        "total_tax_amount": 0.0,
+        "total_tax": 0.0,
         "invoice_category": "Credit/Debit Notes (Unregistered)",
         "invoice_sub_category": "Credit/Debit Notes (Unregistered)",
         "invoice_type": "EXPWOP",
@@ -69,7 +69,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 0.0,
         "taxable_value": 500000.0,
         "total_amount": 500000.0,
-        "total_tax_amount": 0.0,
+        "total_tax": 0.0,
         "invoice_category": "Exports",
         "invoice_sub_category": "Export With Payment of Tax",
         "invoice_type": "WPAY",
@@ -88,7 +88,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 0.0,
         "taxable_value": 45000.0,
         "total_amount": 45000.0,
-        "total_tax_amount": 0.0,
+        "total_tax": 0.0,
         "invoice_category": "Exports",
         "invoice_sub_category": "Export With Payment of Tax",
         "invoice_type": "WPAY",
@@ -107,7 +107,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 0.0,
         "taxable_value": 140000.0,
         "total_amount": 140000.0,
-        "total_tax_amount": 0.0,
+        "total_tax": 0.0,
         "invoice_category": "Exports",
         "invoice_sub_category": "Export Without Payment of Tax",
         "invoice_type": "WOPAY",
@@ -126,7 +126,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 0.0,
         "taxable_value": 5000.0,
         "total_amount": 5000.0,
-        "total_tax_amount": 0.0,
+        "total_tax": 0.0,
         "invoice_category": "Exports",
         "invoice_sub_category": "Export Without Payment of Tax",
         "invoice_type": "WOPAY",
@@ -145,7 +145,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 18.0,
         "taxable_value": -225000.0,
         "total_amount": -265500.0,
-        "total_tax_amount": -40500.0,
+        "total_tax": -40500.0,
         "invoice_category": "Credit/Debit Notes (Registered)",
         "invoice_type": "Regular B2B",
         "invoice_sub_category": "Credit/Debit Notes (Registered)",
@@ -164,7 +164,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 0.0,
         "taxable_value": -30000.0,
         "total_amount": -30000.0,
-        "total_tax_amount": 0.0,
+        "total_tax": 0.0,
         "invoice_category": "Nil-Rated, Exempted, Non-GST",
         "invoice_type": "Inter-State supplies to registered persons",
         "invoice_sub_category": "Nil-Rated, Exempted, Non-GST",
@@ -183,7 +183,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 18.0,
         "taxable_value": 400000.0,
         "total_amount": 472000.0,
-        "total_tax_amount": 72000.0,
+        "total_tax": 72000.0,
         "invoice_category": "B2B, SEZ, DE",
         "invoice_type": "Regular B2B",
         "invoice_sub_category": "B2B Regular",
@@ -202,7 +202,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 0.0,
         "taxable_value": 60000.0,
         "total_amount": 60000.0,
-        "total_tax_amount": 0.0,
+        "total_tax": 0.0,
         "invoice_category": "Nil-Rated, Exempted, Non-GST",
         "invoice_type": "Inter-State supplies to registered persons",
         "invoice_sub_category": "Nil-Rated, Exempted, Non-GST",
@@ -221,7 +221,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 18.0,
         "taxable_value": 90000.0,
         "total_amount": 106200.0,
-        "total_tax_amount": 16200.0,
+        "total_tax": 16200.0,
         "invoice_category": "B2C (Others)",
         "invoice_sub_category": "B2C (Others)",
     },
@@ -239,7 +239,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 0.0,
         "taxable_value": 5000.0,
         "total_amount": 5000.0,
-        "total_tax_amount": 0.0,
+        "total_tax": 0.0,
         "invoice_category": "Nil-Rated, Exempted, Non-GST",
         "invoice_type": "Intra-State supplies to unregistered persons",
         "invoice_sub_category": "Nil-Rated, Exempted, Non-GST",
@@ -258,7 +258,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 18.0,
         "taxable_value": 21000.0,
         "total_amount": 24780.0,
-        "total_tax_amount": 3780.0,
+        "total_tax": 3780.0,
         "invoice_category": "B2C (Others)",
         "invoice_sub_category": "B2C (Others)",
     },
@@ -276,7 +276,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 0.0,
         "taxable_value": 5000.0,
         "total_amount": 5000.0,
-        "total_tax_amount": 0.0,
+        "total_tax": 0.0,
         "invoice_category": "Nil-Rated, Exempted, Non-GST",
         "invoice_type": "Intra-State supplies to unregistered persons",
         "invoice_sub_category": "Nil-Rated, Exempted, Non-GST",
@@ -295,7 +295,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 18.0,
         "taxable_value": 10000.0,
         "total_amount": 11800.0,
-        "total_tax_amount": 1800.0,
+        "total_tax": 1800.0,
         "invoice_category": "B2C (Others)",
         "invoice_sub_category": "B2C (Others)",
     },
@@ -313,7 +313,7 @@ EXPECTED_SUMMARY_BY_HSN = [
         "gst_rate": 0.0,
         "taxable_value": 5000.0,
         "total_amount": 5000.0,
-        "total_tax_amount": 0.0,
+        "total_tax": 0.0,
         "invoice_category": "Nil-Rated, Exempted, Non-GST",
         "invoice_type": "Inter-State supplies to unregistered persons",
         "invoice_sub_category": "Nil-Rated, Exempted, Non-GST",
@@ -493,7 +493,7 @@ EXPECTED_OVERVIEW = [
         "total_cess_amount": 0.0,
     },
     {
-        "description": "Overlaping Invoices in Nil-Rated/Exempt/Non-GST",
+        "description": "Overlaping Invoices in Nil-Rated/Exempt/Non-GST and E-commerce Sales",
         "no_of_records": -5,
     },
 ]
@@ -579,11 +579,13 @@ INVOICES = [
                 "item_code": "_Test Nil Rated Item",
                 "rate": 500,
                 "qty": -60,
+                "allow_zero_valuation_rate": 1,
             },
             {
                 "item_code": "_Test Service Item",
                 "rate": 1500,
                 "qty": -150,
+                "allow_zero_valuation_rate": 1,
             },
         ],
     },
@@ -632,11 +634,13 @@ INVOICES = [
                 "item_code": "_Test Nil Rated Item",
                 "rate": 100,
                 "qty": -50,
+                "allow_zero_valuation_rate": 1,
             },
             {
                 "item_code": "_Test Service Item",
                 "rate": 2000,
                 "qty": -150,
+                "allow_zero_valuation_rate": 1,
             },
         ],
     },
@@ -645,12 +649,14 @@ INVOICES = [
 
 class TestSalesRegisterBeta(FrappeTestCase):
     @classmethod
-    @change_settings("GST Settings", {"enable_overseas_transactions": 1})
     def setUpClass(cls):
         super().setUpClass()
-        TestSalesRegisterBeta().create_sales_invoices()
 
-    def create_sales_invoices(self):
+        cls.create_test_records()
+
+    @classmethod
+    @change_settings("GST Settings", {"enable_overseas_transactions": 1, "enable_e_waybill": 0})
+    def create_test_records(cls):
         for invoice in INVOICES:
             create_sales_invoice(**invoice)
 

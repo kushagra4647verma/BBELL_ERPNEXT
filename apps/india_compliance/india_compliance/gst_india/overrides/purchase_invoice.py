@@ -1,26 +1,47 @@
 import frappe
 from frappe import _
+from frappe.model.meta import get_field_precision
 from frappe.utils import flt
 
+from india_compliance.gst_india.constants import (
+    GST_TAX_TYPES,
+    IMPORT_GST_CATEGORIES,
+    VALID_HSN_LENGTHS,
+)
 from india_compliance.gst_india.overrides.sales_invoice import (
     update_dashboard_with_gst_logs,
 )
-from india_compliance.gst_india.overrides.transaction import validate_transaction
-from india_compliance.gst_india.utils import get_gst_accounts_by_type, is_api_enabled
+from india_compliance.gst_india.overrides.transaction import (
+    _validate_hsn_codes,
+    ignore_gst_validations,
+    validate_transaction,
+)
+from india_compliance.gst_india.utils import (
+    has_gst_taxes,
+    is_api_enabled,
+    is_import_of_goods,
+    is_import_of_services,
+    validate_invoice_number,
+)
 from india_compliance.gst_india.utils.e_waybill import get_e_waybill_info
+from india_compliance.gst_india.utils.itc_claim import (
+    _is_gstr3b_filed,
+    set_or_validate_itc_claim_period,
+    validate_itc_claim_period_on_update_after_submit,
+)
 
 
 def onload(doc, method=None):
-    if doc.docstatus != 1:
-        return
-
-    if doc.gst_category == "Overseas":
+    if doc.docstatus == 1 and doc.is_boe_applicable:
         doc.set_onload(
-            "bill_of_entry_exists",
-            frappe.db.exists(
-                "Bill of Entry",
-                {"purchase_invoice": doc.name, "docstatus": 1},
-            ),
+            "has_pending_boe_qty",
+            any(item.pending_boe_qty > 0 for item in doc.items),
+        )
+
+    if doc.docstatus == 1 and doc.get("itc_claim_period"):
+        doc.set_onload(
+            "is_itc_period_filed",
+            _is_gstr3b_filed(doc.company_gstin, doc.itc_claim_period),
         )
 
     if not doc.get("ewaybill"):
@@ -33,25 +54,39 @@ def onload(doc, method=None):
 
     if (
         gst_settings.enable_e_waybill
-        and gst_settings.enable_e_waybill_from_pi
-        and doc.ewaybill
+        and (gst_settings.enable_e_waybill_from_pi or gst_settings.auto_cancel_e_waybill)
+        and (e_waybill_info := get_e_waybill_info(doc))
     ):
-        doc.set_onload("e_waybill_info", get_e_waybill_info(doc))
+        doc.set_onload("e_waybill_info", e_waybill_info)
 
 
 def validate(doc, method=None):
     if validate_transaction(doc) is False:
         return
 
+    if doc.is_reverse_charge and not doc.supplier_gstin:
+        validate_invoice_number(doc)
+
+    validate_hsn_codes(doc)
     set_ineligibility_reason(doc)
-    update_itc_totals(doc)
+    set_itc_classification(doc)
+    set_boe_applicability(doc)
+    validate_reverse_charge(doc)
     validate_supplier_invoice_number(doc)
     validate_with_inward_supply(doc)
+    set_or_validate_itc_claim_period(doc)
     set_reconciliation_status(doc)
+    set_pending_boe_qty(doc)
+
+
+def before_update_after_submit(doc, method=None):
+    if ignore_gst_validations(doc):
+        return
+
+    validate_itc_claim_period_on_update_after_submit(doc)
 
 
 def on_cancel(doc, method=None):
-
     frappe.db.set_value(
         "GST Inward Supply",
         {"link_doctype": "Purchase Invoice", "link_name": doc.name},
@@ -73,6 +108,30 @@ def set_reconciliation_status(doc):
     doc.reconciliation_status = reconciliation_status
 
 
+def set_pending_boe_qty(doc):
+    for item in doc.items:
+        item.pending_boe_qty = item.qty if doc.is_boe_applicable else 0
+
+
+def set_boe_applicability(doc):
+    boe_applicability = 0
+
+    if doc.itc_classification == "Import Of Goods" and not has_gst_taxes(doc):
+        boe_applicability = 1
+
+    if doc.is_boe_applicable == boe_applicability:
+        return
+
+    doc.is_boe_applicable = boe_applicability
+    frappe.msgprint(
+        _("Bill of Entry can {0} for this invoice.").format(
+            _("be generated") if boe_applicability else _("not be generated")
+        ),
+        alert=True,
+        indicator="blue",
+    )
+
+
 def is_b2b_invoice(doc):
     return not (
         doc.supplier_gstin in ["", None]
@@ -83,43 +142,25 @@ def is_b2b_invoice(doc):
     )
 
 
-def update_itc_totals(doc, method=None):
-    # Set default value
-    if not doc.itc_classification:
+def set_itc_classification(doc):
+    # If the document contains single goods item then it will be categorized as Import of Goods,
+    if is_import_of_goods(doc):
+        doc.itc_classification = "Import Of Goods"
+    elif is_import_of_services(doc):
+        doc.itc_classification = "Import Of Service"
+    elif doc.is_reverse_charge:
+        doc.itc_classification = "ITC on Reverse Charge"
+    elif doc.gst_category == "Input Service Distributor" and doc.is_internal_transfer():
+        doc.itc_classification = "Input Service Distributor"
+    else:
         doc.itc_classification = "All Other ITC"
-
-    # Initialize values
-    doc.itc_integrated_tax = 0
-    doc.itc_state_tax = 0
-    doc.itc_central_tax = 0
-    doc.itc_cess_amount = 0
-
-    if doc.ineligibility_reason == "ITC restricted due to PoS rules":
-        return
-
-    gst_accounts = get_gst_accounts_by_type(doc.company, "Input")
-
-    for tax in doc.get("taxes"):
-        if tax.account_head == gst_accounts.igst_account:
-            doc.itc_integrated_tax += flt(tax.base_tax_amount_after_discount_amount)
-
-        if tax.account_head == gst_accounts.sgst_account:
-            doc.itc_state_tax += flt(tax.base_tax_amount_after_discount_amount)
-
-        if tax.account_head == gst_accounts.cgst_account:
-            doc.itc_central_tax += flt(tax.base_tax_amount_after_discount_amount)
-
-        if tax.account_head == gst_accounts.cess_account:
-            doc.itc_cess_amount += flt(tax.base_tax_amount_after_discount_amount)
 
 
 def validate_supplier_invoice_number(doc):
     if (
         doc.bill_no
         or doc.gst_category == "Unregistered"
-        or not frappe.get_cached_value(
-            "GST Settings", "GST Settings", "require_supplier_invoice_no"
-        )
+        or not frappe.get_cached_value("GST Settings", "GST Settings", "require_supplier_invoice_no")
     ):
         return
 
@@ -131,9 +172,7 @@ def validate_supplier_invoice_number(doc):
 
 def get_dashboard_data(data):
     transactions = data.setdefault("transactions", [])
-    reference_section = next(
-        (row for row in transactions if row.get("label") == "Reference"), None
-    )
+    reference_section = next((row for row in transactions if row.get("label") == "Reference"), None)
 
     if reference_section is None:
         reference_section = {"label": "Reference", "items": []}
@@ -145,6 +184,7 @@ def get_dashboard_data(data):
         "Purchase Invoice",
         data,
         "e-Waybill Log",
+        "e-Invoice Log",
         "Integration Request",
         "GST Inward Supply",
     )
@@ -157,7 +197,13 @@ def validate_with_inward_supply(doc):
         return
 
     mismatch_fields = {}
-    for field in [
+
+    taxable_value_precision = get_field_precision(
+        frappe.get_meta("GST Inward Supply").get_field("taxable_value")
+    )
+    tax_precision = get_field_precision(frappe.get_meta("GST Inward Supply").get_field("igst"))
+
+    for field in (
         "company",
         "company_gstin",
         "supplier_gstin",
@@ -165,40 +211,37 @@ def validate_with_inward_supply(doc):
         "bill_date",
         "is_reverse_charge",
         "place_of_supply",
-    ]:
+    ):
         if doc.get(field) != doc._inward_supply.get(field):
             mismatch_fields[field] = doc._inward_supply.get(field)
 
     # mismatch for taxable_value
-    taxable_value = sum([item.taxable_value for item in doc.items])
+    taxable_value = flt(sum(item.taxable_value for item in doc.items), taxable_value_precision)
     if taxable_value != doc._inward_supply.get("taxable_value"):
         mismatch_fields["Taxable Value"] = doc._inward_supply.get("taxable_value")
 
     # mismatch for taxes
-    gst_accounts = get_gst_accounts_by_type(doc.company, "Input")
-    for tax in ["cgst", "sgst", "igst", "cess"]:
-        tax_amount = get_tax_amount(doc.taxes, gst_accounts[tax + "_account"])
+    for tax in GST_TAX_TYPES[:-1]:
+        tax_amount = get_tax_amount(doc.taxes, tax)
         if tax == "cess":
-            tax_amount += get_tax_amount(doc.taxes, gst_accounts.cess_non_advol_account)
+            tax_amount += get_tax_amount(doc.taxes, "cess_non_advol")
 
-        if tax_amount == doc._inward_supply.get(tax):
+        if flt(tax_amount, tax_precision) == doc._inward_supply.get(tax):
             continue
 
         mismatch_fields[tax.upper()] = doc._inward_supply.get(tax)
 
     if mismatch_fields:
         message = (
-            "Purchase Invoice does not match with releted GST Inward Supply.<br>"
+            "Purchase Invoice does not match with related GST Inward Supply.<br>"
             "Following values are not matching from 2A/2B: <br>"
         )
         for field, value in mismatch_fields.items():
             message += f"<br>{field}: {value}"
-
         frappe.msgprint(
             _(message),
             title=_("Mismatch with GST Inward Supply"),
         )
-
     elif doc._action == "submit":
         frappe.msgprint(
             _("Invoice matched with GST Inward Supply"),
@@ -207,17 +250,11 @@ def validate_with_inward_supply(doc):
         )
 
 
-def get_tax_amount(taxes, account_head):
-    if not (taxes or account_head):
+def get_tax_amount(taxes, gst_tax_type):
+    if not (taxes or gst_tax_type):
         return 0
 
-    return sum(
-        [
-            tax.base_tax_amount_after_discount_amount
-            for tax in taxes
-            if tax.account_head == account_head
-        ]
-    )
+    return sum(tax.base_tax_amount_after_discount_amount for tax in taxes if tax.gst_tax_type == gst_tax_type)
 
 
 def set_ineligibility_reason(doc, show_alert=True):
@@ -240,3 +277,23 @@ def set_ineligibility_reason(doc, show_alert=True):
             alert=True,
             indicator="orange",
         )
+
+
+def validate_reverse_charge(doc):
+    if doc.itc_classification != "Import Of Goods" or not doc.is_reverse_charge:
+        return
+
+    frappe.throw(_("Reverse Charge is not applicable on Import of Goods"))
+
+
+def validate_hsn_codes(doc):
+    # To determine whether BOE is applicable or not.
+    if doc.gst_category not in IMPORT_GST_CATEGORIES:
+        return
+
+    _validate_hsn_codes(
+        doc,
+        valid_hsn_length=VALID_HSN_LENGTHS,
+        throw=True,
+        message=_("GST HSN Code is mandatory for {0} Purchase Invoice.<br>").format(doc.gst_category),
+    )

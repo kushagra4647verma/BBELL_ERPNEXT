@@ -1,15 +1,6 @@
 # Just for reference
-# SUPPLY_TYPES = {"Inward": "I", "Outward": "O"}
-#
-# DOCUMENT_TYPES = {
-#     "Tax Invoice": "INV",
-#     "Bill of Supply": "BIL",
-#     "Bill of Entry": "BOE",
-#     "Delivery Challan": "CHL",
-#     "Others": "OTH",
-# }
-#
 # DATETIME_FORMAT = "%d/%m/%Y %I:%M:%S %p"
+
 selling_address = {
     "bill_from": "company_address",
     "bill_to": "customer_address",
@@ -20,8 +11,15 @@ selling_address = {
 buying_address = {
     "bill_from": "supplier_address",
     "bill_to": "billing_address",
-    "ship_from": "supplier_address",
+    "ship_from": "dispatch_address",
     "ship_to": "shipping_address",
+}
+
+stock_entry_address = {
+    "bill_from": "bill_from_address",
+    "bill_to": "bill_to_address",
+    "ship_from": "ship_from_address",
+    "ship_to": "ship_to_address",
 }
 
 ADDRESS_FIELDS = {
@@ -29,8 +27,21 @@ ADDRESS_FIELDS = {
     "Purchase Invoice": buying_address,
     "Delivery Note": selling_address,
     "Purchase Receipt": buying_address,
+    "Stock Entry": stock_entry_address,
+    "Subcontracting Receipt": buying_address,
+}
+
+ADDRESS_GSTIN_FIELD_MAP = {
+    "customer_address": "billing_address_gstin",
+    "company_address": "company_gstin",
+    "supplier_address": "supplier_gstin",
+    "billing_address": "company_gstin",
+    "bill_from_address": "bill_from_gstin",
+    "bill_to_address": "bill_to_gstin",
 }
 PERMITTED_DOCTYPES = list(ADDRESS_FIELDS.keys())
+
+BUYING_DOCTYPES = {doctype for doctype, address in ADDRESS_FIELDS.items() if address is buying_address}
 
 CANCEL_REASON_CODES = {
     "Duplicate": "1",
@@ -52,6 +63,14 @@ EXTEND_VALIDITY_REASON_CODES = {
     "Transshipment": 4,
     "Accident": 5,
     "Others": 99,
+}
+
+DOCUMENT_TYPES = {
+    "Tax Invoice": "INV",
+    "Bill of Supply": "BIL",
+    "Bill of Entry": "BOE",
+    "Delivery Challan": "CHL",
+    "Others": "OTH",
 }
 
 SUPPLY_TYPES = {

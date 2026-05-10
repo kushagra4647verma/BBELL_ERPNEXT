@@ -32,7 +32,7 @@ Cypress.Commands.add("login", (email, password) => {
 		email = Cypress.config("testUser") || "Administrator";
 	}
 	if (!password) {
-		password = Cypress.env("adminPassword") || "admin";
+		password = Cypress.env("adminPassword");
 	}
 	// cy.session clears all localStorage on new login, so we need to retain the last route
 	const session_last_route = window.localStorage.getItem("session_last_route");
@@ -261,6 +261,10 @@ Cypress.Commands.add("new_form", (doctype) => {
 	cy.get("body").should("have.attr", "data-ajax-state", "complete");
 });
 
+Cypress.Commands.add("select_form_tab", (label) => {
+	cy.get(".form-tabs-list [data-toggle='tab']").contains(label).click().wait(500);
+});
+
 Cypress.Commands.add("go_to_list", (doctype) => {
 	let dt_in_route = doctype.toLowerCase().replace(/ /g, "-");
 	cy.visit(`/app/${dt_in_route}`);
@@ -391,7 +395,9 @@ Cypress.Commands.add("update_doc", (doctype, docname, args) => {
 
 Cypress.Commands.add("switch_to_user", (user) => {
 	cy.call("logout");
+	cy.wait(200);
 	cy.login(user);
+	cy.reload();
 });
 
 Cypress.Commands.add("add_role", (user, role) => {
@@ -449,27 +455,8 @@ Cypress.Commands.add("click_menu_button", (name) => {
 });
 
 Cypress.Commands.add("clear_filters", () => {
-	let has_filter = false;
-	cy.intercept({
-		method: "POST",
-		url: "api/method/frappe.model.utils.user_settings.save",
-	}).as("filter-saved");
-	cy.get(".filter-section .filter-button").click({ force: true });
-	cy.wait(100);
-	cy.get(".filter-popover").should("exist");
-	cy.get(".filter-popover").then((popover) => {
-		if (popover.find("input.input-with-feedback")[0].value != "") {
-			has_filter = true;
-		}
-	});
-	cy.get(".filter-popover").find(".clear-filters").click();
-	cy.get(".filter-section .filter-button").click();
-	cy.window()
-		.its("cur_list")
-		.then((cur_list) => {
-			cur_list && cur_list.filter_area && cur_list.filter_area.clear();
-			has_filter && cy.wait("@filter-saved");
-		});
+	cy.get(".filter-x-button").click({ force: true });
+	cy.wait(500);
 });
 
 Cypress.Commands.add("click_modal_primary_button", (btn_name) => {

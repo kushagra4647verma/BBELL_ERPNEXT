@@ -66,29 +66,54 @@ def install(country=None):
 			"parent_item_group": _("All Item Groups"),
 		},
 		# Stock Entry Type
-		{"doctype": "Stock Entry Type", "name": "Material Issue", "purpose": "Material Issue"},
-		{"doctype": "Stock Entry Type", "name": "Material Receipt", "purpose": "Material Receipt"},
+		{
+			"doctype": "Stock Entry Type",
+			"name": "Material Issue",
+			"purpose": "Material Issue",
+			"is_standard": 1,
+		},
+		{
+			"doctype": "Stock Entry Type",
+			"name": "Material Receipt",
+			"purpose": "Material Receipt",
+			"is_standard": 1,
+		},
 		{
 			"doctype": "Stock Entry Type",
 			"name": "Material Transfer",
 			"purpose": "Material Transfer",
+			"is_standard": 1,
 		},
-		{"doctype": "Stock Entry Type", "name": "Manufacture", "purpose": "Manufacture"},
-		{"doctype": "Stock Entry Type", "name": "Repack", "purpose": "Repack"},
+		{
+			"doctype": "Stock Entry Type",
+			"name": "Manufacture",
+			"purpose": "Manufacture",
+			"is_standard": 1,
+		},
+		{
+			"doctype": "Stock Entry Type",
+			"name": "Repack",
+			"purpose": "Repack",
+			"is_standard": 1,
+		},
+		{"doctype": "Stock Entry Type", "name": "Disassemble", "purpose": "Disassemble", "is_standard": 1},
 		{
 			"doctype": "Stock Entry Type",
 			"name": "Send to Subcontractor",
 			"purpose": "Send to Subcontractor",
+			"is_standard": 1,
 		},
 		{
 			"doctype": "Stock Entry Type",
 			"name": "Material Transfer for Manufacture",
 			"purpose": "Material Transfer for Manufacture",
+			"is_standard": 1,
 		},
 		{
 			"doctype": "Stock Entry Type",
 			"name": "Material Consumption for Manufacture",
 			"purpose": "Material Consumption for Manufacture",
+			"is_standard": 1,
 		},
 		# territory: with two default territories, one for home country and one named Rest of the World
 		{
@@ -450,20 +475,24 @@ def install_defaults(args=None):  # nosemgrep
 
 	set_global_defaults(args)
 	update_stock_settings()
-	update_shopping_cart_settings(args)
 
 	args.update({"set_default": 1})
 	create_bank_account(args)
 
 
-def set_global_defaults(args):
+def set_global_defaults(kwargs):
 	global_defaults = frappe.get_doc("Global Defaults", "Global Defaults")
+	company = frappe.db.get_value(
+		"Company",
+		{"company_name": kwargs.get("company_name")},
+		"name",
+	)
 
 	global_defaults.update(
 		{
-			"default_currency": args.get("currency"),
-			"default_company": args.get("company_name"),
-			"country": args.get("country"),
+			"default_currency": kwargs.get("currency"),
+			"default_company": company,
+			"country": kwargs.get("country"),
 		}
 	)
 
@@ -479,14 +508,16 @@ def update_stock_settings():
 	stock_settings.auto_indent = 1
 	stock_settings.auto_insert_price_list_rate_if_missing = 1
 	stock_settings.update_price_list_based_on = "Rate"
-	stock_settings.automatically_set_serial_nos_based_on_fifo = 1
 	stock_settings.set_qty_in_transactions_based_on_serial_no_input = 1
+	stock_settings.flags.ignore_permissions = True
 	stock_settings.save()
 
 
-def create_bank_account(args):
+def create_bank_account(args, demo=False):
 	if not args.get("bank_account"):
-		return
+		if not demo:
+			return
+		args["bank_account"] = _("Demo Bank Account")
 
 	company_name = args.get("company_name")
 	bank_account_group = frappe.db.get_value(
@@ -523,20 +554,6 @@ def create_bank_account(args):
 		except frappe.DuplicateEntryError:
 			# bank account same as a CoA entry
 			pass
-
-
-def update_shopping_cart_settings(args):  # nosemgrep
-	shopping_cart = frappe.get_doc("E Commerce Settings")
-	shopping_cart.update(
-		{
-			"enabled": 1,
-			"company": args.company_name,
-			"price_list": frappe.db.get_value("Price List", {"selling": 1}),
-			"default_customer_group": _("Individual"),
-			"quotation_series": "QTN-",
-		}
-	)
-	shopping_cart.update_single(shopping_cart.get_valid_dict())
 
 
 def get_fy_details(fy_start_date, fy_end_date):

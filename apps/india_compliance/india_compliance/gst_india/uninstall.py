@@ -1,17 +1,21 @@
 import frappe
 
 from india_compliance.gst_india.setup import (
+    EDUCATION_CUSTOM_FIELDS,
+    HEALTHCARE_CUSTOM_FIELDS,
     HRMS_CUSTOM_FIELDS,
     ITEM_VARIANT_FIELDNAMES,
     get_all_custom_fields,
     get_property_setters,
 )
-from india_compliance.gst_india.utils.custom_fields import delete_custom_fields
+from india_compliance.utils.custom_fields import delete_custom_fields
 
 
 def before_uninstall():
     delete_custom_fields(get_all_custom_fields())
     delete_hrms_custom_fields()
+    delete_education_custom_fields()
+    delete_healthcare_custom_fields()
     delete_property_setters()
     delete_accounting_dimension_fields()
     remove_fields_from_item_variant_settings()
@@ -19,6 +23,14 @@ def before_uninstall():
 
 def delete_hrms_custom_fields():
     delete_custom_fields(HRMS_CUSTOM_FIELDS)
+
+
+def delete_education_custom_fields():
+    delete_custom_fields(EDUCATION_CUSTOM_FIELDS)
+
+
+def delete_healthcare_custom_fields():
+    delete_custom_fields(HEALTHCARE_CUSTOM_FIELDS)
 
 
 def delete_property_setters():
@@ -49,7 +61,5 @@ def delete_accounting_dimension_fields():
 
 def remove_fields_from_item_variant_settings():
     settings = frappe.get_doc("Item Variant Settings")
-    settings.fields = [
-        row for row in settings.fields if row.field_name not in ITEM_VARIANT_FIELDNAMES
-    ]
+    settings.fields = [row for row in settings.fields if row.field_name not in ITEM_VARIANT_FIELDNAMES]
     settings.save()

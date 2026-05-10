@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
+from frappe.utils import get_site_url
 
 
 class TestClient(FrappeTestCase):
@@ -134,14 +135,15 @@ class TestClient(FrappeTestCase):
 			"accept": "application/json",
 			"content-type": "application/json",
 		}
-		url = f"http://{frappe.local.site}:{frappe.conf.webserver_port}/api/method/frappe.client.get_list"
+		url = get_site_url(frappe.local.site)
+		url += "/api/method/frappe.client.get_list"
+
 		res = requests.post(url, json=params, headers=headers)
 		self.assertEqual(res.status_code, 200)
 		data = res.json()
 		first_item = data["message"][0]
 		self.assertTrue("name" in first_item)
 		self.assertTrue("modified" in first_item)
-		frappe.local.login_manager.logout()
 
 	def test_client_get(self):
 		from frappe.client import get
@@ -155,6 +157,25 @@ class TestClient(FrappeTestCase):
 		self.assertEqual(get("System Settings", "", "").doctype, "System Settings")
 		self.assertEqual(get("ToDo", filters={}), get("ToDo", filters="{}"))
 		todo.delete()
+
+	def test_client_validatate_link(self):
+		from frappe.client import validate_link
+
+		# Basic test
+		self.assertTrue(validate_link("User", "Guest"))
+
+		# fixes capitalization
+		if frappe.db.db_type == "mariadb":
+			self.assertEqual(validate_link("User", "GueSt"), {"name": "Guest"})
+
+		# Fetch
+		self.assertEqual(validate_link("User", "Guest", fields=["enabled"]), {"name": "Guest", "enabled": 1})
+
+		# Permissions
+		with self.set_user("Guest"), self.assertRaises(frappe.PermissionError):
+			self.assertEqual(
+				validate_link("User", "Guest", fields=["enabled"]), {"name": "Guest", "enabled": 1}
+			)
 
 	def test_client_insert(self):
 		from frappe.client import insert
@@ -235,8 +256,8 @@ class TestClient(FrappeTestCase):
 		docs = insert_many(doc_list)
 
 		self.assertEqual(len(docs), 7)
-		self.assertEqual(docs[3], "not-a-random-title")
-		self.assertEqual(docs[6], "another-note-title")
+		self.assertEqual(frappe.db.get_value("Note", docs[3], "title"), "not-a-random-title")
+		self.assertEqual(frappe.db.get_value("Note", docs[6], "title"), "another-note-title")
 		self.assertIn(note1.name, docs)
 
 		# cleanup

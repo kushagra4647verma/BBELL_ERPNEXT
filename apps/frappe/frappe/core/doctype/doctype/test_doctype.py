@@ -1,7 +1,9 @@
 # Copyright (c) 2015, Frappe Technologies Pvt. Ltd. and Contributors
 # License: MIT. See LICENSE
+import os
 import random
 import string
+import unittest
 from unittest.mock import patch
 
 import frappe
@@ -17,9 +19,13 @@ from frappe.core.doctype.doctype.doctype import (
 	WrongOptionsDoctypeLinkError,
 	validate_links_table_fieldnames,
 )
+from frappe.core.doctype.rq_job.test_rq_job import wait_for_completion
 from frappe.custom.doctype.custom_field.custom_field import create_custom_fields
 from frappe.desk.form.load import getdoc
+from frappe.model.delete_doc import delete_controllers
+from frappe.model.sync import remove_orphan_doctypes
 from frappe.tests.utils import FrappeTestCase
+from frappe.utils import get_table_name
 
 
 class TestDocType(FrappeTestCase):
@@ -173,6 +179,9 @@ class TestDocType(FrappeTestCase):
 				if condition:
 					self.assertFalse(re.match(pattern, condition))
 
+	@unittest.skipUnless(
+		os.access(frappe.get_app_path("frappe"), os.W_OK), "Only run if frappe app paths is writable"
+	)
 	def test_sync_field_order(self):
 		import os
 
@@ -557,20 +566,10 @@ class TestDocType(FrappeTestCase):
 				"options": "Test Virtual DocType as Child Table",
 			},
 		)
+		self.assertRaises(frappe.exceptions.ValidationError, parent_doc.insert)
+		parent_doc.is_virtual = 1
 		parent_doc.insert(ignore_permissions=True)
-
-		# create entry for parent doctype
-		parent_doc_entry = frappe.get_doc(
-			{"doctype": "Test Parent Virtual DocType", "some_fieldname": "Test"}
-		)
-		parent_doc_entry.insert(ignore_permissions=True)
-
-		# update the parent doc (should not abort because of any DB query to a virtual child table, as there is none)
-		parent_doc_entry.some_fieldname = "Test update"
-		parent_doc_entry.save(ignore_permissions=True)
-
-		# delete the parent doc (should not abort because of any DB query to a virtual child table, as there is none)
-		parent_doc_entry.delete()
+		self.assertFalse(frappe.db.table_exists("Test Parent Virtual DocType"))
 
 	def test_default_fieldname(self):
 		fields = [
@@ -640,6 +639,53 @@ class TestDocType(FrappeTestCase):
 
 		self.assertEqual(test_json.test_json_field["hello"], "world")
 
+	def test_no_delete_doc(self):
+		self.assertRaises(frappe.ValidationError, frappe.delete_doc, "DocType", "Address")
+
+	@unittest.skipUnless(
+		os.access(frappe.get_app_path("frappe"), os.W_OK), "Only run if frappe app paths is writable"
+	)
+	@patch.dict(frappe.conf, {"developer_mode": 1})
+	def test_export_types(self):
+		"""Export python types."""
+		import ast
+
+		from frappe.types.exporter import TypeExporter
+
+		def validate(code):
+			ast.parse(code)
+
+		doctype = new_doctype(custom=0).insert()
+
+		exporter = TypeExporter(doctype)
+		code = exporter.controller_path.read_text()
+		validate(code)
+
+		# regenerate and verify and file is same word to word.
+		exporter.export_types()
+		new_code = exporter.controller_path.read_text()
+		validate(new_code)
+
+		self.assertEqual(code, new_code)
+
+		# Add fields and save
+
+		fieldname = "test_type"
+		doctype.append("fields", {"fieldname": fieldname, "fieldtype": "Int"})
+		doctype.save()
+
+		new_field_code = exporter.controller_path.read_text()
+		validate(new_field_code)
+
+		self.assertIn(fieldname, new_field_code)
+		self.assertIn("Int", new_field_code)
+
+		doctype.delete()
+		frappe.db.commit()
+
+	@unittest.skipUnless(
+		os.access(frappe.get_app_path("frappe"), os.W_OK), "Only run if frappe app paths is writable"
+	)
 	@patch.dict(frappe.conf, {"developer_mode": 1})
 	def test_custom_field_deletion(self):
 		"""Custom child tables whose doctype doesn't exist should be auto deleted."""
@@ -652,6 +698,9 @@ class TestDocType(FrappeTestCase):
 		frappe.delete_doc("DocType", child)
 		self.assertFalse(frappe.get_meta(doctype).get_field(field))
 
+	@unittest.skipUnless(
+		os.access(frappe.get_app_path("frappe"), os.W_OK), "Only run if frappe app paths is writable"
+	)
 	@patch.dict(frappe.conf, {"developer_mode": 1})
 	def test_delete_doctype_with_customization(self):
 		from frappe.custom.doctype.property_setter.property_setter import make_property_setter
@@ -689,6 +738,21 @@ class TestDocType(FrappeTestCase):
 		self.assertEqual(frappe.get_meta(doctype).get_field(field).default, "DELETETHIS")
 		frappe.delete_doc("DocType", doctype)
 
+	@unittest.skipUnless(
+		os.access(frappe.get_app_path("frappe"), os.W_OK), "Only run if frappe app paths is writable"
+	)
+	@patch.dict(frappe.conf, {"developer_mode": 1})
+	def test_delete_orphaned_doctypes(self):
+		doctype = new_doctype(custom=0).insert()
+		frappe.db.commit()
+
+		delete_controllers(doctype.name, doctype.module)
+		job = frappe.enqueue(remove_orphan_doctypes)
+		wait_for_completion(job)
+
+		frappe.db.rollback()
+		self.assertFalse(frappe.db.exists("DocType", doctype.name))
+
 	def test_not_in_list_view_for_not_allowed_mandatory_field(self):
 		doctype = new_doctype(
 			fields=[
@@ -723,6 +787,30 @@ class TestDocType(FrappeTestCase):
 			],
 		)
 		self.assertRaises(frappe.ValidationError, recursive_dt.insert)
+
+	def test_row_compression(self):
+		if frappe.db.db_type != "mariadb":
+			return
+
+		compressed_dt = new_doctype(row_format="Compressed").insert().name
+		dynamic_dt = new_doctype().insert().name
+
+		information_schema = frappe.qb.Schema("information_schema")
+
+		def get_format(dt):
+			return (
+				frappe.qb.from_(information_schema.tables)
+				.select("row_format")
+				.where(
+					(information_schema.tables.table_schema == frappe.conf.db_name)
+					& (information_schema.tables.table_name == get_table_name(dt))
+				)
+				.run()[0][0]
+				.upper()
+			)
+
+		self.assertEqual(get_format(compressed_dt), "COMPRESSED")
+		self.assertEqual(get_format(dynamic_dt), "DYNAMIC")
 
 	def test_decimal_field_configuration(self):
 		doctype = new_doctype(

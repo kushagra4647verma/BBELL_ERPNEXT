@@ -25,10 +25,10 @@ frappe.ui.form.on("System Health Report", {
 			frm.set_value("socketio_ping_check", "Pass");
 			frm.set_value(
 				"socketio_transport_mode",
-				frappe.socketio.socket.io?.engine?.transport?.name
+				frappe.realtime.socket.io?.engine?.transport?.name
 			);
 		});
-		frappe.socketio.socket.emit("ping");
+		frappe.realtime.emit("ping");
 		frm.disable_save();
 		frm.trigger("setup_highlight");
 	},
@@ -67,8 +67,8 @@ frappe.ui.form.on("System Health Report", {
 		const style = document.createElement("style");
 		style.innerText = `.health-check-failed {
 				font-weight: bold;
-				color: var(--text-colour);
-				background-color: var(--bg-red);
+				color: var(--text-colour) !important;
+				background-color: var(--bg-red) !important;
 			}`;
 		document.head.appendChild(style);
 

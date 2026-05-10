@@ -10,20 +10,14 @@ function update_gstin_in_other_documents(doctype) {
             const { gstin, gst_category } = frm.doc;
             let message = __(
                 "You were using the GSTIN <strong>{0}</strong> in the following other documents:<br>",
-                [previous_gstin]
+                [previous_gstin],
             );
 
-            for (const [doctype, docnames] of Object.entries(
-                docs_with_previous_gstin
-            )) {
+            for (const [doctype, docnames] of Object.entries(docs_with_previous_gstin)) {
                 message += `<br><strong>${__(doctype)}</strong>:<br>`;
 
-                docnames.forEach(docname => {
-                    message += `${frappe.utils.get_form_link(
-                        doctype,
-                        docname,
-                        true
-                    )}<br>`;
+                docnames.forEach((docname) => {
+                    message += `${frappe.utils.get_form_link(doctype, docname, true)}<br>`;
                 });
             }
             message += `<br>Do you want to update these with the following new values?
@@ -62,6 +56,8 @@ function validate_gstin(doctype) {
             frm.doc.gstin = gstin;
             frm.refresh_field("gstin");
 
+            india_compliance.check_duplicate_gstin(gstin, frm.doctype, frm.docname);
+
             if (!frm.fields_dict.pan) return;
 
             // extract PAN from GSTIN
@@ -70,6 +66,10 @@ function validate_gstin(doctype) {
             if (PAN_REGEX.test(pan)) {
                 frm.doc.pan = pan;
                 frm.refresh_field("pan");
+                set_party_type(frm);
+                // if (doctype != "Address") {
+                //     india_compliance.set_pan_status(frm.get_field("pan"));
+                // }
             }
         },
     });
@@ -81,18 +81,13 @@ function validate_pan(doctype) {
             let { pan } = frm.doc;
             if (!pan || pan.length < 10) return;
 
-            if (pan.length > 10) {
-                frappe.throw(__("PAN should be 10 characters long"));
-            }
-
-            pan = pan.trim().toUpperCase();
-
-            if (!PAN_REGEX.test(pan)) {
-                frappe.throw(__("Invalid PAN format"));
-            }
+            pan = india_compliance.validate_pan(pan);
 
             frm.doc.pan = pan;
             frm.refresh_field("pan");
+
+            india_compliance.check_duplicate_pan(pan, frm.doctype, frm.docname);
+            set_party_type(frm);
         },
     });
 }
@@ -102,12 +97,12 @@ function show_overseas_disabled_warning(doctype) {
         after_save(frm) {
             if (
                 !gst_settings.enable_overseas_transactions &&
-                in_list(["SEZ", "Overseas"], frm.doc.gst_category)
+                ["SEZ", "Overseas"].includes(frm.doc.gst_category)
             ) {
                 frappe.msgprint({
                     message: __(
                         `SEZ/Overseas transactions are disabled in GST Settings.
-                        Please enable this setting to create transactions for this party.`
+                        Please enable this setting to create transactions for this party.`,
                     ),
                     indicator: "orange",
                 });
@@ -120,19 +115,31 @@ function set_gstin_options_and_status(doctype) {
     frappe.ui.form.on(doctype, {
         refresh(frm) {
             set_gstin_options(frm);
-            india_compliance.set_gstin_status(frm.get_field("gstin"));
+            india_compliance.set_gstin_status(frm.get_field("gstin"), frm.doc);
         },
         gstin(frm) {
-            india_compliance.set_gstin_status(frm.get_field("gstin"));
+            india_compliance.set_gstin_status(frm.get_field("gstin"), frm.doc);
         },
     });
 }
+
+// function set_pan_status(doctype) {
+//     frappe.ui.form.on(doctype, {
+//         refresh(frm) {
+//             india_compliance.set_pan_status(frm.get_field("pan"));
+//         },
+//         pan(frm) {
+//             india_compliance.set_pan_status(frm.get_field("pan"));
+//         },
+//     });
+// }
 
 async function set_gstin_options(frm) {
     if (frm.is_new() || frm._gstin_options_set_for === frm.doc.name) return;
 
     frm._gstin_options_set_for = frm.doc.name;
     const field = frm.get_field("gstin");
+    if (!field || field.df.fieldtype != "Autocomplete") return;
     field.df.ignore_validation = true;
     field.set_data(await india_compliance.get_gstin_options(frm.doc.name, frm.doctype));
 }
@@ -142,8 +149,18 @@ function set_gst_category(doctype) {
         gstin(frm) {
             frm.set_value(
                 "gst_category",
-                india_compliance.guess_gst_category(frm.doc.gstin, frm.doc.country)
+                india_compliance.guess_gst_category(frm.doc.gstin, frm.doc.country),
             );
         },
     });
+}
+
+function set_party_type(frm) {
+    if (!["Customer", "Supplier"].includes(frm.doc.doctype)) return;
+    const pan_to_party_type_map = {
+        F: "Partnership",
+        C: "Company",
+    };
+    const party_type = frm.doc.doctype === "Customer" ? "customer_type" : "supplier_type";
+    frm.set_value(party_type, pan_to_party_type_map[frm.doc.pan[3]] || "Individual");
 }

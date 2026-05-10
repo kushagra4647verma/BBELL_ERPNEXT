@@ -14,11 +14,29 @@ frappe.ui.form.on("Journal Entry", {
 			"Repost Payment Ledger",
 			"Asset",
 			"Asset Movement",
+			"Asset Depreciation Schedule",
 			"Repost Accounting Ledger",
 			"Unreconcile Payment",
 			"Unreconcile Payment Entries",
 			"Bank Transaction",
 		];
+		frm.trigger("set_queries");
+	},
+
+	set_queries(frm) {
+		frm.set_query("project", "accounts", function (doc, cdt, cdn) {
+			let row = frappe.get_doc(cdt, cdn);
+			let filters = {
+				company: doc.company,
+			};
+			if (row.party_type == "Customer") {
+				filters.customer = row.party;
+			}
+			return {
+				query: "erpnext.controllers.queries.get_project_name",
+				filters,
+			};
+		});
 	},
 
 	refresh: function (frm) {
@@ -162,6 +180,7 @@ frappe.ui.form.on("Journal Entry", {
 		});
 
 		erpnext.accounts.dimensions.update_dimension(frm, frm.doctype);
+		erpnext.utils.set_letter_head(frm);
 	},
 
 	voucher_type: function (frm) {
@@ -304,11 +323,11 @@ erpnext.accounts.JournalEntry = class JournalEntry extends frappe.ui.form.Contro
 			}
 
 			if (jvd.party_type && jvd.party) {
-				var party_field = "";
+				let party_field = "";
 				if (jvd.reference_type.indexOf("Sales") === 0) {
-					var party_field = "customer";
+					party_field = "customer";
 				} else if (jvd.reference_type.indexOf("Purchase") === 0) {
-					var party_field = "supplier";
+					party_field = "supplier";
 				}
 
 				if (party_field) {
@@ -359,21 +378,23 @@ erpnext.accounts.JournalEntry = class JournalEntry extends frappe.ui.form.Contro
 
 	accounts_add(doc, cdt, cdn) {
 		var row = frappe.get_doc(cdt, cdn);
+		row.exchange_rate = 1;
 		$.each(doc.accounts, function (i, d) {
 			if (d.account && d.party && d.party_type) {
 				row.account = d.account;
 				row.party = d.party;
 				row.party_type = d.party_type;
+				row.exchange_rate = d.exchange_rate;
 			}
 		});
 
 		// set difference
 		if (doc.difference) {
 			if (doc.difference > 0) {
-				row.credit_in_account_currency = doc.difference;
+				row.credit_in_account_currency = doc.difference / row.exchange_rate;
 				row.credit = doc.difference;
 			} else {
-				row.debit_in_account_currency = -doc.difference;
+				row.debit_in_account_currency = -doc.difference / row.exchange_rate;
 				row.debit = -doc.difference;
 			}
 		}
@@ -393,7 +414,7 @@ cur_frm.cscript.update_totals = function (doc) {
 		td += flt(accounts[i].debit, precision("debit", accounts[i]));
 		tc += flt(accounts[i].credit, precision("credit", accounts[i]));
 	}
-	var doc = locals[doc.doctype][doc.name];
+	doc = locals[doc.doctype][doc.name];
 	doc.total_debit = td;
 	doc.total_credit = tc;
 	doc.difference = flt(td - tc, precision("difference"));
@@ -425,12 +446,6 @@ frappe.ui.form.on("Journal Entry Account", {
 					party: d.party,
 				},
 			});
-		}
-	},
-	cost_center: function (frm, dt, dn) {
-		// Don't reset for Gain/Loss type journals, as it will make Debit and Credit values '0'
-		if (frm.doc.voucher_type != "Exchange Gain Or Loss") {
-			erpnext.journal_entry.set_account_details(frm, dt, dn);
 		}
 	},
 
@@ -642,7 +657,10 @@ $.extend(erpnext.journal_entry, {
 		};
 		if (!frm.doc.multi_currency) {
 			$.extend(filters, {
-				account_currency: frappe.get_doc(":Company", frm.doc.company).default_currency,
+				account_currency: [
+					"in",
+					[frappe.get_doc(":Company", frm.doc.company).default_currency, null],
+				],
 			});
 		}
 		return { filters: filters };
@@ -676,11 +694,34 @@ $.extend(erpnext.journal_entry, {
 				callback: function (r) {
 					if (r.message) {
 						$.extend(d, r.message);
+						erpnext.journal_entry.set_amount_on_last_row(frm, dt, dn);
 						erpnext.journal_entry.set_debit_credit_in_company_currency(frm, dt, dn);
 						refresh_field("accounts");
 					}
 				},
 			});
 		}
+	},
+	set_amount_on_last_row: function (frm, dt, dn) {
+		let row = locals[dt][dn];
+		let length = frm.doc.accounts.length;
+		if (row.idx != length) return;
+
+		let difference = frm.doc.accounts.reduce((total, row) => {
+			if (row.idx == length) return total;
+
+			return total + row.debit - row.credit;
+		}, 0);
+
+		if (difference) {
+			if (difference > 0) {
+				row.credit_in_account_currency = difference / row.exchange_rate;
+				row.credit = difference;
+			} else {
+				row.debit_in_account_currency = -difference / row.exchange_rate;
+				row.debit = -difference;
+			}
+		}
+		refresh_field("accounts");
 	},
 });

@@ -9,11 +9,22 @@ import frappe
 from frappe.website.page_renderers.base_renderer import BaseRenderer
 from frappe.website.utils import is_binary_file
 
-UNSUPPORTED_STATIC_PAGE_TYPES = ("html", "md", "js", "xml", "css", "txt", "py", "json")
+UNSUPPORTED_STATIC_PAGE_TYPES = (
+	"css",
+	"html",
+	"js",
+	"json",
+	"md",
+	"py",
+	"pyc",
+	"pyo",
+	"txt",
+	"xml",
+)
 
 
 class StaticPage(BaseRenderer):
-	__slots__ = ("path", "file_path")
+	__slots__ = ("file_path", "path")
 
 	def __init__(self, path, http_status_code=None):
 		super().__init__(path=path, http_status_code=http_status_code)

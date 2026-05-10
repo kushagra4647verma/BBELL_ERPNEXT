@@ -1,5 +1,4 @@
 import hashlib
-import imghdr
 import mimetypes
 import os
 import re
@@ -8,9 +7,7 @@ from io import BytesIO
 from typing import TYPE_CHECKING, Optional
 from urllib.parse import unquote
 
-import requests
-import requests.exceptions
-from PIL import Image
+import filetype
 
 import frappe
 from frappe import _, safe_decode
@@ -29,7 +26,7 @@ if TYPE_CHECKING:
 
 def make_home_folder() -> None:
 	home = frappe.get_doc(
-		{"doctype": "File", "is_folder": 1, "is_home_folder": 1, "file_name": _("Home")}
+		{"doctype": "File", "is_folder": 1, "is_home_folder": 1, "file_name": "Home"}
 	).insert(ignore_if_duplicate=True)
 
 	frappe.get_doc(
@@ -38,13 +35,13 @@ def make_home_folder() -> None:
 			"folder": home.name,
 			"is_folder": 1,
 			"is_attachments_folder": 1,
-			"file_name": _("Attachments"),
+			"file_name": "Attachments",
 		}
 	).insert(ignore_if_duplicate=True)
 
 
 def setup_folder_path(filename: str, new_parent: str) -> None:
-	file: "File" = frappe.get_doc("File", filename)
+	file: File = frappe.get_doc("File", filename)
 	file.folder = new_parent
 	file.save()
 
@@ -77,14 +74,18 @@ def get_extension(
 
 		mimetype = mimetypes.guess_type(filename + "." + extn)[0]
 
-	if mimetype is None or not mimetype.startswith("image/") and content:
-		# detect file extension by reading image header properties
-		extn = imghdr.what(filename + "." + (extn or ""), h=content)
+	if mimetype is None and extn is None and content:
+		# detect file extension by using filetype matchers
+		_type_info = filetype.match(content)
+		if _type_info:
+			extn = _type_info.extension
 
 	return extn
 
 
 def get_local_image(file_url: str) -> tuple["ImageFile", str, str]:
+	from PIL import Image
+
 	if file_url.startswith("/private"):
 		file_url_path = (file_url.lstrip("/"),)
 	else:
@@ -115,7 +116,10 @@ def get_local_image(file_url: str) -> tuple["ImageFile", str, str]:
 
 
 def get_web_image(file_url: str) -> tuple["ImageFile", str, str]:
-	# download
+	import requests
+	import requests.exceptions
+	from PIL import Image
+
 	file_url = frappe.utils.get_url(file_url)
 	r = requests.get(file_url, stream=True)
 	try:
@@ -183,7 +187,7 @@ def remove_file_by_url(file_url: str, doctype: str | None = None, name: str | No
 def get_content_hash(content: bytes | str) -> str:
 	if isinstance(content, str):
 		content = content.encode()
-	return hashlib.md5(content).hexdigest()  # nosec
+	return hashlib.md5(content, usedforsecurity=False).hexdigest()  # nosec
 
 
 def generate_file_name(name: str, suffix: str | None = None, is_private: bool = False) -> str:
@@ -356,7 +360,7 @@ def attach_files_to_document(doc: "Document", event) -> None:
 			)
 			continue
 
-		file: "File" = frappe.get_doc(
+		file: File = frappe.get_doc(
 			doctype="File",
 			file_url=value,
 			attached_to_name=doc.name,
@@ -371,15 +375,15 @@ def attach_files_to_document(doc: "Document", event) -> None:
 
 
 def relink_files(doc, fieldname, temp_doc_name):
-	if not temp_doc_name:
-		return
-	from frappe.utils.data import add_to_date, now_datetime
-
 	"""
 	Relink files attached to incorrect document name to the new document name
 	by check if file with temp name exists that was created in last 60 minutes
 	"""
-	mislinked_file = frappe.db.exists(
+	if not temp_doc_name:
+		return
+	from frappe.utils.data import add_to_date, now_datetime
+
+	mislinked_file = frappe.db.get_value(
 		"File",
 		{
 			"file_url": doc.get(fieldname),
@@ -392,7 +396,7 @@ def relink_files(doc, fieldname, temp_doc_name):
 			),
 		},
 	)
-	"""If file exists, attach it to the new docname"""
+	# If file exists, attach it to the new docname
 	if mislinked_file:
 		frappe.db.set_value(
 			"File",
@@ -434,6 +438,6 @@ def find_file_by_url(path: str, name: str | None = None) -> Optional["File"]:
 	# if the file is accessible from any one of those documents
 	# then it should be downloadable
 	for file_data in files:
-		file: "File" = frappe.get_doc(doctype="File", **file_data)
+		file: File = frappe.get_doc(doctype="File", **file_data)
 		if file.is_downloadable():
 			return file

@@ -7,7 +7,7 @@ import json
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import add_to_date, flt, get_datetime, getdate, time_diff_in_hours
+from frappe.utils import add_to_date, flt, get_datetime, getdate, time_diff_in_hours, time_diff_in_seconds
 
 from erpnext.controllers.queries import get_match_cond
 from erpnext.setup.utils import get_exchange_rate
@@ -22,14 +22,62 @@ class OverWorkLoggedError(frappe.ValidationError):
 
 
 class Timesheet(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.projects.doctype.timesheet_detail.timesheet_detail import TimesheetDetail
+
+		amended_from: DF.Link | None
+		base_total_billable_amount: DF.Currency
+		base_total_billed_amount: DF.Currency
+		base_total_costing_amount: DF.Currency
+		company: DF.Link | None
+		currency: DF.Link | None
+		customer: DF.Link | None
+		department: DF.Link | None
+		employee: DF.Link | None
+		employee_name: DF.Data | None
+		end_date: DF.Date | None
+		exchange_rate: DF.Float
+		naming_series: DF.Literal["TS-.YYYY.-"]
+		note: DF.TextEditor | None
+		parent_project: DF.Link | None
+		per_billed: DF.Percent
+		sales_invoice: DF.Link | None
+		start_date: DF.Date | None
+		status: DF.Literal[
+			"Draft", "Submitted", "Partially Billed", "Billed", "Payslip", "Completed", "Cancelled"
+		]
+		time_logs: DF.Table[TimesheetDetail]
+		title: DF.Data | None
+		total_billable_amount: DF.Currency
+		total_billable_hours: DF.Float
+		total_billed_amount: DF.Currency
+		total_billed_hours: DF.Float
+		total_costing_amount: DF.Currency
+		total_hours: DF.Float
+		user: DF.Link | None
+	# end: auto-generated types
+
 	def validate(self):
 		self.set_status()
 		self.validate_dates()
+		self.calculate_hours()
 		self.validate_time_logs()
 		self.update_cost()
 		self.calculate_total_amounts()
 		self.calculate_percentage_billed()
 		self.set_dates()
+
+	def calculate_hours(self):
+		for row in self.time_logs:
+			if row.to_time and row.from_time:
+				row.hours = time_diff_in_hours(row.to_time, row.from_time)
 
 	def calculate_total_amounts(self):
 		self.total_hours = 0.0
@@ -80,6 +128,9 @@ class Timesheet(Document):
 		if flt(self.per_billed, self.precision("per_billed")) >= 100.0:
 			self.status = "Billed"
 
+		if 0.0 < flt(self.per_billed, self.precision("per_billed")) < 100.0:
+			self.status = "Partially Billed"
+
 		if self.sales_invoice:
 			self.status = "Completed"
 
@@ -123,9 +174,13 @@ class Timesheet(Document):
 				task.save(ignore_permissions=True)
 				tasks.append(data.task)
 
-			elif data.project and data.project not in projects:
-				frappe.get_doc("Project", data.project).update_project()
+			if data.project and data.project not in projects:
 				projects.append(data.project)
+
+		for project in projects:
+			project_doc = frappe.get_doc("Project", project)
+			project_doc.update_project()
+			project_doc.save(ignore_permissions=True)
 
 	def validate_dates(self):
 		for data in self.time_logs:
@@ -144,7 +199,7 @@ class Timesheet(Document):
 			return
 
 		_to_time = get_datetime(add_to_date(data.from_time, hours=data.hours, as_datetime=True))
-		if data.to_time != _to_time:
+		if abs(time_diff_in_seconds(_to_time, data.to_time)) >= 1:
 			data.to_time = _to_time
 
 	def validate_overlap(self, data):
@@ -235,7 +290,7 @@ class Timesheet(Document):
 			if data.activity_type or data.is_billable:
 				rate = get_activity_cost(self.employee, data.activity_type)
 				hours = data.billing_hours or 0
-				costing_hours = data.billing_hours or data.hours or 0
+				costing_hours = data.hours or 0
 				if rate:
 					data.billing_rate = (
 						flt(rate.get("billing_rate")) if flt(data.billing_rate) == 0 else data.billing_rate
@@ -245,6 +300,20 @@ class Timesheet(Document):
 					)
 					data.billing_amount = data.billing_rate * hours
 					data.costing_amount = data.costing_rate * costing_hours
+
+					exchange_rate = flt(self.get("exchange_rate")) or 1.0
+					data.base_billing_rate = flt(
+						data.billing_rate * exchange_rate, data.precision("base_billing_rate")
+					)
+					data.base_costing_rate = flt(
+						data.costing_rate * exchange_rate, data.precision("base_costing_rate")
+					)
+					data.base_billing_amount = flt(
+						data.billing_amount * exchange_rate, data.precision("base_billing_amount")
+					)
+					data.base_costing_amount = flt(
+						data.costing_amount * exchange_rate, data.precision("base_costing_amount")
+					)
 
 	def update_time_rates(self, ts_detail):
 		if not ts_detail.is_billable:
@@ -359,7 +428,9 @@ def get_timesheet_data(name, project):
 
 
 @frappe.whitelist()
-def make_sales_invoice(source_name, item_code=None, customer=None, currency=None):
+def make_sales_invoice(
+	source_name: str, item_code: str | None = None, customer: str | None = None, currency: str | None = None
+):
 	target = frappe.new_doc("Sales Invoice")
 	timesheet = frappe.get_doc("Timesheet", source_name)
 
@@ -374,8 +445,12 @@ def make_sales_invoice(source_name, item_code=None, customer=None, currency=None
 	billing_rate = billing_amount / hours
 
 	target.company = timesheet.company
+	target.project = timesheet.parent_project
 	if customer:
 		target.customer = customer
+		default_price_list = frappe.get_value("Customer", customer, "default_price_list")
+		if default_price_list:
+			target.selling_price_list = default_price_list
 
 	if currency:
 		target.currency = currency
@@ -384,7 +459,7 @@ def make_sales_invoice(source_name, item_code=None, customer=None, currency=None
 		target.append("items", {"item_code": item_code, "qty": hours, "rate": billing_rate})
 
 	for time_log in timesheet.time_logs:
-		if time_log.is_billable:
+		if time_log.is_billable and not time_log.sales_invoice:
 			target.append(
 				"timesheets",
 				{
@@ -463,7 +538,6 @@ def get_timesheets_list(doctype, txt, filters, limit_start, limit_page_length=20
 	user = frappe.session.user
 	# find customer name from contact.
 	customer = ""
-	timesheets = []
 
 	contact = frappe.db.exists("Contact", {"user": user})
 	if contact:
@@ -472,31 +546,43 @@ def get_timesheets_list(doctype, txt, filters, limit_start, limit_page_length=20
 		customer = contact.get_link_for("Customer")
 
 	if customer:
-		sales_invoices = [
-			d.name for d in frappe.get_all("Sales Invoice", filters={"customer": customer})
-		] or [None]
-		projects = [d.name for d in frappe.get_all("Project", filters={"customer": customer})]
-		# Return timesheet related data to web portal.
-		timesheets = frappe.db.sql(
-			f"""
-			SELECT
-				ts.name, tsd.activity_type, ts.status, ts.total_billable_hours,
-				COALESCE(ts.sales_invoice, tsd.sales_invoice) AS sales_invoice, tsd.project
-			FROM `tabTimesheet` ts, `tabTimesheet Detail` tsd
-			WHERE tsd.parent = ts.name AND
-				(
-					ts.sales_invoice IN %(sales_invoices)s OR
-					tsd.sales_invoice IN %(sales_invoices)s OR
-					tsd.project IN %(projects)s
-				)
-			ORDER BY `end_date` ASC
-			LIMIT {limit_page_length} offset {limit_start}
-		""",
-			dict(sales_invoices=sales_invoices, projects=projects),
-			as_dict=True,
-		)  # nosec
+		sales_invoices = frappe.get_all("Sales Invoice", filters={"customer": customer}, pluck="name")
+		projects = frappe.get_all("Project", filters={"customer": customer}, pluck="name")
 
-	return timesheets
+		# Return timesheet related data to web portal.
+		table = frappe.qb.DocType("Timesheet")
+		child_table = frappe.qb.DocType("Timesheet Detail")
+		query = (
+			frappe.qb.from_(table)
+			.join(child_table)
+			.on(table.name == child_table.parent)
+			.select(
+				table.name,
+				child_table.activity_type,
+				table.status,
+				child_table.billing_hours,
+				(table.sales_invoice | child_table.sales_invoice).as_("sales_invoice"),
+				child_table.project,
+			)
+			.orderby(table.end_date)
+			.limit(limit_page_length)
+			.offset(limit_start)
+		)
+
+		conditions = []
+		if sales_invoices:
+			conditions.extend(
+				[table.sales_invoice.isin(sales_invoices), child_table.sales_invoice.isin(sales_invoices)]
+			)
+		if projects:
+			conditions.append(child_table.project.isin(projects))
+
+		if conditions:
+			query = query.where(frappe.qb.terms.Criterion.any(conditions))
+
+		return query.run(as_dict=True)
+	else:
+		return {}
 
 
 def get_list_context(context=None):

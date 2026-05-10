@@ -1,6 +1,5 @@
 // Copyright (c) 2016, Frappe Technologies Pvt. Ltd. and contributors
 // For license information, please see license.txt
-/* eslint-disable */
 
 frappe.query_reports["VAT Audit Report"] = {
 	filters: [
@@ -11,6 +10,13 @@ frappe.query_reports["VAT Audit Report"] = {
 			options: "Company",
 			reqd: 1,
 			default: frappe.defaults.get_user_default("Company"),
+			get_query: function () {
+				return {
+					filters: {
+						country: "South Africa",
+					},
+				};
+			},
 		},
 		{
 			fieldname: "from_date",

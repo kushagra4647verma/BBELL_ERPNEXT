@@ -23,14 +23,33 @@ import functools
 import os
 from collections import defaultdict
 from collections.abc import Callable
+from contextlib import contextmanager
 
 import frappe
 from frappe.core.doctype.scheduled_job_type.scheduled_job_type import ScheduledJobType
 from frappe.model.document import Document
-from frappe.utils.background_jobs import get_queue, get_queue_list
+from frappe.utils.background_jobs import get_queue, get_queue_list, get_redis_conn
 from frappe.utils.caching import redis_cache
 from frappe.utils.data import add_to_date
-from frappe.utils.scheduler import get_scheduler_status, get_scheduler_tick
+from frappe.utils.scheduler import (
+	get_scheduler_status,
+	get_scheduler_tick,
+	is_dormant,
+	is_schduler_process_running,
+)
+
+
+@contextmanager
+def no_wait(func):
+	"Disable tenacity waiting on some function"
+	from tenacity import stop_after_attempt
+
+	try:
+		original_stop = func.retry.stop
+		func.retry.stop = stop_after_attempt(1)
+		yield
+	finally:
+		func.retry.stop = original_stop
 
 
 def health_check(step: str):
@@ -42,8 +61,13 @@ def health_check(step: str):
 			try:
 				return func(*args, **kwargs)
 			except Exception as e:
+				if frappe.flags.in_test:
+					raise
+				frappe.log(frappe.get_traceback())
 				# nosemgrep
-				frappe.msgprint(f"System Health check step {frappe.bold(step)} failed: {e}", alert=True)
+				frappe.msgprint(
+					f"System Health check step {frappe.bold(step)} failed: {e}", alert=True, indicator="red"
+				)
 
 		return wrapper
 
@@ -51,6 +75,65 @@ def health_check(step: str):
 
 
 class SystemHealthReport(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.desk.doctype.system_health_report_errors.system_health_report_errors import (
+			SystemHealthReportErrors,
+		)
+		from frappe.desk.doctype.system_health_report_failing_jobs.system_health_report_failing_jobs import (
+			SystemHealthReportFailingJobs,
+		)
+		from frappe.desk.doctype.system_health_report_queue.system_health_report_queue import (
+			SystemHealthReportQueue,
+		)
+		from frappe.desk.doctype.system_health_report_tables.system_health_report_tables import (
+			SystemHealthReportTables,
+		)
+		from frappe.desk.doctype.system_health_report_workers.system_health_report_workers import (
+			SystemHealthReportWorkers,
+		)
+		from frappe.types import DF
+
+		active_sessions: DF.Int
+		background_jobs_check: DF.Data | None
+		background_workers: DF.Table[SystemHealthReportWorkers]
+		backups_size: DF.Float
+		binary_logging: DF.Data | None
+		bufferpool_size: DF.Data | None
+		cache_keys: DF.Int
+		cache_memory_usage: DF.Data | None
+		database: DF.Data | None
+		database_version: DF.Data | None
+		db_storage_usage: DF.Float
+		failed_emails: DF.Int
+		failed_logins: DF.Int
+		failing_scheduled_jobs: DF.Table[SystemHealthReportFailingJobs]
+		handled_emails: DF.Int
+		last_10_active_users: DF.Code | None
+		new_users: DF.Int
+		oldest_unscheduled_job: DF.Link | None
+		onsite_backups: DF.Int
+		pending_emails: DF.Int
+		private_files_size: DF.Float
+		public_files_size: DF.Float
+		queue_status: DF.Table[SystemHealthReportQueue]
+		scheduler_status: DF.Data | None
+		socketio_ping_check: DF.Literal["Fail", "Pass"]
+		socketio_transport_mode: DF.Literal["Polling", "Websocket"]
+		test_job_id: DF.Data | None
+		top_db_tables: DF.Table[SystemHealthReportTables]
+		top_errors: DF.Table[SystemHealthReportErrors]
+		total_background_workers: DF.Int
+		total_errors: DF.Int
+		total_outgoing_emails: DF.Int
+		total_users: DF.Int
+		unhandled_emails: DF.Int
+	# end: auto-generated types
+
 	def db_insert(self, *args, **kwargs):
 		raise NotImplementedError
 
@@ -73,10 +156,12 @@ class SystemHealthReport(Document):
 		self.fetch_user_stats()
 
 	@health_check("Background Jobs")
+	@no_wait(get_redis_conn)
 	def fetch_background_jobs(self):
+		self.background_jobs_check = "failed"
+		# This just checks connection life
 		self.test_job_id = frappe.enqueue("frappe.ping", at_front=True).id
 		self.background_jobs_check = "queued"
-		self.scheduler_status = get_scheduler_status().get("status")
 		workers = frappe.get_all("RQ Worker")
 		self.total_background_workers = len(workers)
 		queue_summary = defaultdict(list)
@@ -107,10 +192,20 @@ class SystemHealthReport(Document):
 
 	@health_check("Scheduler")
 	def fetch_scheduler(self):
+		scheduler_enabled = get_scheduler_status().get("status") == "active"
+
+		if not is_schduler_process_running():
+			self.scheduler_status = "Process Not Found"
+		elif is_dormant():
+			self.scheduler_status = "Dormant"
+		elif scheduler_enabled:
+			self.scheduler_status = "Active"
+		else:
+			self.scheduler_status = "Inactive"
+
 		lower_threshold = add_to_date(None, days=-7, as_datetime=True)
 		# Exclude "maybe" curently executing job
 		upper_threshold = add_to_date(None, minutes=-30, as_datetime=True)
-		self.scheduler_status = get_scheduler_status().get("status")
 		failing_jobs = frappe.db.sql(
 			"""
 			select scheduled_job_type,
@@ -183,7 +278,7 @@ class SystemHealthReport(Document):
 
 		_cols, data = db_report()
 		self.database = frappe.db.db_type
-		self.db_storage_usage = sum(table.size for table in data)
+		self.db_storage_usage = sum(table.size or 0.0 for table in data)
 		for row in data[:5]:
 			self.append("top_db_tables", row)
 		self.database_version = frappe.db.sql("select version()")[0][0]
@@ -194,8 +289,8 @@ class SystemHealthReport(Document):
 
 	@health_check("Cache")
 	def fetch_cache_details(self):
-		self.cache_keys = len(frappe.cache().get_keys(""))
-		self.cache_memory_usage = frappe.cache().execute_command("INFO", "MEMORY").get("used_memory_human")
+		self.cache_keys = len(frappe.cache.get_keys(""))
+		self.cache_memory_usage = frappe.cache.execute_command("INFO", "MEMORY").get("used_memory_human")
 
 	@health_check("Storage")
 	def fetch_storage_details(self):
@@ -204,7 +299,7 @@ class SystemHealthReport(Document):
 		self.backups_size = get_directory_size("private", "backups") / (1024 * 1024)
 		self.private_files_size = get_directory_size("private", "files") / (1024 * 1024)
 		self.public_files_size = get_directory_size("public", "files") / (1024 * 1024)
-		self.onsite_backups = len(get_context({}).get("files", []))
+		self.onsite_backups = len(get_context(frappe._dict()).get("files", []))
 
 	@health_check("Users")
 	def fetch_user_stats(self):
@@ -251,6 +346,7 @@ class SystemHealthReport(Document):
 
 
 @frappe.whitelist()
+@no_wait(get_redis_conn)
 def get_job_status(job_id: str | None = None):
 	frappe.only_for("System Manager")
 	try:

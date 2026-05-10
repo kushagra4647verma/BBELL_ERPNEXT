@@ -3,7 +3,6 @@
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import today
 
 
 class TestAuditTrail(FrappeTestCase):
@@ -25,7 +24,7 @@ class TestAuditTrail(FrappeTestCase):
 		re_amended_doc = amend_document(amended_doc, changed_fields, {}, 1)
 
 		comparator = create_comparator_doc("Test Custom Doctype for Doc Comparator", re_amended_doc.name)
-		documents, results = comparator.compare_document()
+		_documents, results = comparator.compare_document()
 
 		test_field_values = results["changed"]["Field"]
 		self.check_expected_values(test_field_values, ["first value", "second value", "third value"])
@@ -41,7 +40,7 @@ class TestAuditTrail(FrappeTestCase):
 		amended_doc = amend_document(doc, {}, rows_updated, 1)
 
 		comparator = create_comparator_doc("Test Custom Doctype for Doc Comparator", amended_doc.name)
-		documents, results = comparator.compare_document()
+		_documents, results = comparator.compare_document()
 
 		results = frappe._dict(results)
 		self.check_rows_updated(results.row_changed)
@@ -130,11 +129,6 @@ def amend_document(amend_from, changed_fields, rows_updated, submit=False):
 
 def create_comparator_doc(doctype_name, document):
 	comparator = frappe.new_doc("Audit Trail")
-	args_dict = {
-		"doctype_name": doctype_name,
-		"document": document,
-		"start_date": today(),
-		"end_date": today(),
-	}
-	comparator.update(args_dict)
+	comparator.doctype_name = doctype_name
+	comparator.document = document
 	return comparator

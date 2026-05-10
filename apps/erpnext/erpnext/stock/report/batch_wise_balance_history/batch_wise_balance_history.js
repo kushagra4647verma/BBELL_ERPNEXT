@@ -54,8 +54,7 @@ frappe.query_reports["Batch-Wise Balance History"] = {
 			options: "Warehouse",
 			get_query: function () {
 				let warehouse_type = frappe.query_report.get_filter_value("warehouse_type");
-				const company = frappe.query_report.get_filter_value("company");
-
+				let company = frappe.query_report.get_filter_value("company");
 				return {
 					filters: {
 						...(warehouse_type && { warehouse_type }),

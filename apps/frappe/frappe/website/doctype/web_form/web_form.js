@@ -24,6 +24,16 @@ frappe.ui.form.on("Web Form", {
 	},
 
 	refresh: function (frm) {
+		// get iframe url for web form
+		frm.sidebar
+			.add_user_action(__("Copy Embed Code"))
+			.attr("href", "#")
+			.on("click", () => {
+				const url = frappe.urllib.get_full_url(frm.doc.route);
+				const code = `<iframe src="${url}" style="border: none; width: 100%; height: inherit;"></iframe>`;
+				frappe.utils.copy_to_clipboard(code, __("Embed code copied"));
+			});
+
 		if (frm.doc.is_standard && !frappe.boot.developer_mode) {
 			frm.disable_form();
 			frappe.show_alert(
@@ -89,19 +99,24 @@ frappe.ui.form.on("Web Form", {
 
 			get_fields_for_doctype(frm.doc.doc_type).then((fields) => {
 				for (let df of fields) {
+					let fieldtype = df.fieldtype;
+					if (fieldtype == "Tab Break") {
+						fieldtype = "Page Break";
+					}
 					if (
-						webform_fieldtypes.includes(df.fieldtype) &&
+						webform_fieldtypes.includes(fieldtype) &&
 						!added_fields.includes(df.fieldname) &&
 						!df.hidden
 					) {
 						frm.add_child("web_form_fields", {
 							fieldname: df.fieldname,
 							label: df.label,
-							fieldtype: df.fieldtype,
+							fieldtype: fieldtype,
 							options: df.options,
 							reqd: df.reqd,
 							default: df.default,
 							read_only: df.read_only,
+							precision: df.precision,
 							depends_on: df.depends_on,
 							mandatory_depends_on: df.mandatory_depends_on,
 							read_only_depends_on: df.read_only_depends_on,
@@ -299,6 +314,7 @@ frappe.ui.form.on("Web Form List Column", {
 		if (!df) return;
 		doc.fieldtype = df.fieldtype;
 		doc.label = df.label;
+		doc.options = df.options;
 		frm.refresh_field("list_columns");
 	},
 });
@@ -347,7 +363,8 @@ function get_fields_for_doctype(doctype) {
 			return (
 				(frappe.model.is_value_type(df.fieldtype) &&
 					!["lft", "rgt"].includes(df.fieldname)) ||
-				["Table", "Table Multiselect"].includes(df.fieldtype)
+				["Table", "Table Multiselect"].includes(df.fieldtype) ||
+				frappe.model.layout_fields.includes(df.fieldtype)
 			);
 		});
 	});

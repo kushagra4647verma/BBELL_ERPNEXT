@@ -82,7 +82,7 @@ def add(args=None, *, ignore_permissions=False):
 					"doctype": "ToDo",
 					"allocated_to": assign_to,
 					"reference_type": args["doctype"],
-					"reference_name": args["name"],
+					"reference_name": str(args["name"]),
 					"description": args.get("description"),
 					"priority": args.get("priority", "Medium"),
 					"status": "Open",
@@ -155,7 +155,7 @@ def close_all_assignments(doctype, name, ignore_permissions=False):
 	assignments = frappe.get_all(
 		"ToDo",
 		fields=["allocated_to", "name"],
-		filters=dict(reference_type=doctype, reference_name=name, status=("!=", "Cancelled")),
+		filters=dict(reference_type=doctype, reference_name=name, status=("not in", ["Cancelled", "Closed"])),
 	)
 	if not assignments:
 		return False
@@ -176,6 +176,20 @@ def close_all_assignments(doctype, name, ignore_permissions=False):
 @frappe.whitelist()
 def remove(doctype, name, assign_to, ignore_permissions=False):
 	return set_status(doctype, name, "", assign_to, status="Cancelled", ignore_permissions=ignore_permissions)
+
+
+@frappe.whitelist()
+def remove_multiple(doctype, names, ignore_permissions=False):
+	docname_list = json.loads(names)
+
+	for name in docname_list:
+		assignments = get({"doctype": doctype, "name": name})
+
+		if not assignments:
+			continue
+
+		for assignment in assignments:
+			remove(doctype, name, assignment.get("owner"), ignore_permissions)
 
 
 @frappe.whitelist()

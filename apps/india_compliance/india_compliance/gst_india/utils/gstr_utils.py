@@ -1,15 +1,17 @@
 from enum import Enum
 
 import frappe
-from frappe import _
-from frappe.utils import add_to_date, now_datetime
 
-from india_compliance.gst_india.api_classes.returns import ReturnsAPI
+from india_compliance.gst_india.api_classes.taxpayer_base import (
+    TaxpayerBaseAPI,
+    otp_handler,
+)
+from india_compliance.gst_india.api_classes.taxpayer_returns import IMSAPI, ReturnsAPI
 from india_compliance.gst_india.doctype.gstr_import_log.gstr_import_log import (
     create_import_log,
     toggle_scheduled_jobs,
 )
-from india_compliance.gst_india.utils import get_gstin_list
+from india_compliance.gst_india.utils import create_notification
 from india_compliance.gst_india.utils.gstr_1.gstr_1_download import (
     save_gstr_1_filed_data,
     save_gstr_1_unfiled_data,
@@ -21,88 +23,33 @@ class ReturnType(Enum):
     GSTR2B = "GSTR2b"
     GSTR1 = "GSTR1"
     UnfiledGSTR1 = "Unfiled GSTR1"
+    IMS = "IMS"
 
 
 @frappe.whitelist()
-def validate_company_gstins(company=None, company_gstin=None):
-    """
-    Checks the validity of the company's GSTIN authentication.
-
-    Args:
-        company_gstin (str): The GSTIN of the company to validate.
-
-    Returns:
-        dict: A dictionary where the keys are the GSTINs and the values are booleans indicating whether the authentication is valid.
-    """
+@otp_handler
+def request_otp(company_gstin: str):
     frappe.has_permission("GST Settings", throw=True)
 
-    credentials = get_company_gstin_credentials(company, company_gstin)
-
-    if company_gstin and not credentials:
-        frappe.throw(
-            _("Missing GSTIN credentials for GSTIN: {gstin}.").format(
-                gstin=company_gstin
-            )
-        )
-
-    if not credentials:
-        frappe.throw(_("Missing credentials in GST Settings"))
-
-    if company and not company_gstin:
-        missing_credentials = set(get_gstin_list(company)) - set(
-            credential.gstin for credential in credentials
-        )
-
-        if missing_credentials:
-            frappe.throw(
-                _("Missing GSTIN credentials for GSTIN(s): {gstins}.").format(
-                    gstins=", ".join(missing_credentials),
-                )
-            )
-
-    gstin_authentication_status = {
-        credential.gstin: (
-            credential.session_expiry
-            and credential.auth_token
-            and credential.session_expiry > add_to_date(now_datetime(), minutes=30)
-        )
-        for credential in credentials
-    }
-
-    return gstin_authentication_status
-
-
-def get_company_gstin_credentials(company=None, company_gstin=None):
-    filters = {"service": "Returns"}
-
-    if company:
-        filters["company"] = company
-
-    if company_gstin:
-        filters["gstin"] = company_gstin
-
-    return frappe.get_all(
-        "GST Credential",
-        filters=filters,
-        fields=["gstin", "session_expiry", "auth_token"],
-    )
+    return TaxpayerBaseAPI(company_gstin).request_otp()
 
 
 @frappe.whitelist()
-def request_otp(company_gstin):
+@otp_handler
+def authenticate_otp(company_gstin: str, otp: str):
     frappe.has_permission("GST Settings", throw=True)
 
-    return ReturnsAPI(company_gstin).request_otp()
-
-
-@frappe.whitelist()
-def authenticate_otp(company_gstin, otp):
-    frappe.has_permission("GST Settings", throw=True)
-
-    api = ReturnsAPI(company_gstin)
+    api = TaxpayerBaseAPI(company_gstin)
     response = api.autheticate_with_otp(otp)
 
     return api.process_response(response)
+
+
+@frappe.whitelist()
+@otp_handler
+def generate_evc_otp(company_gstin: str, pan: str, request_type: str):
+    frappe.has_permission("GSTR-1 Beta", "write", throw=True)
+    return TaxpayerBaseAPI(company_gstin).initiate_otp_for_evc(pan, request_type)
 
 
 def download_queued_request():
@@ -128,17 +75,30 @@ def download_queued_request():
 
 
 def _download_queued_request(doc):
-    from india_compliance.gst_india.utils.gstr_2 import _download_gstr_2a, save_gstr_2b
+    from india_compliance.gst_india.utils.gstr_2 import (
+        _download_gstr_2a,
+        save_gstr_2b,
+        save_ims_invoices,
+    )
 
     GSTR_FUNCTIONS = {
         ReturnType.GSTR2A.value: _download_gstr_2a,
         ReturnType.GSTR2B.value: save_gstr_2b,
         ReturnType.GSTR1.value: save_gstr_1_filed_data,
         ReturnType.UnfiledGSTR1.value: save_gstr_1_unfiled_data,
+        ReturnType.IMS.value: save_ims_invoices,
+    }
+
+    API_CLASS = {
+        ReturnType.GSTR2A.value: ReturnsAPI,
+        ReturnType.GSTR2B.value: ReturnsAPI,
+        ReturnType.GSTR1.value: ReturnsAPI,
+        ReturnType.UnfiledGSTR1.value: ReturnsAPI,
+        ReturnType.IMS.value: IMSAPI,
     }
 
     try:
-        api = ReturnsAPI(doc.gstin)
+        api = API_CLASS[doc.return_type](doc.gstin)
         response = api.download_files(
             doc.return_period,
             doc.request_id,
@@ -147,9 +107,6 @@ def _download_queued_request(doc):
     except Exception as e:
         frappe.db.delete("GSTR Import Log", doc.name)
         raise e
-
-    if response.error_type in ["otp_requested", "invalid_otp"]:
-        return toggle_scheduled_jobs(stopped=True)
 
     if response.error_type == "no_docs_found":
         return create_import_log(
@@ -168,3 +125,31 @@ def _download_queued_request(doc):
 
     frappe.db.set_value("GSTR Import Log", doc.name, "request_id", None)
     GSTR_FUNCTIONS[doc.return_type](doc.gstin, doc.return_period, response)
+
+
+def publish_action_status_notification(
+    return_type, return_period, request_type, status_cd, gstin, request_id=None
+):
+    status_message_map = {
+        "P": f"Success: {return_type} data {request_type} for GSTIN {gstin} and return period {return_period}",
+        "PE": f"Partial Success: {return_type} data {request_type} for GSTIN {gstin} and return period {return_period}",
+        "ER": f"Error: {return_type} data {request_type} for GSTIN {gstin} and return period {return_period}",
+    }
+
+    message_content = {
+        "subject": status_message_map.get(status_cd),
+        "body": status_message_map.get(status_cd),
+    }
+
+    if return_type == "GSTR-1":
+        document_type = "GSTR-1 Beta"
+    elif return_type == "IMS":
+        document_type = "GST Invoice Management System"
+
+    return frappe.enqueue(
+        create_notification,
+        queue="long",
+        message_content=message_content,
+        document_type=document_type,
+        request_id=request_id,
+    )

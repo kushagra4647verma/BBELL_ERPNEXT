@@ -16,11 +16,13 @@
   "col_break1",
   "account_head",
   "description",
+  "is_tax_withholding_account",
   "section_break_10",
   "rate",
   "accounting_dimensions_section",
   "cost_center",
   "dimension_col_break",
+  "project",
   "section_break_9",
   "account_currency",
   "tax_amount",
@@ -195,7 +197,7 @@
    "fieldname": "item_wise_tax_detail",
    "fieldtype": "Code",
    "hidden": 1,
-   "label": "Item Wise Tax Detail ",
+   "label": "Item Wise Tax Detail",
    "oldfieldname": "item_wise_tax_detail",
    "oldfieldtype": "Small Text",
    "print_hide": 1,
@@ -209,6 +211,13 @@
   {
    "fieldname": "dimension_col_break",
    "fieldtype": "Column Break"
+  },
+  {
+    "allow_on_submit": 1,
+    "fieldname": "project",
+    "fieldtype": "Link",
+    "label": "Project",
+    "options": "Project"
   },
   {
    "default": "0",
@@ -225,15 +234,24 @@
    "label": "Account Currency",
    "options": "Currency",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "is_tax_withholding_account",
+   "fieldtype": "Check",
+   "label": "Is Tax Withholding Account",
+   "read_only": 1
   }
  ],
+ "grid_page_length": 50,
  "idx": 1,
  "istable": 1,
  "links": [],
- "modified": "2024-01-14 10:04:36.618240",
+ "modified": "2025-04-15 13:14:48.936047",
  "modified_by": "Administrator",
  "module": "Accounts",
  "name": "Purchase Taxes and Charges",
+ "naming_rule": "Random",
  "owner": "Administrator",
  "permissions": [],
  "sort_field": "modified",

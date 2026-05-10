@@ -16,16 +16,11 @@ echo "Setting Up System Dependencies..."
 sudo apt update
 
 sudo apt remove mysql-server mysql-client
-sudo apt install libcups2-dev redis-server mariadb-client-10.6
+sudo apt install libcups2-dev redis-server mariadb-client
 
 install_whktml() {
-    if [ "$(lsb_release -rs)" = "22.04" ]; then
-        wget -O /tmp/wkhtmltox.deb https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb
-        sudo apt install /tmp/wkhtmltox.deb
-    else
-        echo "Please update this script to support wkhtmltopdf for $(lsb_release -ds)"
-        exit 1
-    fi
+    wget -O /tmp/wkhtmltox.deb https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb
+    sudo apt install /tmp/wkhtmltox.deb
 }
 install_whktml &
 wkpid=$!
@@ -40,7 +35,7 @@ mkdir ~/frappe-bench/sites/test_site
 cp -r "${GITHUB_WORKSPACE}/.github/helper/site_config.json" ~/frappe-bench/sites/test_site/
 
 
-mysql --host 127.0.0.1 --port 3306 -u root -e "
+mariadb --host 127.0.0.1 --port 3306 -u root -ptravis -e "
 SET GLOBAL character_set_server = 'utf8mb4';
 SET GLOBAL collation_server = 'utf8mb4_unicode_ci';
 
@@ -48,7 +43,6 @@ CREATE USER 'test_resilient'@'localhost' IDENTIFIED BY 'test_resilient';
 CREATE DATABASE test_resilient;
 GRANT ALL PRIVILEGES ON \`test_resilient\`.* TO 'test_resilient'@'localhost';
 
-UPDATE mysql.user SET Password=PASSWORD('travis') WHERE User='root';
 FLUSH PRIVILEGES;
 "
 

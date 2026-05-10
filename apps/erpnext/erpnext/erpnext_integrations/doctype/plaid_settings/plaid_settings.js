@@ -29,7 +29,7 @@ frappe.ui.form.on("Plaid Settings", {
 							"Bank Transaction",
 							"",
 							true,
-							"Bank Transaction"
+							__("Bank Transaction")
 						);
 
 						frappe.msgprint({
@@ -105,6 +105,7 @@ erpnext.integrations.plaidLink = class plaidLink {
 
 	onScriptLoaded(me) {
 		me.linkHandler = Plaid.create({
+			// eslint-disable-line no-undef
 			clientName: me.client_name,
 			product: me.product,
 			env: me.plaid_env,

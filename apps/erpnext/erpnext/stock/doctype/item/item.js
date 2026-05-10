@@ -200,47 +200,6 @@ frappe.ui.form.on("Item", {
 			erpnext.toggle_naming_series();
 		}
 
-		if (!frm.doc.published_in_website) {
-			frm.add_custom_button(
-				__("Publish in Website"),
-				function () {
-					frappe.call({
-						method: "erpnext.e_commerce.doctype.website_item.website_item.make_website_item",
-						args: { doc: frm.doc },
-						freeze: true,
-						freeze_message: __("Publishing Item ..."),
-						callback: function (result) {
-							frappe.msgprint({
-								message: __("Website Item {0} has been created.", [
-									repl(
-										'<a href="/app/website-item/%(item_encoded)s" class="strong">%(item)s</a>',
-										{
-											item_encoded: encodeURIComponent(result.message[0]),
-											item: result.message[1],
-										}
-									),
-								]),
-								title: __("Published"),
-								indicator: "green",
-							});
-						},
-					});
-				},
-				__("Actions")
-			);
-		} else {
-			frm.add_custom_button(
-				__("Website Item"),
-				function () {
-					frappe.db.get_value("Website Item", { item_code: frm.doc.name }, "name", (d) => {
-						if (!d.name) frappe.throw(__("Website Item not found"));
-						frappe.set_route("Form", "Website Item", d.name);
-					});
-				},
-				__("View")
-			);
-		}
-
 		erpnext.item.edit_prices_button(frm);
 		erpnext.item.toggle_attributes(frm);
 
@@ -265,8 +224,15 @@ frappe.ui.form.on("Item", {
 		["is_stock_item", "has_serial_no", "has_batch_no", "has_variants"].forEach((fieldname) => {
 			frm.set_df_property(fieldname, "read_only", stock_exists);
 		});
-
+		frm.set_df_property("is_fixed_asset", "read_only", frm.doc.__onload?.asset_exists ? 1 : 0);
 		frm.toggle_reqd("customer", frm.doc.is_customer_provided_item ? 1 : 0);
+		frm.set_query("item_group", () => {
+			return {
+				filters: {
+					is_group: 0,
+				},
+			};
+		});
 	},
 
 	validate: function (frm) {
@@ -479,14 +445,6 @@ $.extend(erpnext.item, {
 			};
 		};
 
-		frm.fields_dict.customer_items.grid.get_field("customer_name").get_query = function (doc, cdt, cdn) {
-			return { query: "erpnext.controllers.queries.customer_query" };
-		};
-
-		frm.fields_dict.supplier_items.grid.get_field("supplier").get_query = function (doc, cdt, cdn) {
-			return { query: "erpnext.controllers.queries.supplier_query" };
-		};
-
 		frm.fields_dict["item_defaults"].grid.get_field("default_warehouse").get_query = function (
 			doc,
 			cdt,
@@ -665,6 +623,14 @@ $.extend(erpnext.item, {
 			me.multiple_variant_dialog = new frappe.ui.Dialog({
 				title: __("Select Attribute Values"),
 				fields: [
+					frm.doc.image
+						? {
+								fieldtype: "Check",
+								label: __("Create a variant with the template image."),
+								fieldname: "use_template_image",
+								default: 0,
+						  }
+						: null,
 					{
 						fieldtype: "HTML",
 						fieldname: "help",
@@ -672,11 +638,14 @@ $.extend(erpnext.item, {
 							${__("Select at least one value from each of the attributes.")}
 						</label>`,
 					},
-				].concat(fields),
+				]
+					.concat(fields)
+					.filter(Boolean),
 			});
 
 			me.multiple_variant_dialog.set_primary_action(__("Create Variants"), () => {
 				let selected_attributes = get_selected_attributes();
+				let use_template_image = me.multiple_variant_dialog.get_value("use_template_image");
 
 				me.multiple_variant_dialog.hide();
 				frappe.call({
@@ -684,6 +653,7 @@ $.extend(erpnext.item, {
 					args: {
 						item: frm.doc.name,
 						args: selected_attributes,
+						use_template_image: use_template_image,
 					},
 					callback: function (r) {
 						if (r.message === "queued") {
@@ -715,7 +685,7 @@ $.extend(erpnext.item, {
 			let selected_attributes = {};
 			me.multiple_variant_dialog.$wrapper.find(".form-column").each((i, col) => {
 				if (i === 0) return;
-				let attribute_name = $(col).find(".control-label").html().trim();
+				let attribute_name = $(col).find(".column-label").html().trim();
 				selected_attributes[attribute_name] = [];
 				let checked_opts = $(col).find(".checkbox input");
 				checked_opts.each((i, opt) => {
@@ -729,39 +699,41 @@ $.extend(erpnext.item, {
 		}
 
 		frm.doc.attributes.forEach(function (d) {
-			let p = new Promise((resolve) => {
-				if (!d.numeric_values) {
-					frappe
-						.call({
-							method: "frappe.client.get_list",
-							args: {
-								doctype: "Item Attribute Value",
-								filters: [["parent", "=", d.attribute]],
-								fields: ["attribute_value"],
-								limit_page_length: 0,
-								parent: "Item Attribute",
-								order_by: "idx",
-							},
-						})
-						.then((r) => {
-							if (r.message) {
-								attr_val_fields[d.attribute] = r.message.map(function (d) {
-									return d.attribute_value;
-								});
-								resolve();
-							}
-						});
-				} else {
-					let values = [];
-					for (var i = d.from_range; i <= d.to_range; i = flt(i + d.increment, 6)) {
-						values.push(i);
+			if (!d.disabled) {
+				let p = new Promise((resolve) => {
+					if (!d.numeric_values) {
+						frappe
+							.call({
+								method: "frappe.client.get_list",
+								args: {
+									doctype: "Item Attribute Value",
+									filters: [["parent", "=", d.attribute]],
+									fields: ["attribute_value"],
+									limit_page_length: 0,
+									parent: "Item Attribute",
+									order_by: "idx",
+								},
+							})
+							.then((r) => {
+								if (r.message) {
+									attr_val_fields[d.attribute] = r.message.map(function (d) {
+										return d.attribute_value;
+									});
+									resolve();
+								}
+							});
+					} else {
+						let values = [];
+						for (var i = d.from_range; i <= d.to_range; i = flt(i + d.increment, 6)) {
+							values.push(i);
+						}
+						attr_val_fields[d.attribute] = values;
+						resolve();
 					}
-					attr_val_fields[d.attribute] = values;
-					resolve();
-				}
-			});
+				});
 
-			promises.push(p);
+				promises.push(p);
+			}
 		}, this);
 
 		Promise.all(promises).then(() => {
@@ -776,25 +748,37 @@ $.extend(erpnext.item, {
 		for (var i = 0; i < frm.doc.attributes.length; i++) {
 			var fieldtype, desc;
 			var row = frm.doc.attributes[i];
-			if (row.numeric_values) {
-				fieldtype = "Float";
-				desc =
-					"Min Value: " +
-					row.from_range +
-					" , Max Value: " +
-					row.to_range +
-					", in Increments of: " +
-					row.increment;
-			} else {
-				fieldtype = "Data";
-				desc = "";
+
+			if (!row.disabled) {
+				if (row.numeric_values) {
+					fieldtype = "Float";
+					desc =
+						"Min Value: " +
+						row.from_range +
+						" , Max Value: " +
+						row.to_range +
+						", in Increments of: " +
+						row.increment;
+				} else {
+					fieldtype = "Data";
+					desc = "";
+				}
+				fields = fields.concat({
+					label: row.attribute,
+					fieldname: row.attribute,
+					fieldtype: fieldtype,
+					reqd: 0,
+					description: desc,
+				});
 			}
-			fields = fields.concat({
-				label: row.attribute,
-				fieldname: row.attribute,
-				fieldtype: fieldtype,
-				reqd: 0,
-				description: desc,
+		}
+
+		if (frm.doc.image) {
+			fields.push({
+				fieldtype: "Check",
+				label: __("Create a variant with the template image."),
+				fieldname: "use_template_image",
+				default: 0,
 			});
 		}
 
@@ -839,6 +823,7 @@ $.extend(erpnext.item, {
 							args: {
 								item: frm.doc.name,
 								args: d.get_values(),
+								use_template_image: args.use_template_image,
 							},
 							callback: function (r) {
 								var doclist = frappe.model.sync(r.message);
@@ -893,12 +878,6 @@ $.extend(erpnext.item, {
 					let modal = field.$input.parents(".modal-dialog")[0];
 					if (modal) {
 						$(modal).removeClass("modal-dialog-scrollable");
-					}
-				})
-				.on("awesomplete-close", () => {
-					let modal = field.$input.parents(".modal-dialog")[0];
-					if (modal) {
-						$(modal).addClass("modal-dialog-scrollable");
 					}
 				});
 		});
@@ -998,7 +977,7 @@ frappe.tour["Item"] = [
 		fieldname: "valuation_rate",
 		title: "Valuation Rate",
 		description: __(
-			"There are two options to maintain valuation of stock. FIFO (first in - first out) and Moving Average. To understand this topic in detail please visit <a href='https://docs.erpnext.com/docs/v13/user/manual/en/stock/articles/item-valuation-fifo-and-moving-average' target='_blank'>Item Valuation, FIFO and Moving Average.</a>"
+			"There are two options to maintain valuation of stock. FIFO (first in - first out) and Moving Average. To understand this topic in detail please visit <a href='https://docs.frappe.io/erpnext/user/manual/en/calculation-of-valuation-rate-in-fifo-and-moving-average' target='_blank'>Item Valuation, FIFO and Moving Average.</a>"
 		),
 	},
 	{

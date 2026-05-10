@@ -171,16 +171,12 @@ Object.assign(frappe.utils, {
 	is_html: function (txt) {
 		if (!txt) return false;
 
-		if (
-			txt.indexOf("<br>") == -1 &&
-			txt.indexOf("<p") == -1 &&
-			txt.indexOf("<img") == -1 &&
-			txt.indexOf("<div") == -1 &&
-			!txt.includes("<span")
-		) {
-			return false;
-		}
-		return true;
+		const doc = new DOMParser().parseFromString(txt, "text/html");
+		const nodes = doc.body.childNodes || [];
+
+		// check if any of the nodes are element nodes
+		// Ref: https://developer.mozilla.org/en-US/docs/Web/API/Node/nodeType
+		return [...nodes].some((node) => node.nodeType === 1);
 	},
 	is_mac: function () {
 		return window.navigator.platform === "MacIntel";
@@ -372,8 +368,7 @@ Object.assign(frappe.utils, {
 	get_scroll_position: function (element, additional_offset) {
 		let header_offset =
 			$(".navbar").height() + $(".page-head:visible").height() || $(".navbar").height();
-		let scroll_top = $(element).offset().top - header_offset - cint(additional_offset);
-		return scroll_top;
+		return $(element).offset().top - header_offset - cint(additional_offset);
 	},
 	filter_dict: function (dict, filters) {
 		var ret = [];
@@ -479,7 +474,7 @@ Object.assign(frappe.utils, {
 				break;
 			case "url":
 				regExp =
-					/^((([A-Za-z0-9.+-]+:(?:\/\/)?)(?:[-;:&=\+\,\w]@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=\+\$,\w]+@)[A-Za-z0-9.-]+)((?:\/[\+~%\/.\w-_]*)?\??(?:[-\+=&;%@.\w_]*)#?(?:[\w]*))?)$/i;
+					/^((([A-Za-z0-9.+-]+:(?:\/\/)?)(?:[-;:&=\+\,\w]@)?[A-Za-z0-9.-]+(:[0-9]+)?|(?:www.|[-;:&=\+\$,\w]+@)[A-Za-z0-9.-]+)((?:\/[\+~%\/.\w-_]*)?\??(?:[-\+=&;%@.\w_]*)#?(?:[\w]*))?)$/i; // eslint-disable-line
 				break;
 			case "dateIso":
 				regExp = /^(\d{4})\D?(0[1-9]|1[0-2])\D?([12]\d|0[1-9]|3[01])$/;
@@ -495,6 +490,7 @@ Object.assign(frappe.utils, {
 		var style = default_style || "default";
 		var colour = "gray";
 		if (text) {
+			text = cstr(text);
 			if (has_words(["Pending", "Review", "Medium", "Not Approved"], text)) {
 				style = "warning";
 				colour = "orange";
@@ -790,10 +786,6 @@ Object.assign(frappe.utils, {
 		frappe.msgprint(__("Note: Changing the Page Name will break previous URL to this page."));
 	},
 
-	notify: function (subject, body, route, onclick) {
-		console.log("push notifications are evil and deprecated");
-	},
-
 	set_title: function (title) {
 		frappe._original_title = title;
 		if (frappe._title_prefix) {
@@ -835,6 +827,9 @@ Object.assign(frappe.utils, {
 
 			var audio = $("#sound-" + name)[0];
 			audio.volume = audio.getAttribute("volume");
+			if (!audio.paused) {
+				audio.currentTime = 0;
+			}
 			audio.play();
 		} catch (e) {
 			console.log("Cannot play sound", name, e);
@@ -1086,8 +1081,8 @@ Object.assign(frappe.utils, {
 			let expression_function = new Function(...variable_names, code);
 			return expression_function(...variables);
 		} catch (error) {
-			console.log("Error evaluating the following expression:"); // eslint-disable-line no-console
-			console.error(code); // eslint-disable-line no-console
+			console.log("Error evaluating the following expression:");
+			console.error(code);
 			throw error;
 		}
 	},
@@ -1147,6 +1142,14 @@ Object.assign(frappe.utils, {
 		return duration;
 	},
 
+	get_formatted_iban(value) {
+		if (!value || ["BI", "SV", "EG", "LY"].some((country) => value.startsWith(country))) {
+			return value;
+		}
+
+		return value.replaceAll(" ", "").replace(/(.{4})(?=.)/g, "$1 ");
+	},
+
 	seconds_to_duration(seconds, duration_options) {
 		const floor = seconds > 0 ? Math.floor : Math.ceil;
 		const total_duration = {
@@ -1187,11 +1190,10 @@ Object.assign(frappe.utils, {
 	},
 
 	get_duration_options: function (docfield) {
-		let duration_options = {
+		return {
 			hide_days: docfield.hide_days,
 			hide_seconds: docfield.hide_seconds,
 		};
-		return duration_options;
 	},
 
 	get_number_system: function (country) {
@@ -1207,7 +1209,7 @@ Object.assign(frappe.utils, {
 	map_defaults: {
 		center: [19.08, 72.8961],
 		zoom: 13,
-		tiles: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+		tiles: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
 		options: {
 			attribution:
 				'&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors',
@@ -1217,14 +1219,22 @@ Object.assign(frappe.utils, {
 
 	icon(icon_name, size = "sm", icon_class = "", icon_style = "", svg_class = "") {
 		let size_class = "";
+		let is_espresso = icon_name.startsWith("es-");
 
+		icon_name = is_espresso ? `${"#" + icon_name}` : `${"#icon-" + icon_name}`;
 		if (typeof size == "object") {
 			icon_style += ` width: ${size.width}; height: ${size.height}`;
 		} else {
 			size_class = `icon-${size}`;
 		}
-		return `<svg class="icon ${svg_class} ${size_class}" style="${icon_style}">
-			<use class="${icon_class}" href="#icon-${icon_name}"></use>
+		return `<svg class="${
+			is_espresso
+				? icon_name.startsWith("es-solid")
+					? "es-icon es-solid"
+					: "es-icon es-line"
+				: "icon"
+		} ${svg_class} ${size_class}" style="${icon_style}" aria-hidden="true">
+			<use class="${icon_class}" href="${icon_name}"></use>
 		</svg>`;
 	},
 
@@ -1253,7 +1263,7 @@ Object.assign(frappe.utils, {
 				chart_args[key] = custom_options[key];
 			}
 		}
-
+		frappe.utils.set_space_label_ratio(chart_args);
 		return new frappe.Chart(wrapper, chart_args);
 	},
 
@@ -1261,7 +1271,11 @@ Object.assign(frappe.utils, {
 		const default_country = frappe.sys_defaults.country;
 		return frappe.utils.shorten_number(label, country || default_country, 3);
 	},
-
+	set_space_label_ratio(chart_args) {
+		if (chart_args.data.labels.length > 10) {
+			chart_args["axisOptions"]["seriesLabelSpaceRatio"] = 0.9;
+		}
+	},
 	generate_route(item) {
 		const type = item.type.toLowerCase();
 		if (type === "doctype") {
@@ -1312,10 +1326,11 @@ Object.assign(frappe.utils, {
 			} else if (type === "report") {
 				if (item.is_query_report) {
 					route = "query-report/" + item.name;
-				} else if (!item.doctype) {
-					route = "report/" + item.name;
+				} else if (!item.is_query_report && item.report_ref_doctype) {
+					route =
+						frappe.router.slug(item.report_ref_doctype) + "/view/report/" + item.name;
 				} else {
-					route = frappe.router.slug(item.doctype) + "/view/report/" + item.name;
+					route = "report/" + item.name;
 				}
 			} else if (type === "page") {
 				route = item.name;
@@ -1582,8 +1597,8 @@ Object.assign(frappe.utils, {
 					return title;
 				});
 		} catch (error) {
-			console.log("Error while fetching link title."); // eslint-disable-line
-			console.log(error); // eslint-disable-line
+			console.log("Error while fetching link title.");
+			console.log(error);
 			return Promise.resolve(name);
 		}
 	},
@@ -1591,7 +1606,7 @@ Object.assign(frappe.utils, {
 	only_allow_num_decimal(input) {
 		input.on("input", (e) => {
 			let self = $(e.target);
-			self.val(self.val().replace(/[^0-9.]/g, ""));
+			self.val(self.val().replace(/[^0-9.\-]/g, ""));
 			if (
 				(e.which != 46 || self.val().indexOf(".") != -1) &&
 				(e.which < 48 || e.which > 57)
@@ -1708,5 +1723,80 @@ Object.assign(frappe.utils, {
 				},
 			});
 		},
+	},
+	generate_tracking_url() {
+		frappe.prompt(
+			[
+				{
+					fieldname: "url",
+					label: __("Web Page URL"),
+					fieldtype: "Data",
+					options: "URL",
+					reqd: 1,
+					default: localStorage.getItem("tracker_url:url"),
+				},
+				{
+					fieldname: "source",
+					label: __("Source"),
+					fieldtype: "Data",
+					default: localStorage.getItem("tracker_url:source"),
+				},
+				{
+					fieldname: "campaign",
+					label: __("Campaign"),
+					fieldtype: "Link",
+					ignore_link_validation: 1,
+					options: "Marketing Campaign",
+					default: localStorage.getItem("tracker_url:campaign"),
+				},
+				{
+					fieldname: "medium",
+					label: __("Medium"),
+					fieldtype: "Data",
+					default: localStorage.getItem("tracker_url:medium"),
+				},
+			],
+			function (data) {
+				let url = data.url;
+				localStorage.setItem("tracker_url:url", data.url);
+
+				if (data.source) {
+					url += "?source=" + data.source;
+					localStorage.setItem("tracker_url:source", data.source);
+				}
+				if (data.campaign) {
+					url += "&campaign=" + data.campaign;
+					localStorage.setItem("tracker_url:campaign", data.campaign);
+				}
+				if (data.medium) {
+					url += "&medium=" + data.medium.toLowerCase();
+					localStorage.setItem("tracker_url:medium", data.medium);
+				}
+
+				frappe.utils.copy_to_clipboard(url);
+
+				frappe.msgprint(
+					__("Tracking URL generated and copied to clipboard") +
+						": <br>" +
+						`<a href="${url}">${url.bold()}</a>`,
+					__("Here's your tracking URL")
+				);
+			},
+			__("Generate Tracking URL")
+		);
+	},
+	/**
+	 * Masks passwords in an object by replacing the values of keys containing
+	 * "password" or "passphrase" with "*****".
+	 *
+	 * @param {Object} obj - The object to mask passwords in.
+	 */
+	mask_passwords(obj) {
+		const KEYWORDS_TO_MASK = ["password", "passphrase"];
+		for (const key of Object.keys(obj)) {
+			if (KEYWORDS_TO_MASK.some((keyword) => key.includes(keyword)) && obj[key]) {
+				obj[key] = "*****";
+			}
+		}
 	},
 });

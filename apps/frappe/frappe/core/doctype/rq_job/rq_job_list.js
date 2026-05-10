@@ -14,10 +14,14 @@ frappe.listview_settings["RQ Job"] = {
 			__("Actions")
 		);
 
-		if (listview.list_view_settings) {
-			listview.list_view_settings.disable_count = 1;
-			listview.list_view_settings.disable_sidebar_stats = 1;
-		}
+		frappe.xcall("frappe.core.doctype.rq_job.rq_job.get_custom_queues").then((options) => {
+			const select_element = listview.filter_area.standard_filters_wrapper.find(
+				'select[data-fieldname="queue"]'
+			);
+			options.forEach((option) => {
+				select_element.append($("<option>", { value: option, text: option }));
+			});
+		});
 
 		frappe.xcall("frappe.utils.scheduler.get_scheduler_status").then(({ status }) => {
 			if (status === "active") {
@@ -57,6 +61,6 @@ frappe.listview_settings["RQ Job"] = {
 			}
 
 			listview.refresh();
-		}, 5000);
+		}, 15000);
 	},
 };

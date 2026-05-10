@@ -114,6 +114,10 @@ class PostgresExceptionUtil:
 		return getattr(e, "pgcode", None) == STRING_DATA_RIGHT_TRUNCATION
 
 	@staticmethod
+	def is_db_table_size_limit(e) -> bool:
+		return False
+
+	@staticmethod
 	def is_interface_error(e):
 		return isinstance(e, InterfaceError)
 
@@ -166,11 +170,18 @@ class PostgresDatabase(PostgresExceptionUtil, Database):
 		return LazyDecode(self._cursor.query)
 
 	def get_connection(self):
-		conn = psycopg2.connect(
-			"host='{}' dbname='{}' user='{}' password='{}' port={}".format(
-				self.host, self.user, self.user, self.password, self.port
-			)
-		)
+		conn_settings = {
+			"user": self.user,
+			"dbname": self.cur_db_name,
+			# libpg defaults to default socket if not specified
+			"host": self.host or self.socket,
+		}
+		if self.password:
+			conn_settings["password"] = self.password
+		if not self.socket and self.port:
+			conn_settings["port"] = self.port
+
+		conn = psycopg2.connect(**conn_settings)
 		conn.set_isolation_level(ISOLATION_LEVEL_REPEATABLE_READ)
 
 		return conn
@@ -200,7 +211,7 @@ class PostgresDatabase(PostgresExceptionUtil, Database):
 	def get_database_size(self):
 		"""'Returns database size in MB"""
 		db_size = self.sql(
-			"SELECT (pg_database_size(%s) / 1024 / 1024) as database_size", self.db_name, as_dict=True
+			"SELECT (pg_database_size(%s) / 1024 / 1024) as database_size", self.cur_db_name, as_dict=True
 		)
 		return db_size[0].get("database_size")
 
@@ -219,7 +230,7 @@ class PostgresDatabase(PostgresExceptionUtil, Database):
 			from information_schema.tables
 			where table_catalog='{}'
 				and table_type = 'BASE TABLE'
-				and table_schema='{}'""".format(frappe.conf.db_name, frappe.conf.get("db_schema", "public"))
+				and table_schema='{}'""".format(self.cur_db_name, frappe.conf.get("db_schema", "public"))
 			)
 		]
 
@@ -398,6 +409,21 @@ class PostgresDatabase(PostgresExceptionUtil, Database):
 			GROUP BY a.column_name, a.data_type, a.column_default, a.character_maximum_length;
 		""",
 			as_dict=1,
+		)
+
+	def get_column_type(self, doctype, column):
+		"""Returns column type from database."""
+		information_schema = frappe.qb.Schema("information_schema")
+		table = get_table_name(doctype)
+
+		return (
+			frappe.qb.from_(information_schema.columns)
+			.select(information_schema.columns.data_type)
+			.where(
+				(information_schema.columns.table_name == table)
+				& (information_schema.columns.column_name == column)
+			)
+			.run(pluck=True)[0]
 		)
 
 	def get_database_list(self):

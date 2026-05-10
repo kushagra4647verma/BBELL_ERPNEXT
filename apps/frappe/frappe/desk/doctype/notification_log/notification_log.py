@@ -11,6 +11,27 @@ from frappe.model.document import Document
 
 
 class NotificationLog(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		attached_file: DF.Code | None
+		document_name: DF.Data | None
+		document_type: DF.Link | None
+		email_content: DF.TextEditor | None
+		email_header: DF.Data | None
+		for_user: DF.Link | None
+		from_user: DF.Link | None
+		link: DF.SmallText | None
+		read: DF.Check
+		subject: DF.Text | None
+		type: DF.Literal["", "Mention", "Energy Point", "Assignment", "Share", "Alert"]
+
+	# end: auto-generated types
 	def after_insert(self):
 		frappe.publish_realtime("notification", after_commit=True, user=self.for_user)
 		set_notifications_as_unseen(self.for_user)
@@ -42,8 +63,7 @@ def get_permission_query_conditions(for_user):
 def get_title(doctype, docname, title_field=None):
 	if not title_field:
 		title_field = frappe.get_meta(doctype).get_title_field()
-	title = docname if title_field == "name" else frappe.db.get_value(doctype, docname, title_field)
-	return title
+	return docname if title_field == "name" else frappe.db.get_value(doctype, docname, title_field)
 
 
 def get_title_html(title):
@@ -107,21 +127,24 @@ def send_notification_email(doc: NotificationLog):
 	if not user:
 		return
 
-	doc_link = get_url_to_form(doc.document_type, doc.document_name)
 	header = get_email_header(doc, user.language)
 	email_subject = strip_html(doc.subject)
+	args = {
+		"body_content": doc.subject,
+		"description": doc.email_content,
+	}
+	if doc.link:
+		args["doc_link"] = doc.link
+	else:
+		args["document_type"] = doc.document_type
+		args["document_name"] = doc.document_name
+		args["doc_link"] = get_url_to_form(doc.document_type, doc.document_name)
 
 	frappe.sendmail(
 		recipients=user.email,
 		subject=email_subject,
 		template="new_notification",
-		args={
-			"body_content": doc.subject,
-			"description": doc.email_content,
-			"document_type": doc.document_type,
-			"document_name": doc.document_name,
-			"doc_link": doc_link,
-		},
+		args=args,
 		header=[header, "orange"],
 		now=frappe.flags.in_test,
 	)
@@ -168,9 +191,12 @@ def mark_all_as_read():
 
 
 @frappe.whitelist()
-def mark_as_read(docname):
+def mark_as_read(docname: str):
+	if frappe.flags.read_only:
+		return
+
 	if docname:
-		frappe.db.set_value("Notification Log", docname, "read", 1, update_modified=False)
+		frappe.db.set_value("Notification Log", str(docname), "read", 1, update_modified=False)
 
 
 @frappe.whitelist()

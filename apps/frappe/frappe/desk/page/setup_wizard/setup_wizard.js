@@ -31,6 +31,9 @@ frappe.setup = {
 };
 
 frappe.pages["setup-wizard"].on_page_load = function (wrapper) {
+	if (frappe.boot.setup_complete) {
+		window.location.href = frappe.boot.apps_data.default_path || "/app";
+	}
 	let requires = frappe.boot.setup_wizard_requires || [];
 	frappe.require(requires, function () {
 		frappe.call({
@@ -60,6 +63,13 @@ frappe.pages["setup-wizard"].on_page_show = function () {
 };
 
 frappe.setup.on("before_load", function () {
+	if (
+		frappe.boot.setup_wizard_completed_apps?.length &&
+		frappe.boot.setup_wizard_completed_apps.includes("frappe")
+	) {
+		return;
+	}
+
 	// load slides
 	frappe.setup.slides_settings.forEach((s) => {
 		if (!(s.name === "user" && frappe.boot.developer_mode)) {
@@ -97,10 +107,13 @@ frappe.setup.SetupWizard = class SetupWizard extends frappe.ui.Slides {
 
 	handle_enter_press(e) {
 		if (e.which === frappe.ui.keyCode.ENTER) {
-			var $target = $(e.target);
-			if ($target.hasClass("prev-btn")) {
+			let $target = $(e.target);
+			if ($target.hasClass("prev-btn") || $target.hasClass("next-btn")) {
 				$target.trigger("click");
 			} else {
+				// hitting enter on autocomplete field shouldn't trigger next slide.
+				if ($target.data().fieldtype == "Autocomplete") return;
+
 				this.container.find(".next-btn").trigger("click");
 				e.preventDefault();
 			}
@@ -145,6 +158,13 @@ frappe.setup.SetupWizard = class SetupWizard extends frappe.ui.Slides {
 		this.in_refresh_slides = true;
 
 		this.update_values();
+		const welcome_slide = frappe.setup.slides_settings.find((s) => s.name === "welcome");
+		if (welcome_slide && this.values.language) {
+			const lang_field = welcome_slide.fields.find((f) => f.fieldname === "language");
+			if (lang_field) {
+				lang_field.default = this.values.language;
+			}
+		}
 		frappe.setup.slides = [];
 		frappe.setup.run_event("before_load");
 
@@ -190,7 +210,7 @@ frappe.setup.SetupWizard = class SetupWizard extends frappe.ui.Slides {
 					this.abort_setup(r.message.fail);
 				}
 			},
-			error: () => this.abort_setup("Error in setup"),
+			error: () => this.abort_setup(),
 		});
 	}
 
@@ -201,17 +221,26 @@ frappe.setup.SetupWizard = class SetupWizard extends frappe.ui.Slides {
 		}
 		setTimeout(function () {
 			// Reload
-			window.location.href = "/app";
+			let current_route = localStorage.current_route;
+
+			localStorage.current_route = "";
+			localStorage.current_app = "";
+
+			window.location.href = current_route || frappe.boot.apps_data.default_path || "/app";
 		}, 2000);
 	}
 
 	abort_setup(fail_msg) {
 		this.$working_state.find(".state-icon-container").html("");
-		fail_msg = fail_msg ? fail_msg : __("Failed to complete setup");
+		fail_msg = fail_msg
+			? fail_msg
+			: frappe.last_response.setup_wizard_failure_message
+			? frappe.last_response.setup_wizard_failure_message
+			: __("Failed to complete setup");
 
-		this.update_setup_message("Could not start up: " + fail_msg);
+		this.update_setup_message(__("Could not start up: ") + fail_msg);
 
-		this.$working_state.find(".title").html("Setup failed");
+		this.$working_state.find(".title").html(__("Setup failed"));
 
 		this.$abort_btn.show();
 	}
@@ -400,26 +429,50 @@ frappe.setup.slides_settings = [
 			},
 			{
 				fieldname: "enable_telemetry",
-				label: __("Allow Sending Usage Data for Improving Applications"),
+				label: __("Allow sending usage data for improving applications"),
 				fieldtype: "Check",
-				default: 1,
+				default: cint(frappe.telemetry.can_enable()),
+				depends_on: "eval:frappe.telemetry.can_enable()",
+			},
+			{
+				fieldname: "allow_recording_first_session",
+				label: __("Allow recording my first session to improve user experience"),
+				fieldtype: "Check",
+				default: 0,
+				depends_on: "eval:frappe.telemetry.can_enable()",
 			},
 		],
 
 		onload: function (slide) {
+			frappe.setup.utils.load_prefilled_data(slide, this.initialize_fields);
+		},
+
+		initialize_fields: function (slide) {
+			const setup_fields = function (slide) {
+				frappe.setup.utils.setup_region_fields(slide);
+				frappe.setup.utils.setup_language_field(slide);
+			};
+
 			if (frappe.setup.data.regional_data) {
-				this.setup_fields(slide);
+				setup_fields(slide);
 			} else {
-				frappe.setup.utils.load_regional_data(slide, this.setup_fields);
+				frappe.setup.utils.load_regional_data(slide, setup_fields);
 			}
+			let current_selection = frappe.wizard.values.language;
 			if (!slide.get_value("language")) {
 				let session_language =
+					current_selection ||
 					frappe.setup.utils.get_language_name_from_code(
 						frappe.boot.lang || navigator.language
-					) || "English";
+					) ||
+					"English";
 				let language_field = slide.get_field("language");
+				language_field.df.default = session_language;
 
 				language_field.set_input(session_language);
+				if (language_field.awesomplete) {
+					language_field.awesomplete.evaluate();
+				}
 				if (!frappe.setup._from_load_messages) {
 					language_field.$input.trigger("change");
 				}
@@ -428,11 +481,6 @@ frappe.setup.slides_settings = [
 			}
 			frappe.setup.utils.bind_region_events(slide);
 			frappe.setup.utils.bind_language_events(slide);
-		},
-
-		setup_fields: function (slide) {
-			frappe.setup.utils.setup_region_fields(slide);
-			frappe.setup.utils.setup_language_field(slide);
 		},
 	},
 	{
@@ -461,27 +509,27 @@ frappe.setup.slides_settings = [
 						: __("Update Password"),
 				fieldtype: "Password",
 				length: 512,
+				depends_on: "eval:!frappe.boot.is_fc_site",
 			},
 		],
 
 		onload: function (slide) {
+			slide.form.fields_dict.password?.$input?.attr("autocomplete", "new-password");
+
 			if (frappe.session.user !== "Administrator") {
-				slide.form.fields_dict.email.$wrapper.toggle(false);
-				slide.form.fields_dict.password.$wrapper.toggle(false);
-
-				// remove password field
-				delete slide.form.fields_dict.password;
-
-				if (frappe.boot.user.first_name || frappe.boot.user.last_name) {
+				const { first_name, last_name, email } = frappe.boot.user;
+				if (first_name || last_name) {
 					slide.form.fields_dict.full_name.set_input(
-						[frappe.boot.user.first_name, frappe.boot.user.last_name].join(" ").trim()
+						[first_name, last_name].join(" ").trim()
 					);
 				}
-				delete slide.form.fields_dict.email;
+				slide.form.fields_dict.email.set_input(email);
+				slide.form.fields_dict.email.df.read_only = 1;
+				slide.form.fields_dict.email.refresh();
 			} else {
 				slide.form.fields_dict.email.df.reqd = 1;
 				slide.form.fields_dict.email.refresh();
-				slide.form.fields_dict.password.df.reqd = 1;
+				if (!frappe.boot.is_fc_site) slide.form.fields_dict.password.df.reqd = 1;
 				slide.form.fields_dict.password.refresh();
 
 				frappe.setup.utils.load_user_details(slide, this.setup_fields);
@@ -501,6 +549,38 @@ frappe.setup.slides_settings = [
 ];
 
 frappe.setup.utils = {
+	load_prefilled_data: function (slide, callback) {
+		frappe.db
+			.get_value("System Settings", "System Settings", [
+				"country",
+				"timezone",
+				"currency",
+				"language",
+			])
+			.then((r) => {
+				if (r.message) {
+					frappe.wizard.values.currency = r.message.currency;
+					frappe.wizard.values.country = r.message.country;
+					frappe.wizard.values.timezone = r.message.time_zone;
+					frappe.wizard.values.language =
+						frappe.wizard.values.language || r.message.language;
+
+					frappe.db.get_value(
+						"User",
+						{ name: ["not in", ["Administrator", "Guest"]] },
+						["full_name", "email"],
+						(r) => {
+							if (r) {
+								frappe.wizard.values.full_name = r.full_name;
+								frappe.wizard.values.email = r.email;
+							}
+						}
+					);
+				}
+				callback(slide);
+			});
+	},
+
 	load_regional_data: function (slide, callback) {
 		frappe.call({
 			method: "frappe.geo.country_info.get_country_timezone_info",
@@ -526,6 +606,9 @@ frappe.setup.utils = {
 	setup_language_field: function (slide) {
 		var language_field = slide.get_field("language");
 		language_field.df.options = frappe.setup.data.lang.languages;
+		if (frappe.wizard.values.language) {
+			language_field.df.default = frappe.wizard.values.language;
+		}
 		language_field.set_options();
 	},
 
@@ -557,15 +640,19 @@ frappe.setup.utils = {
 
 		slide.get_input("timezone").empty().add_options(data.all_timezones);
 
-		// set values if present
-		if (frappe.wizard.values.country) {
-			country_field.set_input(frappe.wizard.values.country);
-		} else if (data.default_country) {
-			country_field.set_input(data.default_country);
-		}
-
 		slide.get_field("currency").set_input(frappe.wizard.values.currency);
 		slide.get_field("timezone").set_input(frappe.wizard.values.timezone);
+
+		// set values if present
+		let country =
+			frappe.wizard.values.country ||
+			data.default_country ||
+			guess_country(frappe.setup.data.regional_data.country_info);
+
+		if (country) {
+			country_field.set_input(country);
+			$(country_field.input).change();
+		}
 	},
 
 	bind_language_events: function (slide) {
@@ -573,9 +660,12 @@ frappe.setup.utils = {
 			.get_input("language")
 			.unbind("change")
 			.on("change", function () {
+				const selected_language = $(this).val();
+				if (slide.get_field("language").value === selected_language) return;
+
 				clearTimeout(slide.language_call_timeout);
 				slide.language_call_timeout = setTimeout(() => {
-					let lang = $(this).val() || "English";
+					let lang = selected_language || "English";
 					frappe._messages = {};
 					frappe.call({
 						method: "frappe.desk.page.setup_wizard.setup_wizard.load_messages",
@@ -584,6 +674,7 @@ frappe.setup.utils = {
 							language: lang,
 						},
 						callback: function () {
+							frappe.wizard.values.language = lang;
 							frappe.setup._from_load_messages = true;
 							frappe.wizard.refresh_slides();
 						},
@@ -603,6 +694,7 @@ frappe.setup.utils = {
 		slide.get_input("country").on("change", function () {
 			let data = frappe.setup.data.regional_data;
 			let country = slide.get_input("country").val();
+			country = country.replace(/\s*\([^)]*\)/, "");
 			if (!(country in data.country_info)) return;
 
 			let $timezone = slide.get_input("timezone");
@@ -644,3 +736,22 @@ frappe.setup.utils = {
 		});
 	},
 };
+
+// https://github.com/eggert/tz/blob/main/backward add more if required.
+const TZ_BACKWARD_COMPATBILITY_MAP = {
+	"Asia/Calcutta": "Asia/Kolkata",
+};
+
+function guess_country(country_info) {
+	try {
+		let system_timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+		system_timezone = TZ_BACKWARD_COMPATBILITY_MAP[system_timezone] || system_timezone;
+
+		for (let [country, info] of Object.entries(country_info)) {
+			let possible_timezones = (info.timezones || []).filter((t) => t == system_timezone);
+			if (possible_timezones.length) return country;
+		}
+	} catch (e) {
+		console.log("Could not guess country", e);
+	}
+}

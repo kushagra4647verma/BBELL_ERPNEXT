@@ -1,6 +1,5 @@
 // Copyright (c) 2016, Frappe Technologies Pvt. Ltd. and contributors
 // For license information, please see license.txt
-/* eslint-disable */
 
 frappe.query_reports["Stock Qty vs Serial No Count"] = {
 	filters: [
@@ -24,6 +23,11 @@ frappe.query_reports["Stock Qty vs Serial No Count"] = {
 				};
 			},
 			reqd: 1,
+		},
+		{
+			fieldname: "show_disabled_items",
+			label: __("Show Disabled Items"),
+			fieldtype: "Check",
 		},
 	],
 

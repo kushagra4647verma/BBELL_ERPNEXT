@@ -55,7 +55,7 @@ class TestAuth(FrappeTestCase):
 		frappe.db.commit()
 
 	def set_system_settings(self, k, v):
-		frappe.db.set_value("System Settings", "System Settings", k, v)
+		frappe.db.set_single_value("System Settings", k, v)
 		frappe.clear_cache()
 		frappe.db.commit()
 
@@ -160,10 +160,12 @@ class TestAuth(FrappeTestCase):
 			self.fail("Rate limting not working")
 
 	def test_correct_cookie_expiry_set(self):
+		import pytz
+
 		client = FrappeClient(self.HOST_NAME, self.test_user_email, self.test_user_password)
 
 		expiry_time = next(x for x in client.session.cookies if x.name == "sid").expires
-		current_time = datetime.datetime.utcnow().timestamp()
+		current_time = datetime.datetime.now(tz=pytz.UTC).timestamp()
 		self.assertAlmostEqual(get_expiry_in_seconds(), expiry_time - current_time, delta=60 * 60)
 
 
@@ -206,7 +208,7 @@ class TestLoginAttemptTracker(FrappeTestCase):
 		self.assertTrue(tracker.is_user_allowed())
 
 
-class TestSessionExpirty(FrappeAPITestCase):
+class TestSessionExpiry(FrappeAPITestCase):
 	def test_session_expires(self):
 		sid = self.sid  # triggers login for test case login
 		s: Session = frappe.local.session_obj

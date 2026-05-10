@@ -1,8 +1,9 @@
 /* eslint-disable no-unused-vars */
 erpnext.PointOfSale.Payment = class {
-	constructor({ events, wrapper }) {
+	constructor({ events, settings, wrapper }) {
 		this.wrapper = wrapper;
 		this.events = events;
+		this.disable_grand_total_to_default_mop = settings.disable_grand_total_to_default_mop;
 
 		this.init_component();
 	}
@@ -41,6 +42,7 @@ erpnext.PointOfSale.Payment = class {
 	}
 
 	make_invoice_fields_control() {
+		this.reqd_invoice_fields = [];
 		frappe.db.get_doc("POS Settings", undefined).then((doc) => {
 			const fields = doc.invoice_fields;
 			if (!fields.length) return;
@@ -66,6 +68,9 @@ erpnext.PointOfSale.Payment = class {
 							}
 						},
 					};
+				}
+				if (df.reqd && (df.fieldtype !== "Button" || !df.read_only)) {
+					this.reqd_invoice_fields.push({ fieldname: df.fieldname, label: df.label });
 				}
 
 				this[`${df.fieldname}_field`] = frappe.ui.form.make_control({
@@ -204,7 +209,11 @@ erpnext.PointOfSale.Payment = class {
 			const paid_amount = doc.paid_amount;
 			const items = doc.items;
 
-			if (paid_amount == 0 || !items.length) {
+			if (!this.validate_reqd_invoice_fields()) {
+				return;
+			}
+
+			if (!items.length || (paid_amount == 0 && doc.additional_discount_percentage != 100)) {
 				const message = items.length
 					? __("You cannot submit the order without payment.")
 					: __("You cannot submit empty order.");
@@ -350,6 +359,11 @@ erpnext.PointOfSale.Payment = class {
 	}
 
 	checkout() {
+		const frm = this.events.get_frm();
+		frm.cscript.calculate_outstanding_amount();
+		frm.refresh_field("outstanding_amount");
+		frm.refresh_field("paid_amount");
+		frm.refresh_field("base_paid_amount");
 		this.events.toggle_other_sections(true);
 		this.toggle_component(true);
 
@@ -379,6 +393,10 @@ erpnext.PointOfSale.Payment = class {
 		const doc = this.events.get_frm().doc;
 		const payments = doc.payments;
 		const currency = doc.currency;
+
+		if (!this.$payment_modes.is(":visible")) {
+			return;
+		}
 
 		this.$payment_modes.html(
 			`${payments
@@ -433,7 +451,19 @@ erpnext.PointOfSale.Payment = class {
 		this.attach_cash_shortcuts(doc);
 	}
 
+	remove_grand_total_from_default_mop() {
+		if (!this.disable_grand_total_to_default_mop) return;
+		const doc = this.events.get_frm().doc;
+		const payments = doc.payments;
+		payments.forEach((p) => {
+			if (p.default) {
+				frappe.model.set_value(p.doctype, p.name, "amount", 0);
+			}
+		});
+	}
+
 	focus_on_default_mop() {
+		if (this.disable_grand_total_to_default_mop) return;
 		const doc = this.events.get_frm().doc;
 		const payments = doc.payments;
 		payments.forEach((p) => {
@@ -457,7 +487,7 @@ erpnext.PointOfSale.Payment = class {
 		this.$payment_modes.find(".cash-shortcuts").remove();
 		let shortcuts_html = shortcuts
 			.map((s) => {
-				return `<div class="shortcut" data-value="${s}">${format_currency(s, currency, 0)}</div>`;
+				return `<div class="shortcut" data-value="${s}">${format_currency(s, currency)}</div>`;
 			})
 			.join("");
 
@@ -586,6 +616,10 @@ erpnext.PointOfSale.Payment = class {
 		const currency = doc.currency;
 		const label = __("Change Amount");
 
+		if (!this.$totals.is(":visible")) {
+			return;
+		}
+
 		this.$totals.html(
 			`<div class="col">
 				<div class="total-label">${__("Grand Total")}</div>
@@ -614,5 +648,21 @@ erpnext.PointOfSale.Payment = class {
 			.replace(/[^\p{L}\p{N}_-]/gu, "")
 			.replace(/^[^_a-zA-Z\p{L}]+/u, "")
 			.toLowerCase();
+	}
+
+	validate_reqd_invoice_fields() {
+		const doc = this.events.get_frm().doc;
+		let validation_flag = true;
+		for (let field of this.reqd_invoice_fields) {
+			if (!doc[field.fieldname]) {
+				validation_flag = false;
+				frappe.show_alert({
+					message: __("{0} is a mandatory field.", [field.label]),
+					indicator: "orange",
+				});
+				frappe.utils.play_sound("error");
+			}
+		}
+		return validation_flag;
 	}
 };

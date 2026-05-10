@@ -15,6 +15,38 @@ from frappe.utils import flt
 
 
 class NumberCard(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		aggregate_function_based_on: DF.Literal[None]
+		background_color: DF.Color | None
+		color: DF.Color | None
+		currency: DF.Link | None
+		document_type: DF.Link | None
+		dynamic_filters_json: DF.Code | None
+		filters_config: DF.Code | None
+		filters_json: DF.Code | None
+		function: DF.Literal["Count", "Sum", "Average", "Minimum", "Maximum"]
+		is_public: DF.Check
+		is_standard: DF.Check
+		label: DF.Data
+		method: DF.Data | None
+		module: DF.Link | None
+		parent_document_type: DF.Link | None
+		report_field: DF.Literal[None]
+		report_function: DF.Literal["Sum", "Average", "Minimum", "Maximum"]
+		report_name: DF.Link | None
+		show_full_number: DF.Check
+		show_percentage_stats: DF.Check
+		stats_time_interval: DF.Literal["Daily", "Weekly", "Monthly", "Yearly"]
+		type: DF.Literal["Document Type", "Report", "Custom"]
+
+	# end: auto-generated types
 	def autoname(self):
 		if not self.name:
 			self.name = self.label
@@ -156,8 +188,7 @@ def calculate_previous_result(doc, filters):
 	else:
 		previous_date = add_to_date(current_date, years=-1)
 
-	number = get_result(doc, filters, previous_date)
-	return number
+	return get_result(doc, filters, previous_date)
 
 
 @frappe.whitelist()

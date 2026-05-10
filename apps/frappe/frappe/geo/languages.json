@@ -64,6 +64,10 @@
   "name": "English (United States)"
  },
  {
+  "code": "eo",
+  "name": "In-Context Translation"
+ },
+ {
   "code": "es",
   "name": "Espa\u00f1ol"
  },
@@ -218,6 +222,10 @@
  {
   "code": "my",
   "name": "\u1019\u103c\u1014\u103a\u1019\u102c"
+ },
+ {
+  "code": "nb",
+  "name": "Norsk Bokmål"
  },
  {
   "code": "nl",

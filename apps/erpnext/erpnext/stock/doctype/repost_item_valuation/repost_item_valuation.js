@@ -67,8 +67,15 @@ frappe.ui.form.on("Repost Item Valuation", {
 			}
 
 			if (frm.doc.status == "In Progress") {
-				frm.doc.current_index = data.current_index;
-				frm.doc.items_to_be_repost = data.items_to_be_repost;
+				if (data.current_index) {
+					frm.doc.current_index = data.current_index;
+					frm.doc.items_to_be_repost = data.items_to_be_repost;
+				}
+
+				if (data.vouchers_posted) {
+					frm.doc.total_vouchers = data.total_vouchers;
+					frm.doc.vouchers_posted = data.vouchers_posted;
+				}
 
 				frm.dashboard.reset();
 				frm.trigger("show_reposting_progress");
@@ -103,10 +110,31 @@ frappe.ui.form.on("Repost Item Valuation", {
 
 	show_reposting_progress: function (frm) {
 		var bars = [];
-
+		let title = "";
+		let progress = 0.0;
 		let total_count = frm.doc.items_to_be_repost ? JSON.parse(frm.doc.items_to_be_repost).length : 0;
-		let progress = flt((cint(frm.doc.current_index) / total_count) * 100, 2) || 0.5;
-		var title = __("Reposting Completed {0}%", [progress]);
+
+		if (total_count > 1) {
+			progress = flt((cint(frm.doc.current_index) / total_count) * 100, 2) || 0.5;
+			title = __("Reposting for Item-Wh Completed {0}%", [progress]);
+
+			bars.push({
+				title: title,
+				width: progress + "%",
+				progress_class: "progress-bar-success",
+			});
+
+			frm.dashboard.add_progress(__("Reposting Progress"), bars);
+		}
+
+		if (!frm.doc.vouchers_posted) {
+			return;
+		}
+
+		// Show voucher posting progress if vouchers are being reposted
+		bars = [];
+		progress = flt((cint(frm.doc.vouchers_posted) / cint(frm.doc.total_vouchers)) * 100, 2) || 0.5;
+		title = __("Reposting for Vouchers Completed {0}%", [progress]);
 
 		bars.push({
 			title: title,
@@ -114,7 +142,7 @@ frappe.ui.form.on("Repost Item Valuation", {
 			progress_class: "progress-bar-success",
 		});
 
-		frm.dashboard.add_progress(__("Reposting Progress"), bars);
+		frm.dashboard.add_progress(__("Reposting Vouchers Progress"), bars);
 	},
 
 	restart_reposting: function (frm) {
@@ -122,10 +150,22 @@ frappe.ui.form.on("Repost Item Valuation", {
 			method: "restart_reposting",
 			doc: frm.doc,
 			callback: function (r) {
-				if (!r.exc) {
-					frm.refresh();
-				}
+				frm.reload_doc();
 			},
 		});
+	},
+
+	voucher_type: function (frm) {
+		frm.trigger("set_company_on_transaction");
+	},
+
+	voucher_no: function (frm) {
+		frm.trigger("set_company_on_transaction");
+	},
+
+	set_company_on_transaction(frm) {
+		if (frm.doc.voucher_no && frm.doc.voucher_type) {
+			frm.call("set_company");
+		}
 	},
 });

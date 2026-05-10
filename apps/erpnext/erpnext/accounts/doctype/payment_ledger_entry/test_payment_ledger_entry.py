@@ -80,6 +80,7 @@ class TestPaymentLedgerEntry(FrappeTestCase):
 			customer = frappe.new_doc("Customer")
 			customer.customer_name = name
 			customer.type = "Individual"
+			customer.customer_group = "Individual"
 			customer.save()
 			self.customer = customer.name
 
@@ -509,7 +510,11 @@ class TestPaymentLedgerEntry(FrappeTestCase):
 
 	@change_settings(
 		"Accounts Settings",
-		{"unlink_payment_on_cancellation_of_invoice": 1, "delete_linked_ledger_entries": 1},
+		{
+			"unlink_payment_on_cancellation_of_invoice": 1,
+			"delete_linked_ledger_entries": 1,
+			"unlink_advance_payment_on_cancelation_of_order": 1,
+		},
 	)
 	def test_advance_payment_unlink_on_order_cancellation(self):
 		transaction_date = nowdate()

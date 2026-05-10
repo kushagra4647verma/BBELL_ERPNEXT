@@ -4,6 +4,7 @@ import frappe
 from frappe.tests.utils import FrappeTestCase
 
 from india_compliance.gst_india.overrides.transaction import get_valid_accounts
+from india_compliance.gst_india.utils import get_gst_accounts_by_type
 
 # Creation of Item tax template for indian and foreign company
 # Validation of GST Rate
@@ -11,9 +12,7 @@ from india_compliance.gst_india.overrides.transaction import get_valid_accounts
 
 class TestTransaction(FrappeTestCase):
     def test_item_tax_template_for_foreign_company(self):
-        doc = create_item_tax_template(
-            company="_Test Foreign Company", gst_rate=0, gst_treatment="Exempt"
-        )
+        doc = create_item_tax_template(company="_Test Foreign Company", gst_rate=0, gst_treatment="Exempt")
         self.assertTrue(doc.gst_rate == 0)
         self.assertTrue(doc.gst_treatment == "Exempt")
 
@@ -45,7 +44,7 @@ class TestTransaction(FrappeTestCase):
 
         self.assertRaisesRegex(
             frappe.exceptions.ValidationError,
-            re.compile(r"^(Plese make sure account tax rates.*)$"),
+            re.compile(r"^(Please make sure account tax rates.*)$"),
             doc.save,
         )
 
@@ -81,21 +80,30 @@ def create_item_tax_template(**data):
             pluck="name",
         )
 
+    rcm_accounts = (get_gst_accounts_by_type(doc.company, "Sales Reverse Charge", throw=False)).values()
+
     for account in intra_state_accounts:
+        tax_rate = gst_rate
+        if account in rcm_accounts:
+            tax_rate = tax_rate * -1
+
         doc.append(
             "taxes",
             {
                 "tax_type": account,
-                "tax_rate": gst_rate / 2,
+                "tax_rate": tax_rate / 2,
             },
         )
 
     for account in inter_state_accounts:
+        tax_rate = gst_rate
+        if account in rcm_accounts:
+            tax_rate = tax_rate * -1
         doc.append(
             "taxes",
             {
                 "tax_type": account,
-                "tax_rate": gst_rate,
+                "tax_rate": tax_rate,
             },
         )
 

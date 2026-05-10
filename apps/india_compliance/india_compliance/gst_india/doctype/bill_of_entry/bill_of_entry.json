@@ -13,7 +13,6 @@
   "amended_from",
   "column_break_2wjs",
   "section_break_fqdh",
-  "purchase_invoice",
   "column_break_epap",
   "company",
   "column_break_4zp5",
@@ -32,10 +31,12 @@
   "customs_expense_account",
   "column_break_zsed",
   "reconciliation_status",
+  "itc_claim_period",
   "accounting_dimensions_section",
   "cost_center",
   "dimension_col_break",
   "section_break_nlqh",
+  "get_items_from_purchase_invoice",
   "items",
   "section_break_ujtl",
   "column_break_cnrv",
@@ -43,6 +44,7 @@
   "column_break_wxlx",
   "total_taxable_value",
   "section_break_biay",
+  "tax_category",
   "taxes",
   "section_break_zcnz",
   "total_customs_duty",
@@ -114,8 +116,7 @@
    "fieldname": "company",
    "fieldtype": "Link",
    "label": "Company",
-   "options": "Company",
-   "read_only": 1
+   "options": "Company"
   },
   {
    "fieldname": "column_break_4zp5",
@@ -123,20 +124,12 @@
   },
   {
    "fieldname": "company_gstin",
-   "fieldtype": "Data",
-   "label": "Company GSTIN",
-   "read_only": 1
+   "fieldtype": "Autocomplete",
+   "label": "Company GSTIN"
   },
   {
    "fieldname": "column_break_hbfk",
    "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "purchase_invoice",
-   "fieldtype": "Link",
-   "label": "Purchase Invoice",
-   "options": "Purchase Invoice",
-   "reqd": 1
   },
   {
    "fieldname": "column_break_epap",
@@ -161,7 +154,7 @@
   {
    "fieldname": "taxes",
    "fieldtype": "Table",
-   "options": "Bill of Entry Taxes",
+   "options": "India Compliance Taxes and Charges",
    "reqd": 1
   },
   {
@@ -272,16 +265,41 @@
    "label": "Bill of Lading No."
   },
   {
+   "depends_on": "eval: doc.docstatus == 1",
    "fieldname": "reconciliation_status",
    "fieldtype": "Select",
-   "label": "Reconciliation Status",
+   "label": "2A/2B Reconciliation Status",
    "no_copy": 1,
    "options": "\nNot Applicable\nReconciled\nUnreconciled\nIgnored",
    "print_hide": 1,
    "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "GSTR-3B period for claiming ITC (MMYYYY) or 'Deferred' to postpone.",
+   "fieldname": "itc_claim_period",
+   "fieldtype": "Autocomplete",
+   "label": "ITC Claim Period",
+   "no_copy": 1,
+   "print_hide": 1
+  },
+  {
+   "fieldname": "tax_category",
+   "fieldtype": "Link",
+   "label": "Tax Category",
+   "options": "Tax Category",
+   "print_hide": 1
+  },
+  {
+   "fieldname": "get_items_from_purchase_invoice",
+   "fieldtype": "Button",
+   "label": "Get Items From Purchase Invoice"
+  },
+  {
+   "fieldname": "column_break_tzdn",
+   "fieldtype": "Column Break"
   }
  ],
- "in_create": 1,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [
@@ -297,7 +315,7 @@
    "link_fieldname": "link_name"
   }
  ],
- "modified": "2023-12-13 16:43:40.501418",
+ "modified": "2025-02-06 18:45:23.478878",
  "modified_by": "Administrator",
  "module": "GST India",
  "name": "Bill of Entry",

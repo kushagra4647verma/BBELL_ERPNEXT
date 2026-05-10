@@ -17,6 +17,7 @@
   "options",
   "max_length",
   "max_value",
+  "precision",
   "property_depends_on_section",
   "depends_on",
   "mandatory_depends_on",
@@ -143,6 +144,14 @@
    "fieldtype": "Code",
    "label": "Read Only Depends On",
    "options": "JS"
+  },
+  {
+   "depends_on": "eval:in_list([\"Float\", \"Currency\", \"Percent\"], doc.fieldtype)",
+   "description": "Set non-standard precision for a Float or Currency field",
+   "fieldname": "precision",
+   "fieldtype": "Select",
+   "label": "Precision",
+   "options": "\n0\n1\n2\n3\n4\n5\n6\n7\n8\n9"
   }
  ],
  "istable": 1,

@@ -7,14 +7,46 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.model.meta import get_field_precision
 from frappe.query_builder.custom import ConstantColumn
-from frappe.utils import flt
+from frappe.utils import cint, flt
 
 import erpnext
+from erpnext import is_perpetual_inventory_enabled
 from erpnext.controllers.taxes_and_totals import init_landed_taxes_and_totals
 from erpnext.stock.doctype.serial_no.serial_no import get_serial_nos
 
 
+class IncorrectCompanyValidationError(frappe.ValidationError):
+	pass
+
+
 class LandedCostVoucher(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.stock.doctype.landed_cost_item.landed_cost_item import LandedCostItem
+		from erpnext.stock.doctype.landed_cost_purchase_receipt.landed_cost_purchase_receipt import (
+			LandedCostPurchaseReceipt,
+		)
+		from erpnext.stock.doctype.landed_cost_taxes_and_charges.landed_cost_taxes_and_charges import (
+			LandedCostTaxesandCharges,
+		)
+
+		amended_from: DF.Link | None
+		company: DF.Link
+		distribute_charges_based_on: DF.Literal["Qty", "Amount", "Distribute Manually"]
+		items: DF.Table[LandedCostItem]
+		naming_series: DF.Literal["MAT-LCV-.YYYY.-"]
+		posting_date: DF.Date
+		purchase_receipts: DF.Table[LandedCostPurchaseReceipt]
+		taxes: DF.Table[LandedCostTaxesandCharges]
+		total_taxes_and_charges: DF.Currency
+	# end: auto-generated types
+
 	@frappe.whitelist()
 	def get_items_from_purchase_receipts(self):
 		self.set("items", [])
@@ -39,6 +71,7 @@ class LandedCostVoucher(Document):
 		self.check_mandatory()
 		self.validate_receipt_documents()
 		self.validate_line_items()
+		self.validate_expense_accounts()
 		init_landed_taxes_and_totals(self)
 		self.set_total_taxes_and_charges()
 		if not self.get("items"):
@@ -74,10 +107,27 @@ class LandedCostVoucher(Document):
 		receipt_documents = []
 
 		for d in self.get("purchase_receipts"):
-			docstatus = frappe.db.get_value(d.receipt_document_type, d.receipt_document, "docstatus")
+			docstatus, company = frappe.get_cached_value(
+				d.receipt_document_type, d.receipt_document, ["docstatus", "company"]
+			)
 			if docstatus != 1:
 				msg = f"Row {d.idx}: {d.receipt_document_type} {frappe.bold(d.receipt_document)} must be submitted"
 				frappe.throw(_(msg), title=_("Invalid Document"))
+
+			if company != self.company:
+				frappe.throw(
+					_(
+						"Row {0}: {1} {2} is linked to company {3}. Please select a document belonging to company {4}."
+					).format(
+						d.idx,
+						d.receipt_document_type,
+						frappe.bold(d.receipt_document),
+						frappe.bold(company),
+						frappe.bold(self.company),
+					),
+					title=_("Incorrect Company"),
+					exc=IncorrectCompanyValidationError,
+				)
 
 			if d.receipt_document_type == "Purchase Invoice":
 				update_stock = frappe.db.get_value(
@@ -108,6 +158,27 @@ class LandedCostVoucher(Document):
 			if not item.cost_center:
 				frappe.throw(
 					_("Row {0}: Cost center is required for an item {1}").format(item.idx, item.item_code)
+				)
+
+	def validate_expense_accounts(self):
+		if not is_perpetual_inventory_enabled(self.company):
+			return
+
+		for t in self.taxes:
+			company = frappe.get_cached_value("Account", t.expense_account, "company")
+
+			if company != self.company:
+				frappe.throw(
+					_(
+						"Row {0}: Expense Account {1} is linked to company {2}. Please select an account belonging to company {3}."
+					).format(
+						t.idx,
+						frappe.bold(t.expense_account),
+						frappe.bold(company),
+						frappe.bold(self.company),
+					),
+					title=_("Incorrect Account"),
+					exc=IncorrectCompanyValidationError,
 				)
 
 	def set_total_taxes_and_charges(self):
@@ -223,12 +294,13 @@ class LandedCostVoucher(Document):
 
 			# update stock & gl entries for submit state of PR
 			doc.docstatus = 1
+			doc.make_bundle_using_old_serial_batch_fields(via_landed_cost_voucher=True)
 			doc.update_stock_ledger(allow_negative_stock=True, via_landed_cost_voucher=True)
 			if d.receipt_document_type == "Purchase Receipt":
 				doc.make_gl_entries(via_landed_cost_voucher=True)
 			else:
 				doc.make_gl_entries()
-			doc.repost_future_sle_and_gle()
+			doc.repost_future_sle_and_gle(via_landed_cost_voucher=True)
 
 	def validate_asset_qty_and_status(self, receipt_document_type, receipt_document):
 		for item in self.get("items"):
@@ -240,14 +312,24 @@ class LandedCostVoucher(Document):
 				)
 				docs = frappe.db.get_all(
 					"Asset",
-					filters={receipt_document_type: item.receipt_document, "item_code": item.item_code},
-					fields=["name", "docstatus"],
+					filters={
+						receipt_document_type: item.receipt_document,
+						"item_code": item.item_code,
+						"docstatus": ["!=", 2],
+					},
+					fields=["name", "docstatus", "asset_quantity"],
 				)
-				if not docs or len(docs) < item.qty:
+
+				total_asset_qty = sum((cint(d.asset_quantity)) for d in docs)
+
+				if not docs or total_asset_qty < item.qty:
 					frappe.throw(
 						_(
-							"There are only {0} asset created or linked to {1}. Please create or link {2} Assets with respective document."
-						).format(len(docs), item.receipt_document, item.qty)
+							"For item <b>{0}</b>, only <b>{1}</b> asset have been created or linked to <b>{2}</b>. "
+							"Please create or link <b>{3}</b> more asset with the respective document."
+						).format(
+							item.item_code, total_asset_qty, item.receipt_document, item.qty - total_asset_qty
+						)
 					)
 				if docs:
 					for d in docs:
@@ -294,5 +376,6 @@ def get_pr_items(purchase_receipt):
 			(pr_item.parent == purchase_receipt.receipt_document)
 			& ((item.is_stock_item == 1) | (item.is_fixed_asset == 1))
 		)
+		.orderby(pr_item.idx)
 		.run(as_dict=True)
 	)

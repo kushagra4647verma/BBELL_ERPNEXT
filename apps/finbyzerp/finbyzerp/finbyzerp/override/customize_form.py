@@ -15,10 +15,10 @@ class CustomizeForm(_CustomizeForm):
 
 		if self.doc_type in doc_list:
 			field_names = frappe.db.get_list("Field Sequence Table", filters={'doc_type': self.doc_type}, fields=['field_name', 'idx'])
-			sorted_fields = sorted(field_names, key=lambda x: x['idx'])
+			sorted_fields = sorted(field_names, key=lambda x: x.idx)
 
 			# Remove multiple fields
-			fields_to_remove = [field['field_name'] for field in sorted_fields]
+			fields_to_remove = [field.field_name for field in sorted_fields]
 			
 			new_order = [field for field in new_order if field not in fields_to_remove]
 

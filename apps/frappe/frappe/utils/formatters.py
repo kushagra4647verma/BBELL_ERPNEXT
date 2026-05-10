@@ -135,7 +135,10 @@ def format_value(value, df=None, doc=None, currency=None, translated=False, form
 			meta = frappe.get_meta(df.parent)
 			_field = meta.get_field(df.options)
 			doctype = _field.options
-
 		return doc.__link_titles.get(f"{doctype}::{value}", value)
+
+	elif df.get("fieldtype") == "Select":
+		if isinstance(value, str):
+			return frappe._(value, context=df.parent or "")
 
 	return value

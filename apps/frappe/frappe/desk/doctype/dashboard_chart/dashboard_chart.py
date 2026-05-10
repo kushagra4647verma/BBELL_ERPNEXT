@@ -11,7 +11,7 @@ from frappe.config import get_modules_from_all_apps_for_user
 from frappe.model.document import Document
 from frappe.model.naming import append_number_if_name_exists
 from frappe.modules.export_file import export_to_files
-from frappe.utils import cint, get_datetime, getdate, has_common, now_datetime, nowdate
+from frappe.utils import cint, flt, get_datetime, getdate, has_common, now_datetime, nowdate
 from frappe.utils.dashboard import cache_source
 from frappe.utils.data import format_date
 from frappe.utils.dateutils import (
@@ -201,10 +201,10 @@ def get_chart_config(chart, filters, timespan, timegrain, from_date, to_date):
 
 	data = frappe.get_list(
 		doctype,
-		fields=[f"{datefield} as _unit", f"SUM({value_field})", "COUNT(*)"],
+		fields=[datefield, f"SUM({value_field})", "COUNT(*)"],
 		filters=filters,
-		group_by="_unit",
-		order_by="_unit asc",
+		group_by=datefield,
+		order_by=datefield,
 		as_list=True,
 		parent_doctype=chart.parent_document_type,
 	)
@@ -254,14 +254,13 @@ def get_heatmap_chart_config(chart, filters, heatmap_year):
 		)
 	)
 
-	chart_config = {
+	return {
 		"labels": [],
 		"dataPoints": data,
 	}
-	return chart_config
 
 
-def get_group_by_chart_config(chart, filters):
+def get_group_by_chart_config(chart, filters) -> dict | None:
 	aggregate_function = get_aggregate_function(chart.group_by_type)
 	value_field = chart.aggregate_function_based_on or "1"
 	group_by_field = chart.group_by_based_on
@@ -281,14 +280,11 @@ def get_group_by_chart_config(chart, filters):
 	)
 
 	if data:
-		chart_config = {
-			"labels": [item["name"] if item["name"] else "Not Specified" for item in data],
+		return {
+			"labels": [item.get("name", "Not Specified") for item in data],
 			"datasets": [{"name": chart.name, "values": [item["count"] for item in data]}],
 		}
-
-		return chart_config
-	else:
-		return None
+	return None
 
 
 def get_aggregate_function(chart_type):
@@ -304,11 +300,11 @@ def get_result(data, timegrain, from_date, to_date, chart_type):
 	result = [[date, 0] for date in dates]
 	data_index = 0
 	if data:
-		for _i, d in enumerate(result):
+		for d in result:
 			count = 0
 			while data_index < len(data) and getdate(data[data_index][0]) <= d[0]:
-				d[1] += data[data_index][1]
-				count += data[data_index][2]
+				d[1] += flt(data[data_index][1])
+				count += flt(data[data_index][2])
 				data_index += 1
 			if chart_type == "Average" and not count == 0:
 				d[1] = d[1] / count
@@ -328,8 +324,52 @@ def get_charts_for_user(doctype, txt, searchfield, start, page_len, filters):
 
 
 class DashboardChart(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.core.doctype.has_role.has_role import HasRole
+		from frappe.desk.doctype.dashboard_chart_field.dashboard_chart_field import DashboardChartField
+		from frappe.types import DF
+
+		aggregate_function_based_on: DF.Literal[None]
+		based_on: DF.Literal[None]
+		chart_name: DF.Data
+		chart_type: DF.Literal["Count", "Sum", "Average", "Group By", "Custom", "Report"]
+		color: DF.Color | None
+		currency: DF.Link | None
+		custom_options: DF.Code | None
+		document_type: DF.Link | None
+		dynamic_filters_json: DF.Code | None
+		filters_json: DF.Code
+		from_date: DF.Date | None
+		group_by_based_on: DF.Literal[None]
+		group_by_type: DF.Literal["Count", "Sum", "Average"]
+		heatmap_year: DF.Literal[None]
+		is_public: DF.Check
+		is_standard: DF.Check
+		last_synced_on: DF.Datetime | None
+		module: DF.Link | None
+		number_of_groups: DF.Int
+		parent_document_type: DF.Link | None
+		report_name: DF.Link | None
+		roles: DF.Table[HasRole]
+		source: DF.Link | None
+		time_interval: DF.Literal["Yearly", "Quarterly", "Monthly", "Weekly", "Daily"]
+		timeseries: DF.Check
+		timespan: DF.Literal["Last Year", "Last Quarter", "Last Month", "Last Week", "Select Date Range"]
+		to_date: DF.Date | None
+		type: DF.Literal["Line", "Bar", "Percentage", "Pie", "Donut", "Heatmap"]
+		use_report_chart: DF.Check
+		value_based_on: DF.Literal[None]
+		x_field: DF.Literal[None]
+		y_axis: DF.Table[DashboardChartField]
+
+	# end: auto-generated types
 	def on_update(self):
-		frappe.cache().delete_key(f"chart-data:{self.name}")
+		frappe.cache.delete_key(f"chart-data:{self.name}")
 		if frappe.conf.developer_mode and self.is_standard:
 			export_to_files(record_list=[["Dashboard Chart", self.name]], record_module=self.module)
 
@@ -371,7 +411,7 @@ class DashboardChart(Document):
 			try:
 				json.loads(self.custom_options)
 			except ValueError as error:
-				frappe.throw(_("Invalid json added in the custom options: {0}").format(error))
+				frappe.throw(_("Invalid json added in the custom options: {0}").format(str(error)))
 
 
 @frappe.whitelist()

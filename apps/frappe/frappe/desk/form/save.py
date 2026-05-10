@@ -4,9 +4,11 @@
 import json
 
 import frappe
+from frappe.core.doctype.submission_queue.submission_queue import queue_submission
 from frappe.desk.form.load import run_onload
 from frappe.model.docstatus import DocStatus
 from frappe.monitor import add_data_to_monitor
+from frappe.utils.scheduler import is_scheduler_inactive
 from frappe.utils.telemetry import capture_doc
 
 
@@ -22,21 +24,27 @@ def savedocs(doc, action):
 
 	# action
 	doc.docstatus = {
-		"Save": DocStatus.draft(),
-		"Submit": DocStatus.submitted(),
-		"Update": DocStatus.submitted(),
-		"Cancel": DocStatus.cancelled(),
+		"Save": DocStatus.DRAFT,
+		"Submit": DocStatus.SUBMITTED,
+		"Update": DocStatus.SUBMITTED,
+		"Cancel": DocStatus.CANCELLED,
 	}[action]
 
-	doc.save()
+	if doc.docstatus.is_submitted():
+		if action == "Submit" and doc.meta.queue_in_background and not is_scheduler_inactive():
+			queue_submission(doc, action)
+			return
+		doc.submit()
+	else:
+		doc.save()
 
 	# update recent documents
 	run_onload(doc)
 	send_updated_docs(doc)
 
 	add_data_to_monitor(doctype=doc.doctype, action=action)
-
-	frappe.msgprint(frappe._("Saved"), indicator="green", alert=True)
+	status_message = "Submitted" if doc.docstatus.is_submitted() else "Saved"
+	frappe.msgprint(frappe._(status_message), indicator="green", alert=True)
 
 
 @frappe.whitelist(methods=["POST", "PUT"])
@@ -56,7 +64,7 @@ def send_updated_docs(doc):
 	from .load import get_docinfo
 
 	get_docinfo(doc)
-
+	doc.apply_fieldlevel_read_permissions()
 	d = doc.as_dict()
 	if hasattr(doc, "localname"):
 		d["localname"] = doc.localname

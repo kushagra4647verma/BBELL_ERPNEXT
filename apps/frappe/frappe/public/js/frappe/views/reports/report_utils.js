@@ -12,7 +12,7 @@ frappe.report_utils = {
 
 		let labels = get_column_values(x_field);
 		let datasets = y_fields.map((y_field) => ({
-			name: frappe.model.unscrub(y_field),
+			name: get_translated_column_label(y_field),
 			values: get_column_values(y_field).map((d) => Number(d)),
 		}));
 
@@ -46,6 +46,11 @@ frappe.report_utils = {
 			} else {
 				return rows.map((row) => row[column_name]);
 			}
+		}
+
+		function get_translated_column_label(fieldname) {
+			let column = columns.find((column) => column.fieldname === fieldname);
+			return column?.label ?? __(frappe.model.unscrub(fieldname));
 		}
 	},
 
@@ -142,7 +147,7 @@ frappe.report_utils = {
 	},
 
 	get_filter_values(filters) {
-		let filter_values = filters
+		return filters
 			.map((f) => {
 				var v = f.default;
 				return {
@@ -153,7 +158,6 @@ frappe.report_utils = {
 				Object.assign(acc, f);
 				return acc;
 			}, {});
-		return filter_values;
 	},
 
 	get_result_of_fn(fn, values) {
@@ -240,7 +244,7 @@ frappe.report_utils = {
 			const is_query_report = frappe.get_route()[0] === "query-report";
 			const report = is_query_report ? frappe.query_report : cur_list;
 			const columns = report.columns.filter((col) => col.hidden !== 1);
-			PREVIEW_DATA = [
+			let PREVIEW_DATA = [
 				columns.map((col) => __(is_query_report ? col.label : col.name)),
 				...report.data
 					.slice(0, 3)
@@ -261,12 +265,14 @@ frappe.report_utils = {
 
 		dialog.fields_dict["file_format"].df.onchange = () => update_csv_preview(dialog);
 		dialog.fields_dict["csv_quoting"].df.onchange = () => update_csv_preview(dialog);
+		dialog.fields_dict["csv_delimiter"].df.onchange = () => update_csv_preview(dialog);
 		dialog.fields_dict["csv_delimiter"].df.onchange = () => {
 			if (!dialog.get_value("csv_delimiter")) {
 				dialog.set_value("csv_delimiter", ",");
 			}
 			update_csv_preview(dialog);
 		};
+
 		return dialog;
 	},
 

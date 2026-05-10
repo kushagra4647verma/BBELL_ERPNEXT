@@ -3,6 +3,7 @@
 
 
 import frappe
+from frappe.query_builder.functions import Coalesce, Sum
 from frappe.utils import cstr, flt, now, nowdate, nowtime
 
 from erpnext.controllers.stock_controller import create_repost_item_valuation_entry
@@ -16,7 +17,7 @@ def repost(only_actual=False, allow_negative_stock=False, allow_zero_rate=False,
 
 	if allow_negative_stock:
 		existing_allow_negative_stock = frappe.db.get_value("Stock Settings", None, "allow_negative_stock")
-		frappe.db.set_value("Stock Settings", None, "allow_negative_stock", 1)
+		frappe.db.set_single_value("Stock Settings", "allow_negative_stock", 1)
 
 	item_warehouses = frappe.db.sql(
 		"""
@@ -35,7 +36,7 @@ def repost(only_actual=False, allow_negative_stock=False, allow_zero_rate=False,
 			frappe.db.rollback()
 
 	if allow_negative_stock:
-		frappe.db.set_value("Stock Settings", None, "allow_negative_stock", existing_allow_negative_stock)
+		frappe.db.set_single_value("Stock Settings", "allow_negative_stock", existing_allow_negative_stock)
 	frappe.db.auto_commit_on_many_writes = 0
 
 
@@ -89,10 +90,13 @@ def get_balance_qty_from_sle(item_code, warehouse):
 
 
 def get_reserved_qty(item_code, warehouse):
+	dont_reserve_on_return = frappe.get_cached_value(
+		"Selling Settings", "Selling Settings", "dont_reserve_sales_order_qty_on_sales_return"
+	)
 	reserved_qty = frappe.db.sql(
-		"""
+		f"""
 		select
-			sum(dnpi_qty * ((so_item_qty - so_item_delivered_qty) / so_item_qty))
+			sum(dnpi_qty * ((so_item_qty - so_item_delivered_qty - if(dont_reserve_qty_on_return, so_item_returned_qty, 0)) / so_item_qty))
 		from
 			(
 				(select
@@ -107,6 +111,12 @@ def get_reserved_qty(item_code, warehouse):
 						where name = dnpi.parent_detail_docname
 						and delivered_by_supplier = 0
 					) as so_item_delivered_qty,
+					(
+						select returned_qty from `tabSales Order Item`
+						where name = dnpi.parent_detail_docname
+						and delivered_by_supplier = 0
+					) as so_item_returned_qty,
+					{dont_reserve_on_return} as dont_reserve_qty_on_return,
 					parent, name
 				from
 				(
@@ -120,7 +130,9 @@ def get_reserved_qty(item_code, warehouse):
 				) dnpi)
 			union
 				(select stock_qty as dnpi_qty, qty as so_item_qty,
-					delivered_qty as so_item_delivered_qty, parent, name
+					delivered_qty as so_item_delivered_qty,
+					returned_qty as so_item_returned_qty,
+					{dont_reserve_on_return}, parent, name
 				from `tabSales Order Item` so_item
 				where item_code = %s and warehouse = %s
 				and (so_item.delivered_by_supplier is null or so_item.delivered_by_supplier = 0)
@@ -171,18 +183,67 @@ def get_indented_qty(item_code, warehouse):
 
 
 def get_ordered_qty(item_code, warehouse):
-	ordered_qty = frappe.db.sql(
-		"""
-		select sum((po_item.qty - po_item.received_qty)*po_item.conversion_factor)
-		from `tabPurchase Order Item` po_item, `tabPurchase Order` po
-		where po_item.item_code=%s and po_item.warehouse=%s
-		and po_item.qty > po_item.received_qty and po_item.parent=po.name
-		and po.status not in ('Closed', 'Delivered') and po.docstatus=1
-		and po_item.delivered_by_supplier = 0""",
-		(item_code, warehouse),
+	"""Return total pending ordered quantity for an item in a warehouse.
+	Includes outstanding quantities from Purchase Orders and Subcontracting Orders"""
+
+	purchase_order_qty = get_purchase_order_qty(item_code, warehouse)
+	subcontracting_order_qty = get_subcontracting_order_qty(item_code, warehouse)
+
+	return flt(purchase_order_qty) + flt(subcontracting_order_qty)
+
+
+def get_purchase_order_qty(item_code, warehouse):
+	PurchaseOrder = frappe.qb.DocType("Purchase Order")
+	PurchaseOrderItem = frappe.qb.DocType("Purchase Order Item")
+
+	purchase_order_qty = (
+		frappe.qb.from_(PurchaseOrderItem)
+		.join(PurchaseOrder)
+		.on(PurchaseOrderItem.parent == PurchaseOrder.name)
+		.select(
+			Sum(
+				(PurchaseOrderItem.qty - PurchaseOrderItem.received_qty) * PurchaseOrderItem.conversion_factor
+			)
+		)
+		.where(
+			(PurchaseOrderItem.item_code == item_code)
+			& (PurchaseOrderItem.warehouse == warehouse)
+			& (PurchaseOrderItem.qty > PurchaseOrderItem.received_qty)
+			& (PurchaseOrder.status.notin(["Closed", "Delivered"]))
+			& (PurchaseOrder.docstatus == 1)
+			& (Coalesce(PurchaseOrderItem.delivered_by_supplier, 0) == 0)
+		)
+		.run()
 	)
 
-	return flt(ordered_qty[0][0]) if ordered_qty else 0
+	return purchase_order_qty[0][0] if purchase_order_qty else 0
+
+
+def get_subcontracting_order_qty(item_code, warehouse):
+	SubcontractingOrder = frappe.qb.DocType("Subcontracting Order")
+	SubcontractingOrderItem = frappe.qb.DocType("Subcontracting Order Item")
+
+	subcontracting_order_qty = (
+		frappe.qb.from_(SubcontractingOrderItem)
+		.join(SubcontractingOrder)
+		.on(SubcontractingOrderItem.parent == SubcontractingOrder.name)
+		.select(
+			Sum(
+				(SubcontractingOrderItem.qty - SubcontractingOrderItem.received_qty)
+				* SubcontractingOrderItem.conversion_factor
+			)
+		)
+		.where(
+			(SubcontractingOrderItem.item_code == item_code)
+			& (SubcontractingOrderItem.warehouse == warehouse)
+			& (SubcontractingOrderItem.qty > SubcontractingOrderItem.received_qty)
+			& (SubcontractingOrder.status.notin(["Closed", "Completed"]))
+			& (SubcontractingOrder.docstatus == 1)
+		)
+		.run()
+	)
+
+	return subcontracting_order_qty[0][0] if subcontracting_order_qty else 0
 
 
 def get_planned_qty(item_code, warehouse):
@@ -279,19 +340,3 @@ def set_stock_balance_as_per_serial_no(
 				"posting_time": posting_time,
 			}
 		)
-
-
-def reset_serial_no_status_and_warehouse(serial_nos=None):
-	if not serial_nos:
-		serial_nos = frappe.db.sql_list("""select name from `tabSerial No` where docstatus = 0""")
-		for serial_no in serial_nos:
-			try:
-				sr = frappe.get_doc("Serial No", serial_no)
-				last_sle = sr.get_last_sle()
-				if flt(last_sle.actual_qty) > 0:
-					sr.warehouse = last_sle.warehouse
-
-				sr.via_stock_ledger = True
-				sr.save()
-			except Exception:
-				pass

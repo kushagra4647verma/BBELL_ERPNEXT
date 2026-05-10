@@ -25,7 +25,7 @@ frappe.ui.form.on("Email Queue", {
 				});
 			});
 		} else if (frm.doc.status == "Error") {
-			frm.add_custom_button(__("Retry Sending"), function () {
+			frm.add_custom_button("Retry Sending", function () {
 				frm.call({
 					method: "retry_sending",
 					doc: frm.doc,
@@ -37,6 +37,12 @@ frappe.ui.form.on("Email Queue", {
 					},
 				});
 			});
+		}
+
+		if (frm.doc.__onload?.mute_emails) {
+			frm.dashboard.set_headline(
+				__("Automatic sending of emails is disabled via site config.")
+			);
 		}
 	},
 });

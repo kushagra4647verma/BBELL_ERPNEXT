@@ -35,7 +35,9 @@ class TestOpportunity(unittest.TestCase):
 		self.assertEqual(frappe.db.get_value("Lead", opp_doc.party_name, "email_id"), opp_doc.contact_email)
 
 		# create new customer and create new contact against 'new.opportunity@example.com'
-		customer = make_customer(opp_doc.party_name).insert(ignore_permissions=True)
+		customer = make_customer(opp_doc.party_name)
+		customer.customer_group = "Individual"
+		customer.insert(ignore_permissions=True)
 		contact = frappe.get_doc(
 			{
 				"doctype": "Contact",
@@ -51,7 +53,7 @@ class TestOpportunity(unittest.TestCase):
 		self.assertEqual(opportunity_doc.total, 2200)
 
 	def test_carry_forward_of_email_and_comments(self):
-		frappe.db.set_value("CRM Settings", "CRM Settings", "carry_forward_communication_and_comments", 1)
+		frappe.db.set_single_value("CRM Settings", "carry_forward_communication_and_comments", 1)
 		lead_doc = make_lead()
 		lead_doc.add_comment("Comment", text="Test Comment 1")
 		lead_doc.add_comment("Comment", text="Test Comment 2")

@@ -38,6 +38,7 @@ def xmlrunner_wrapper(output):
 
 
 def main(
+	site=None,
 	app=None,
 	module=None,
 	doctype=None,
@@ -47,23 +48,20 @@ def main(
 	force=False,
 	profile=False,
 	junit_xml_output=None,
-	ui_tests=False,
 	doctype_list_path=None,
-	skip_test_records=False,
 	failfast=False,
 	case=None,
 ):
 	global unittest_runner
 
+	frappe.init(site=site)
+	if not frappe.db:
+		frappe.connect()
+
 	if doctype_list_path:
 		app, doctype_list_path = doctype_list_path.split(os.path.sep, 1)
 		with open(frappe.get_app_path(app, doctype_list_path)) as f:
 			doctype = f.read().strip().splitlines()
-
-	if ui_tests:
-		print(
-			"Selenium testing has been deprecated\nUse bench --site {site_name} run-ui-tests for Cypress tests"
-		)
 
 	xmloutput_fh = None
 	if junit_xml_output:
@@ -76,12 +74,9 @@ def main(
 		frappe.flags.print_messages = verbose
 		frappe.flags.in_test = True
 
-		if not frappe.db:
-			frappe.connect()
-
 		# workaround! since there is no separate test db
 		frappe.clear_cache()
-		scheduler_disabled_by_user = frappe.utils.scheduler.is_scheduler_disabled()
+		scheduler_disabled_by_user = frappe.utils.scheduler.is_scheduler_disabled(verbose=False)
 		if not scheduler_disabled_by_user:
 			frappe.utils.scheduler.disable_scheduler()
 
@@ -113,9 +108,7 @@ def main(
 				case=case,
 			)
 		else:
-			ret = run_all_tests(
-				app, verbose, profile, ui_tests, failfast=failfast, junit_xml_output=junit_xml_output
-			)
+			ret = run_all_tests(app, verbose, profile, failfast=failfast, junit_xml_output=junit_xml_output)
 
 		if not scheduler_disabled_by_user:
 			frappe.utils.scheduler.enable_scheduler()
@@ -135,27 +128,25 @@ def main(
 
 class TimeLoggingTestResult(unittest.TextTestResult):
 	def startTest(self, test):
-		self._started_at = time.time()
+		self._started_at = time.monotonic()
 		super().startTest(test)
 
 	def addSuccess(self, test):
-		elapsed = time.time() - self._started_at
+		elapsed = time.monotonic() - self._started_at
 		name = self.getDescription(test)
 		if elapsed >= SLOW_TEST_THRESHOLD:
 			self.stream.write(f"\n{name} ({elapsed:.03}s)\n")
 		super().addSuccess(test)
 
 
-def run_all_tests(
-	app=None, verbose=False, profile=False, ui_tests=False, failfast=False, junit_xml_output=False
-):
+def run_all_tests(app=None, verbose=False, profile=False, failfast=False, junit_xml_output=False):
 	import os
 
 	apps = [app] if app else frappe.get_installed_apps()
 
 	test_suite = unittest.TestSuite()
 	for app in apps:
-		for path, folders, files in os.walk(frappe.get_pymodule_path(app)):
+		for path, folders, files in os.walk(frappe.get_app_path(app)):
 			for dontwalk in ("locals", ".git", "public", "__pycache__"):
 				if dontwalk in folders:
 					folders.remove(dontwalk)
@@ -168,7 +159,7 @@ def run_all_tests(
 			for filename in files:
 				if filename.startswith("test_") and filename.endswith(".py") and filename != "test_runner.py":
 					# print filename[:-3]
-					_add_test(app, path, filename, verbose, test_suite, ui_tests)
+					_add_test(app, path, filename, verbose, test_suite)
 
 	if junit_xml_output:
 		runner = unittest_runner(verbosity=1 + cint(verbose), failfast=failfast)
@@ -303,14 +294,14 @@ def _run_unittest(
 	return out
 
 
-def _add_test(app, path, filename, verbose, test_suite=None, ui_tests=False):
+def _add_test(app, path, filename, verbose, test_suite=None):
 	import os
 
 	if os.path.sep.join(["doctype", "doctype", "boilerplate"]) in path:
 		# in /doctype/doctype/boilerplate/
 		return
 
-	app_path = frappe.get_pymodule_path(app)
+	app_path = frappe.get_app_path(app)
 	relative_path = os.path.relpath(path, app_path)
 	if relative_path == ".":
 		module_name = app
@@ -324,11 +315,6 @@ def _add_test(app, path, filename, verbose, test_suite=None, ui_tests=False):
 	if hasattr(module, "test_dependencies"):
 		for doctype in module.test_dependencies:
 			make_test_records(doctype, verbose=verbose, commit=True)
-
-	is_ui_test = True if hasattr(module, "TestDriver") else False
-
-	if is_ui_test != ui_tests:
-		return
 
 	if not test_suite:
 		test_suite = unittest.TestSuite()
@@ -345,9 +331,6 @@ def _add_test(app, path, filename, verbose, test_suite=None, ui_tests=False):
 
 
 def make_test_records(doctype, verbose=0, force=False, commit=False):
-	if not frappe.db:
-		frappe.connect()
-
 	if frappe.flags.skip_test_records:
 		return
 
@@ -374,7 +357,7 @@ def get_modules(doctype):
 
 
 def get_dependencies(doctype):
-	module, test_module = get_modules(doctype)
+	_module, test_module = get_modules(doctype)
 	meta = frappe.get_meta(doctype)
 	link_fields = meta.get_link_fields()
 
@@ -402,7 +385,7 @@ def make_test_records_for_doctype(doctype, verbose=0, force=False, commit=False)
 	if not force and doctype in get_test_record_log():
 		return
 
-	module, test_module = get_modules(doctype)
+	_module, test_module = get_modules(doctype)
 
 	if verbose:
 		print("Making for " + doctype)

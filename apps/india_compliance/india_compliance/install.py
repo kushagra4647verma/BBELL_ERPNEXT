@@ -1,11 +1,14 @@
 import click
-
 import frappe
 
 from india_compliance.audit_trail.setup import setup_fixtures as setup_audit_trail
 from india_compliance.gst_india.constants import BUG_REPORT_URL
 from india_compliance.gst_india.setup import after_install as setup_gst
-from india_compliance.gst_india.setup import create_hrms_custom_fields
+from india_compliance.gst_india.setup import (
+    create_education_custom_fields,
+    create_healthcare_custom_fields,
+    create_hrms_custom_fields,
+)
 from india_compliance.income_tax_india.setup import after_install as setup_income_tax
 
 # list of filenames (without extension) in sequence of execution
@@ -19,8 +22,8 @@ POST_INSTALL_PATCHES = (
     "add_company_link_to_einvoice_settings",
     "update_state_code_for_daman_and_diu",
     "update_gst_accounts",  # this is an India Compliance patch, but needs priority
-    "update_itc_amounts",
     ## India Compliance
+    "set_gst_tax_type",
     "update_state_name_to_puducherry",
     "rename_import_of_capital_goods",
     "update_hsn_code",
@@ -44,6 +47,8 @@ POST_INSTALL_PATCHES = (
     "update_reconciliation_status",
     "update_vehicle_no_field_in_purchase_receipt",
     "update_gst_treatment_for_taxable_nil_transaction_item",  # it should be always after improve item tax template
+    "update_gst_treatment_for_import_transactions",
+    "migrate_fields_for_gstr3b",
 )
 
 
@@ -94,9 +99,7 @@ def disable_ic_account_page():
     Disable the India Compliance Account Page if API secret is set in frappe.conf
     """
 
-    if not frappe.conf.ic_api_secret or frappe.db.exists(
-        "Custom Role", {"page": "india-compliance-account"}
-    ):
+    if not frappe.conf.ic_api_secret or frappe.db.exists("Custom Role", {"page": "india-compliance-account"}):
         return
 
     frappe.get_doc(doctype="Custom Role", page="india-compliance-account").insert()
@@ -105,3 +108,9 @@ def disable_ic_account_page():
 def after_app_install(app_name):
     if app_name == "hrms":
         create_hrms_custom_fields()
+
+    if app_name == "education":
+        create_education_custom_fields()
+
+    if app_name == "healthcare":
+        create_healthcare_custom_fields()

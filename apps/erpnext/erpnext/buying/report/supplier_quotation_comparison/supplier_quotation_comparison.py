@@ -93,18 +93,10 @@ def prepare_data(supplier_quotation_data, filters):
 	group_by_field = (
 		"supplier_name" if filters.get("categorize_by") == "Categorize by Supplier" else "item_code"
 	)
-	company_currency = frappe.db.get_default("currency")
 	float_precision = cint(frappe.db.get_default("float_precision")) or 2
 
 	for data in supplier_quotation_data:
 		group = data.get(group_by_field)  # get item or supplier value for this row
-
-		supplier_currency = frappe.db.get_value("Supplier", data.get("supplier_name"), "default_currency")
-
-		if supplier_currency:
-			exchange_rate = get_exchange_rate(supplier_currency, company_currency)
-		else:
-			exchange_rate = 1
 
 		row = {
 			"item_code": ""
@@ -113,7 +105,7 @@ def prepare_data(supplier_quotation_data, filters):
 			"supplier_name": "" if group_by_field == "supplier_name" else data.get("supplier_name"),
 			"quotation": data.get("parent"),
 			"qty": data.get("qty"),
-			"price": flt(data.get("amount") * exchange_rate, float_precision),
+			"price": flt(data.get("amount"), float_precision),
 			"uom": data.get("uom"),
 			"price_list_currency": data.get("price_list_currency"),
 			"currency": data.get("currency"),
@@ -220,6 +212,13 @@ def get_columns(filters):
 		{"fieldname": "uom", "label": _("UOM"), "fieldtype": "Link", "options": "UOM", "width": 90},
 		{"fieldname": "qty", "label": _("Quantity"), "fieldtype": "Float", "width": 80},
 		{
+			"fieldname": "stock_uom",
+			"label": _("Stock UOM"),
+			"fieldtype": "Link",
+			"options": "UOM",
+			"width": 90,
+		},
+		{
 			"fieldname": "currency",
 			"label": _("Currency"),
 			"fieldtype": "Link",
@@ -232,13 +231,6 @@ def get_columns(filters):
 			"fieldtype": "Currency",
 			"options": "currency",
 			"width": 110,
-		},
-		{
-			"fieldname": "stock_uom",
-			"label": _("Stock UOM"),
-			"fieldtype": "Link",
-			"options": "UOM",
-			"width": 90,
 		},
 		{
 			"fieldname": "price_per_unit",
@@ -292,13 +284,23 @@ def get_columns(filters):
 
 
 def get_message():
-	return """<span class="indicator">
-		Valid till : &nbsp;&nbsp;
+	return f"""<span class="indicator">
+		{_("Valid Till")}:&nbsp;&nbsp;
 		</span>
 		<span class="indicator orange">
-		Expires in a week or less
+		{_("Expires in a week or less")}
 		</span>
 		&nbsp;&nbsp;
 		<span class="indicator red">
-		Expires today / Already Expired
+		{_("Expires today or already expired")}
 		</span>"""
+
+
+@frappe.whitelist()
+def set_default_supplier(item_code, supplier, company):
+	frappe.db.set_value(
+		"Item Default",
+		{"parent": item_code, "company": company},
+		"default_supplier",
+		supplier,
+	)

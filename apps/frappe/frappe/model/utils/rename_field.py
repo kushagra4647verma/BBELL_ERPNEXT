@@ -8,19 +8,21 @@ from frappe.model.utils.user_settings import sync_user_settings, update_user_set
 from frappe.utils.password import rename_password_field
 
 
-def rename_field(doctype, old_fieldname, new_fieldname):
+def rename_field(doctype, old_fieldname, new_fieldname, validate=True):
 	"""This functions assumes that doctype is already synced"""
 
 	meta = frappe.get_meta(doctype, cached=False)
 	new_field = meta.get_field(new_fieldname)
-	if not new_field:
-		print("rename_field: " + (new_fieldname) + " not found in " + doctype)
-		return
 
-	if not meta.issingle and not frappe.db.has_column(doctype, old_fieldname):
-		print("rename_field: " + (old_fieldname) + " not found in table for: " + doctype)
-		# never had the field?
-		return
+	if validate:
+		if not new_field:
+			print("rename_field: " + (new_fieldname) + " not found in " + doctype)
+			return
+
+		if not meta.issingle and not frappe.db.has_column(doctype, old_fieldname):
+			print("rename_field: " + (old_fieldname) + " not found in table for: " + doctype)
+			# never had the field?
+			return
 
 	if new_field.fieldtype in table_fields:
 		# change parentfield of table mentioned in options
@@ -76,7 +78,7 @@ def update_reports(doctype, old_fieldname, new_fieldname):
 		"""select name, ref_doctype, json from tabReport
 		where report_type = 'Report Builder' and ifnull(is_standard, 'No') = 'No'
 		and json like %s and json like %s""",
-		("%%%s%%" % old_fieldname, "%%%s%%" % doctype),
+		("%{}%".format(old_fieldname), "%{}%".format(doctype)),
 		as_dict=True,
 	)
 

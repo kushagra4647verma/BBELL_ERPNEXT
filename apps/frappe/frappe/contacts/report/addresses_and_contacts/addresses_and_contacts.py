@@ -31,23 +31,22 @@ def execute(filters=None):
 
 
 def get_columns(filters):
+	reference_doctype = filters.get("reference_doctype")
 	return [
-		"{reference_doctype}:Link/{reference_doctype}".format(
-			reference_doctype=filters.get("reference_doctype")
-		),
-		"Address Line 1",
-		"Address Line 2",
-		"City",
-		"State",
-		"Postal Code",
-		"Country",
-		"Is Primary Address:Check",
-		"First Name",
-		"Last Name",
-		"Address",
-		"Phone",
-		"Email Id",
-		"Is Primary Contact:Check",
+		f"{_(reference_doctype)}:Link/{reference_doctype}",
+		_("Address Line 1"),
+		_("Address Line 2"),
+		_("City"),
+		_("State"),
+		_("Postal Code"),
+		_("Country"),
+		f"{_('Is Primary Address')}:Check",
+		_("First Name"),
+		_("Last Name"),
+		_("Address"),
+		_("Phone"),
+		_("Email Id"),
+		f"{_('Is Primary Contact')}:Check",
 	]
 
 
@@ -110,10 +109,7 @@ def get_reference_details(reference_doctype, doctype, reference_list, reference_
 	fields = ["`tabDynamic Link`.link_name", *field_map.get(doctype, [])]
 
 	records = frappe.get_list(doctype, filters=filters, fields=fields, as_list=True)
-	temp_records = list()
-
-	for d in records:
-		temp_records.append(d[1:])
+	temp_records = [d[1:] for d in records]
 
 	if not reference_list:
 		frappe.throw(_("No records present in {0}").format(reference_doctype))

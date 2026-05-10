@@ -74,12 +74,15 @@ export default class ListSettings {
 		}
 
 		if (!me.dialog.get_value("total_fields")) {
-			let field_count = me.fields.length;
+			let field_count = this.settings.total_fields;
 
-			if (field_count < 4) {
-				field_count = 4;
-			} else if (field_count > 10) {
-				field_count = 10;
+			if (!field_count) {
+				field_count = me.fields.length;
+				if (field_count < 4) {
+					field_count = 4;
+				} else if (field_count > 10) {
+					field_count = 10;
+				}
 			}
 
 			me.dialog.set_value("total_fields", field_count);
@@ -114,13 +117,13 @@ export default class ListSettings {
 					data-label="${me.fields[idx].label}" data-type="${me.fields[idx].type}">
 
 					<div class="row">
-						<div class="col-md-1">
+						<div class="col-1">
 							${frappe.utils.icon("drag", "xs", "", "", "sortable-handle " + show_sortable_handle)}
 						</div>
-						<div class="col-md-10" style="padding-left:0px;">
+						<div class="col-10" style="padding-left:0px;">
 							${__(me.fields[idx].label, null, me.doctype)}
 						</div>
-						<div class="col-md-1 ${can_remove}">
+						<div class="col-1 ${can_remove}">
 							<a class="text-muted remove-field" data-fieldname="${me.fields[idx].fieldname}">
 								${frappe.utils.icon("delete", "xs")}
 							</a>
@@ -316,7 +319,7 @@ export default class ListSettings {
 		meta.fields.forEach((field) => {
 			if (
 				field.in_list_view &&
-				!in_list(frappe.model.no_value_type, field.fieldtype) &&
+				!frappe.model.no_value_type.includes(field.fieldtype) &&
 				me.subject_field.fieldname != field.fieldname
 			) {
 				me.fields.push({
@@ -363,11 +366,11 @@ export default class ListSettings {
 		let multiselect_fields = [];
 
 		meta.fields.forEach((field) => {
-			if (!in_list(frappe.model.no_value_type, field.fieldtype)) {
+			if (!frappe.model.no_value_type.includes(field.fieldtype)) {
 				multiselect_fields.push({
 					label: __(field.label, null, field.doctype),
 					value: field.fieldname,
-					checked: in_list(fields, field.fieldname),
+					checked: fields.includes(field.fieldname),
 				});
 			}
 		});
@@ -384,7 +387,7 @@ export default class ListSettings {
 		}
 
 		existing_fields.forEach((column) => {
-			if (!in_list(new_fields, column)) {
+			if (!new_fields.includes(column)) {
 				removed_fields.push(column);
 			}
 		});

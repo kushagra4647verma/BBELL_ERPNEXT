@@ -16,6 +16,12 @@ GST_ACCOUNT_FIELDS = (
 
 GST_TAX_TYPES = tuple(field[:-8] for field in GST_ACCOUNT_FIELDS)
 
+GST_RCM_TAX_TYPES = tuple(tax_type + "_rcm" for tax_type in GST_TAX_TYPES)
+
+GST_REFUND_TAX_TYPES = tuple(tax_type + "_refund" for tax_type in GST_TAX_TYPES)
+
+TAX_TYPES = (*GST_TAX_TYPES, *GST_RCM_TAX_TYPES, *GST_REFUND_TAX_TYPES)
+
 GST_PARTY_TYPES = ("Customer", "Supplier", "Company")
 
 # Map for e-Invoice Supply Type
@@ -29,12 +35,34 @@ GST_CATEGORIES = {
     "UIN Holders": "B2B",
     "Tax Deductor": "B2B",
     "Tax Collector": "B2B",
+    "Input Service Distributor": "B2B",
+}
+
+GST_CATEGORY_MAP = {
+    "R": "Regular",
+    "SEZWP": "SEZ With Payment of Tax",
+    "SEZWOP": "SEZ Without Payment of Tax",
+    "DE": "Deemed Export",
+    "CBW": "Intra-State Supplies Attracting IGST",
+}
+
+ACTION_MAP = {"A": "Accepted", "R": "Rejected", "P": "Pending", "N": "No Action"}
+
+STATUS_CODE_MAP = {
+    "P": "Processed",
+    "PE": "Processed with Errors",
+    "ER": "Error",
+    "IP": "In Progress",
 }
 
 EXPORT_TYPES = (
     "WOP",  # Without Payment of Tax [0]
     "WP",  # With Payment of Tax [1]
 )
+
+TAXABLE_GST_TREATMENTS = ("Taxable", "Zero-Rated")
+IMPORT_GST_CATEGORIES = ("Overseas", "SEZ")
+
 
 STATE_NUMBERS = {
     "Andaman and Nicobar Islands": "35",
@@ -141,7 +169,7 @@ STATE_PINCODE_MAPPING = {
     "Jammu and Kashmir": (180, 194),
     "Himachal Pradesh": (171, 177),
     "Punjab": (140, 160),
-    "Chandigarh": (160, 160),
+    "Chandigarh": ((140, 140), (160, 160)),
     "Uttarakhand": (244, 263),
     "Haryana": (121, 136),
     "Delhi": (110, 110),
@@ -1377,6 +1405,7 @@ GST_TAX_RATES = {
     12.000,
     18.000,
     28.000,
+    40.000,
 }
 
 # REGEX PATTERNS (https://developer.gst.gov.in/apiportal/taxpayer/returns)
@@ -1396,6 +1425,8 @@ UNBODY = re.compile(r"^[0-9]{4}[A-Z]{3}[0-9]{5}[UO]{1}[N][A-Z0-9]{1}$")
 TDS = re.compile(r"^[0-9]{2}[A-Z]{4}[A-Z0-9]{1}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[D][0-9A-Z]$")
 TCS = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}[C]{1}[0-9A-Z]{1}$")
 
+GSTIN_FORMAT = re.compile(r"[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}")
+
 GSTIN_FORMATS = {
     "Registered Regular": REGISTERED,
     "Registered Composition": REGISTERED,
@@ -1405,6 +1436,7 @@ GSTIN_FORMATS = {
     "UIN Holders": UNBODY,
     "Tax Deductor": TDS,
     "Tax Collector": TCS,
+    "Input Service Distributor": REGISTERED,
 }
 
 PAN_NUMBER = re.compile(r"^[A-Z]{5}[0-9]{4}[A-Z]{1}$")
@@ -1419,6 +1451,11 @@ DISTANCE_REGEX = re.compile(r"\d+")
 
 INVOICE_DOCTYPES = {"Sales Invoice", "Purchase Invoice"}
 SALES_DOCTYPES = set(sales_doctypes)
+SUBCONTRACTING_DOCTYPES = (
+    "Subcontracting Order",
+    "Subcontracting Receipt",
+    "Stock Entry",
+)
 
 BUG_REPORT_URL = "https://github.com/resilient-tech/india-compliance/issues/new"
 
@@ -1446,3 +1483,6 @@ ORIGINAL_VS_AMENDED = (
 )
 
 E_INVOICE_MASTER_CODES_URL = "https://einvoice1.gst.gov.in/Others/MasterCodes"
+
+VALID_HSN_LENGTHS = (4, 6, 8)
+SERVICE_HSN_PREFIX = "99"

@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING, Optional
 import frappe
 from frappe import _
 from frappe.model import log_types
+from frappe.monitor import get_trace_id
 from frappe.query_builder import DocType
 from frappe.utils import cint, cstr, now_datetime
-from frappe.utils.caching import redis_cache
 
 if TYPE_CHECKING:
 	from frappe.model.document import Document
@@ -60,6 +60,14 @@ class NamingSeries:
 			frappe.throw(
 				_(
 					"Special Characters except '-', '#', '.', '/', '{{' and '}}' not allowed in naming series {0}"
+				).format(frappe.bold(self.series)),
+				exc=InvalidNamingSeriesError,
+			)
+
+		if "#" in self.series and ".#" not in self.series:
+			frappe.throw(
+				_(
+					"Invalid naming series {}: dot (.) missing before the numeric placeholders. Kindly use a format like <b>ABCD.#####</b>."
 				).format(frappe.bold(self.series)),
 				exc=InvalidNamingSeriesError,
 			)
@@ -122,7 +130,7 @@ class NamingSeries:
 
 	def get_current_value(self) -> int:
 		prefix = self.get_prefix()
-		return cint(frappe.db.get_value("Series", prefix, "current", order_by="name"))
+		return cint(frappe.db.get_value("Series", prefix, "current", order_by="name", for_update=True))
 
 
 def set_new_name(doc):
@@ -151,7 +159,8 @@ def set_new_name(doc):
 
 	if getattr(doc, "amended_from", None):
 		_set_amended_name(doc)
-		return
+		if doc.name:
+			return
 
 	elif getattr(doc.meta, "issingle", False):
 		doc.name = doc.doctype
@@ -169,32 +178,19 @@ def set_new_name(doc):
 	if not doc.name:
 		doc.name = make_autoname("hash", doc.doctype)
 
-	doc.name = validate_name(doc.doctype, doc.name, meta.get_field("name_case"))
+	doc.name = validate_name(doc.doctype, doc.name)
 
 
 def is_autoincremented(doctype: str, meta: Optional["Meta"] = None) -> bool:
 	"""Checks if the doctype has autoincrement autoname set"""
 
-	if doctype in log_types:
-		return _implicitly_auto_incremented(doctype)
-	else:
-		if not meta:
-			meta = frappe.get_meta(doctype)
+	if not meta:
+		meta = frappe.get_meta(doctype)
 
-		if not getattr(meta, "issingle", False) and meta.autoname == "autoincrement":
-			return True
+	if not getattr(meta, "issingle", False) and meta.autoname == "autoincrement":
+		return True
 
 	return False
-
-
-@redis_cache
-def _implicitly_auto_incremented(doctype) -> bool:
-	query = f"""select data_type FROM information_schema.columns where column_name = 'name' and table_name = 'tab{doctype}'"""
-	values = ()
-	if frappe.db.db_type == "mariadb":
-		query += " and table_schema = %s"
-		values = (frappe.db.db_name,)
-	return frappe.db.sql(query, values)[0][0] == "bigint"
 
 
 def set_name_from_naming_options(autoname, doc):
@@ -273,12 +269,11 @@ def make_autoname(key="", doctype="", doc="", *, ignore_validate=False):
 
 	*Example:*
 
-	              * DE/./.YY./.MM./.##### will create a series like
-	                DE/09/01/0001 where 09 is the year, 01 is the month and 0001 is the series
+	              * DE./.YY./.MM./.##### will create a series like
+	                DE/09/01/00001 where 09 is the year, 01 is the month and 00001 is the series
 	"""
 	if key == "hash":
-		# Makeshift "ULID": first 4 chars are based on timestamp, other 6 are random
-		return _get_timestamp_prefix() + _generate_random_string(6)
+		return (_get_timestamp_prefix() + _generate_random_string(7))[:10]
 
 	series = NamingSeries(key)
 	return series.generate_next_name(doc, ignore_validate=ignore_validate)
@@ -288,7 +283,14 @@ def _get_timestamp_prefix():
 	ts = int(time.time() * 10)  # time in deciseconds
 	# we ~~don't need~~ can't get ordering over entire lifetime, so we wrap the time.
 	ts = ts % (32**4)
-	return base64.b32hexencode(ts.to_bytes(length=5, byteorder="big")).decode()[-4:].lower()
+	ts_part = base64.b32hexencode(ts.to_bytes(length=5, byteorder="big")).decode()[-3:].lower()
+
+	# First character is from request/job specific UUID, all documents created in this "session" will
+	# have same prefix. This avoids collision between parallel jobs with reasonable probabililistic
+	# guarantees.
+	request_part = (get_trace_id() or "")[-1:]
+
+	return request_part + ts_part
 
 
 def _generate_random_string(length=10):
@@ -464,7 +466,7 @@ def get_default_naming_series(doctype: str) -> str | None:
 			return option
 
 
-def validate_name(doctype: str, name: int | str, case: str | None = None):
+def validate_name(doctype: str, name: int | str):
 	if not name:
 		frappe.throw(_("No Name Specified for {0}").format(doctype))
 
@@ -481,10 +483,6 @@ def validate_name(doctype: str, name: int | str, case: str | None = None):
 		frappe.throw(
 			_("There were some errors setting the name, please contact the administrator"), frappe.NameError
 		)
-	if case == "Title Case":
-		name = name.title()
-	if case == "UPPER CASE":
-		name = name.upper()
 	name = name.strip()
 
 	if not frappe.get_meta(doctype).get("issingle") and (doctype == name) and (name != "DocType"):
@@ -526,6 +524,15 @@ def append_number_if_name_exists(doctype, value, fieldname="name", separator="-"
 
 
 def _set_amended_name(doc):
+	amend_naming_rule = frappe.db.get_value(
+		"Amended Document Naming Settings", {"document_type": doc.doctype}, "action", cache=True
+	)
+	if not amend_naming_rule:
+		amend_naming_rule = frappe.get_single_value("Document Naming Settings", "default_amend_naming")
+
+	if amend_naming_rule == "Default Naming":
+		return
+
 	am_id = 1
 	am_prefix = doc.amended_from
 	if frappe.db.get_value(doc.doctype, doc.amended_from, "amended_from"):
@@ -542,8 +549,7 @@ def _field_autoname(autoname, doc, skip_slicing=None):
 	`autoname` field starts with 'field:'
 	"""
 	fieldname = autoname if skip_slicing else autoname[6:]
-	name = (cstr(doc.get(fieldname)) or "").strip()
-	return name
+	return (cstr(doc.get(fieldname)) or "").strip()
 
 
 def _prompt_autoname(autoname, doc):
@@ -556,7 +562,7 @@ def _prompt_autoname(autoname, doc):
 		frappe.throw(_("Please set the document name"))
 
 
-def _format_autoname(autoname, doc):
+def _format_autoname(autoname: str, doc):
 	"""
 	Generate autoname by replacing all instances of braced params (fields, date params ('DD', 'MM', 'YY'), series)
 	Independent of remaining string or separators.

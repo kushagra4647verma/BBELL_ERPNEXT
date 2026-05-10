@@ -19,14 +19,21 @@
   "allow_negative_stock",
   "via_landed_cost_voucher",
   "allow_zero_rate",
+  "recreate_stock_ledgers",
   "amended_from",
   "error_section",
   "error_log",
+  "reposting_info_section",
   "items_to_be_repost",
-  "affected_transactions",
-  "distinct_item_and_warehouse",
+  "column_break_o1sj",
+  "total_reposting_count",
   "current_index",
-  "gl_reposting_index"
+  "gl_reposting_index",
+  "reposting_data_file",
+  "vouchers_based_on_item_and_warehouse_section",
+  "total_vouchers",
+  "column_break_yqwo",
+  "vouchers_posted"
  ],
  "fields": [
   {
@@ -160,15 +167,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "distinct_item_and_warehouse",
-   "fieldtype": "Code",
-   "hidden": 1,
-   "label": "Distinct Item and Warehouse",
-   "no_copy": 1,
-   "print_hide": 1,
-   "read_only": 1
-  },
-  {
    "fieldname": "current_index",
    "fieldtype": "Int",
    "hidden": 1,
@@ -178,26 +176,74 @@
    "read_only": 1
   },
   {
-   "fieldname": "affected_transactions",
-   "fieldtype": "Code",
-   "hidden": 1,
-   "label": "Affected Transactions",
-   "no_copy": 1,
-   "read_only": 1
-  },
-  {
    "default": "0",
    "fieldname": "gl_reposting_index",
    "fieldtype": "Int",
    "hidden": 1,
    "label": "GL reposting index",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "reposting_info_section",
+   "fieldtype": "Section Break",
+   "label": "Reposting Item and Warehouse"
+  },
+  {
+   "fieldname": "column_break_o1sj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_reposting_count",
+   "fieldtype": "Int",
+   "label": "No of Items to Repost",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.based_on == \"Transaction\"",
+   "fieldname": "recreate_stock_ledgers",
+   "fieldtype": "Check",
+   "label": "Recreate Stock Ledgers"
+  },
+  {
+   "fieldname": "vouchers_based_on_item_and_warehouse_section",
+   "fieldtype": "Section Break",
+   "hidden": 1,
+   "label": "Reposting Vouchers"
+  },
+  {
+   "fieldname": "total_vouchers",
+   "fieldtype": "Int",
+   "label": "Total Ledgers",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_yqwo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "vouchers_posted",
+   "fieldtype": "Int",
+   "label": "Ledgers Posted",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "reposting_data_file",
+   "fieldtype": "Attach",
+   "label": "Reposting Data File",
+   "no_copy": 1,
    "read_only": 1
   }
  ],
+ "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2022-11-28 16:00:05.637440",
+ "modified": "2026-03-27 19:59:58.637964",
  "modified_by": "Administrator",
  "module": "Stock",
  "name": "Repost Item Valuation",
@@ -246,7 +292,7 @@
    "write": 1
   }
  ],
- "sort_field": "modified",
+ "sort_field": "creation",
  "sort_order": "DESC",
  "states": []
 }

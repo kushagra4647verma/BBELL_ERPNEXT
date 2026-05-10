@@ -22,6 +22,36 @@ class DuplicateBudgetError(frappe.ValidationError):
 
 
 class Budget(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		from erpnext.accounts.doctype.budget_account.budget_account import BudgetAccount
+
+		accounts: DF.Table[BudgetAccount]
+		action_if_accumulated_monthly_budget_exceeded: DF.Literal["", "Stop", "Warn", "Ignore"]
+		action_if_accumulated_monthly_budget_exceeded_on_mr: DF.Literal["", "Stop", "Warn", "Ignore"]
+		action_if_accumulated_monthly_budget_exceeded_on_po: DF.Literal["", "Stop", "Warn", "Ignore"]
+		action_if_annual_budget_exceeded: DF.Literal["", "Stop", "Warn", "Ignore"]
+		action_if_annual_budget_exceeded_on_mr: DF.Literal["", "Stop", "Warn", "Ignore"]
+		action_if_annual_budget_exceeded_on_po: DF.Literal["", "Stop", "Warn", "Ignore"]
+		amended_from: DF.Link | None
+		applicable_on_booking_actual_expenses: DF.Check
+		applicable_on_material_request: DF.Check
+		applicable_on_purchase_order: DF.Check
+		budget_against: DF.Literal["", "Cost Center", "Project"]
+		company: DF.Link
+		cost_center: DF.Link | None
+		fiscal_year: DF.Link
+		monthly_distribution: DF.Link | None
+		naming_series: DF.Literal["BUDGET-.YYYY.-"]
+		project: DF.Link | None
+	# end: auto-generated types
+
 	def validate(self):
 		if not self.get(frappe.scrub(self.budget_against)):
 			frappe.throw(_("{0} is mandatory").format(self.budget_against))
@@ -60,7 +90,7 @@ class Budget(Document):
 		account_list = []
 		for d in self.get("accounts"):
 			if d.account:
-				account_details = frappe.db.get_value(
+				account_details = frappe.get_cached_value(
 					"Account", d.account, ["is_group", "company", "report_type"], as_dict=1
 				)
 
@@ -106,17 +136,16 @@ class Budget(Document):
 		):
 			self.applicable_on_booking_actual_expenses = 1
 
-	def before_naming(self):
-		self.naming_series = f"{{{frappe.scrub(self.budget_against)}}}./.{self.fiscal_year}/.###"
-
 
 def validate_expense_against_budget(args, expense_amount=0):
 	args = frappe._dict(args)
 	if not frappe.get_all("Budget", limit=1):
 		return
 
-	if args.get("company") and not args.fiscal_year:
+	if not args.fiscal_year:
 		args.fiscal_year = get_fiscal_year(args.get("posting_date"), company=args.get("company"))[0]
+
+	if args.get("company"):
 		frappe.flags.exception_approver_role = frappe.get_cached_value(
 			"Company", args.get("company"), "exception_budget_approver_role"
 		)
@@ -404,7 +433,7 @@ def get_other_condition(args, for_doc):
 
 	if args.get("fiscal_year"):
 		date_field = "schedule_date" if for_doc == "Material Request" else "transaction_date"
-		start_date, end_date = frappe.db.get_value(
+		start_date, end_date = frappe.get_cached_value(
 			"Fiscal Year", args.get("fiscal_year"), ["year_start_date", "year_end_date"]
 		)
 
@@ -476,7 +505,7 @@ def get_accumulated_monthly_budget(monthly_distribution, posting_date, fiscal_ye
 		for d in res:
 			distribution.setdefault(d.month, d.percentage_allocation)
 
-	dt = frappe.db.get_value("Fiscal Year", fiscal_year, "year_start_date")
+	dt = frappe.get_cached_value("Fiscal Year", fiscal_year, "year_start_date")
 	accumulated_percentage = 0.0
 
 	while dt <= getdate(posting_date):

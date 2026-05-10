@@ -1,4 +1,3 @@
-/* eslint-disable */
 import Quill from "quill";
 import Keys from "./constants/keys";
 import "./blots/mention";
@@ -20,7 +19,7 @@ class Mention {
 				return `${item.value}`;
 			},
 			mentionDenotationChars: ["@"],
-			allowedChars: /^[a-zA-Z0-9_]*$/,
+			allowedChars: /^[\p{L}0-9_]*$/u,
 			minChars: 0,
 			maxChars: 31,
 			offsetTop: 2,

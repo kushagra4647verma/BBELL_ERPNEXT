@@ -42,7 +42,8 @@ erpnext.PointOfSale.ItemDetails = class {
 				<div class="item-image"></div>
 			</div>
 			<div class="discount-section"></div>
-			<div class="form-container"></div>`
+			<div class="form-container"></div>
+			<div class="serial-batch-container"></div>`
 		);
 
 		this.$item_name = this.$component.find(".item-name");
@@ -51,6 +52,7 @@ erpnext.PointOfSale.ItemDetails = class {
 		this.$item_image = this.$component.find(".item-image");
 		this.$form_container = this.$component.find(".form-container");
 		this.$dicount_section = this.$component.find(".discount-section");
+		this.$serial_batch_container = this.$component.find(".serial-batch-container");
 	}
 
 	compare_with_current_item(item) {
@@ -99,14 +101,10 @@ erpnext.PointOfSale.ItemDetails = class {
 
 		const serialized = item_row.has_serial_no;
 		const batched = item_row.has_batch_no;
-		const no_serial_selected = !item_row.serial_no;
-		const no_batch_selected = !item_row.batch_no;
+		const no_bundle_selected =
+			!item_row.serial_and_batch_bundle && !item_row.serial_no && !item_row.batch_no;
 
-		if (
-			(serialized && no_serial_selected) ||
-			(batched && no_batch_selected) ||
-			(serialized && batched && (no_batch_selected || no_serial_selected))
-		) {
+		if ((serialized && no_bundle_selected) || (batched && no_bundle_selected)) {
 			frappe.show_alert({
 				message: __("Item is removed since no serial / batch no selected."),
 				indicator: "orange",
@@ -189,6 +187,7 @@ erpnext.PointOfSale.ItemDetails = class {
 			this[`${fieldname}_control`].set_value(item[fieldname]);
 		});
 
+		this.resize_serial_control(item);
 		this.make_auto_serial_selection_btn(item);
 
 		this.bind_custom_control_change_event();
@@ -205,13 +204,20 @@ erpnext.PointOfSale.ItemDetails = class {
 			"actual_qty",
 			"price_list_rate",
 		];
-		if (item.has_serial_no) fields.push("serial_no");
-		if (item.has_batch_no) fields.push("batch_no");
+		if (item.has_serial_no || item.serial_no) fields.push("serial_no");
+		if (item.has_batch_no || item.batch_no) fields.push("batch_no");
 		return fields;
 	}
 
+	resize_serial_control(item) {
+		if (item.has_serial_no || item.serial_no) {
+			this.$form_container.find(".serial_no-control").find("textarea").css("height", "6rem");
+		}
+	}
+
 	make_auto_serial_selection_btn(item) {
-		if (item.has_serial_no) {
+		const doc = this.events.get_frm().doc;
+		if (!doc.is_return && (item.has_serial_no || item.serial_no)) {
 			if (!item.has_batch_no) {
 				this.$form_container.append(`<div class="grid-filler no-select"></div>`);
 			}
@@ -315,13 +321,26 @@ erpnext.PointOfSale.ItemDetails = class {
 				me.conversion_factor_control.df.read_only = item_row.stock_uom == this.value;
 				me.conversion_factor_control.refresh();
 			};
+			this.uom_control.df.get_query = () => {
+				return {
+					query: "erpnext.controllers.queries.get_item_uom_query",
+					filters: {
+						item_code: me.current_item.item_code,
+					},
+				};
+			};
+			this.uom_control.refresh();
 		}
 
 		frappe.model.on("POS Invoice Item", "*", (fieldname, value, item_row) => {
 			const field_control = this[`${fieldname}_control`];
 			const item_row_is_being_edited = this.compare_with_current_item(item_row);
-
-			if (item_row_is_being_edited && field_control && field_control.get_value() !== value) {
+			if (
+				item_row_is_being_edited &&
+				field_control &&
+				field_control.get_value() !== value &&
+				value == item_row[fieldname]
+			) {
 				field_control.set_value(value);
 				cur_pos.update_cart_html(item_row);
 			}

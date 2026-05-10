@@ -60,7 +60,7 @@ class TestExchangeRateRevaluation(AccountsTestMixin, FrappeTestCase):
 		si.save().submit()
 
 		err = frappe.new_doc("Exchange Rate Revaluation")
-		err.company = (self.company,)
+		err.company = self.company
 		err.posting_date = today()
 		accounts = err.get_accounts_data()
 		err.extend("accounts", accounts)
@@ -124,7 +124,7 @@ class TestExchangeRateRevaluation(AccountsTestMixin, FrappeTestCase):
 		frappe.get_doc("Journal Entry", je).cancel()
 
 		err = frappe.new_doc("Exchange Rate Revaluation")
-		err.company = (self.company,)
+		err.company = self.company
 		err.posting_date = today()
 		err.fetch_and_calculate_accounts_data()
 		err = err.save().submit()
@@ -188,7 +188,7 @@ class TestExchangeRateRevaluation(AccountsTestMixin, FrappeTestCase):
 
 		pe = get_payment_entry(si.doctype, si.name)
 		pe.paid_amount = 95
-		pe.source_exchange_rate = 84.211
+		pe.source_exchange_rate = 84.2105
 		pe.received_amount = 8000
 		pe.references = []
 		pe.save().submit()
@@ -206,7 +206,7 @@ class TestExchangeRateRevaluation(AccountsTestMixin, FrappeTestCase):
 		self.assertEqual(flt(acc_balance.balance_in_account_currency, precision), 5.0)  # in USD
 
 		err = frappe.new_doc("Exchange Rate Revaluation")
-		err.company = (self.company,)
+		err.company = self.company
 		err.posting_date = today()
 		err.fetch_and_calculate_accounts_data()
 		err.set_total_gain_loss()
@@ -229,7 +229,7 @@ class TestExchangeRateRevaluation(AccountsTestMixin, FrappeTestCase):
 		row = next(x for x in je.accounts if x.account == self.debtors_usd)
 		self.assertEqual(flt(row.credit_in_account_currency, precision), 5.0)  # in USD
 		row = next(x for x in je.accounts if x.account != self.debtors_usd)
-		self.assertEqual(flt(row.debit_in_account_currency, precision), 421.06)  # in INR
+		self.assertEqual(flt(row.debit_in_account_currency, precision), 421.05)  # in INR
 
 		# total_debit and total_credit will be 0.0, as JV is posting only to account currency fields
 		self.assertEqual(flt(je.total_debit, precision), 0.0)

@@ -1,6 +1,7 @@
 import unittest
 
 import frappe
+from frappe.utils.make_random import get_random
 
 from erpnext.tests.utils import ReportFilters, ReportName, execute_script_report
 
@@ -11,13 +12,20 @@ DEFAULT_FILTERS = {
 }
 
 
-batch = frappe.db.get_value("Batch", fieldname=["name"], as_dict=True, order_by="creation desc")
+batch = get_random("Batch")
 
 REPORT_FILTER_TEST_CASES: list[tuple[ReportName, ReportFilters]] = [
 	("Stock Ledger", {"_optional": True}),
 	("Stock Ledger", {"batch_no": batch}),
-	("Stock Ledger", {"item_code": "_Test Item", "warehouse": "_Test Warehouse - _TC"}),
-	("Stock Balance", {"_optional": True}),
+	("Stock Ledger", {"item_code": ["_Test Item"], "warehouse": ["_Test Warehouse - _TC"]}),
+	(
+		"Stock Balance",
+		{
+			"item_code": ["_Test Item"],
+			"warehouse": ["_Test Warehouse - _TC"],
+			"item_group": "_Test Item Group",
+		},
+	),
 	("Stock Projected Qty", {"_optional": True}),
 	("Batch-Wise Balance History", {}),
 	("Itemwise Recommended Reorder Level", {"item_group": "All Item Groups"}),
@@ -62,7 +70,7 @@ REPORT_FILTER_TEST_CASES: list[tuple[ReportName, ReportFilters]] = [
 	("Item Prices", {"items": "Enabled Items only"}),
 	("Delayed Item Report", {"based_on": "Sales Invoice"}),
 	("Delayed Item Report", {"based_on": "Delivery Note"}),
-	("Stock Ageing", {"range1": 30, "range2": 60, "range3": 90, "_optional": True}),
+	("Stock Ageing", {"range": "30, 60, 90", "_optional": True}),
 	("Stock Ledger Invariant Check", {"warehouse": "_Test Warehouse - _TC", "item": "_Test Item"}),
 	("FIFO Queue vs Qty After Transaction Comparison", {"warehouse": "_Test Warehouse - _TC"}),
 	("FIFO Queue vs Qty After Transaction Comparison", {"item_group": "All Item Groups"}),

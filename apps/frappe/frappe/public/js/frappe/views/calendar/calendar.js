@@ -105,7 +105,7 @@ frappe.views.CalendarView = class CalendarView extends frappe.views.ListView {
 			"assets/frappe/js/lib/fullcalendar/fullcalendar.min.css",
 			"assets/frappe/js/lib/fullcalendar/fullcalendar.min.js",
 		];
-		let user_language = frappe.boot.user.language;
+		let user_language = frappe.boot.lang;
 		if (user_language && user_language !== "en") {
 			assets.push("assets/frappe/js/lib/fullcalendar/locale-all.js");
 		}
@@ -249,12 +249,18 @@ frappe.views.Calendar = class Calendar {
 	}
 	setup_options(defaults) {
 		var me = this;
+		const user_time_fmt = frappe.datetime.get_user_time_fmt();
+		const event_time_fmt = user_time_fmt.replace(/[:.]s{1,2}/g, "").trim();
 		defaults.meridiem = "false";
 		this.cal_options = {
-			locale: frappe.boot.user.language || "en",
+			locale: frappe.boot.lang,
+			eventTimeFormat: event_time_fmt,
+			firstDay: frappe.datetime.get_first_day_of_the_week_index(),
+			eventDisplay: "block",
 			header: {
-				left: "prev, title, next",
-				right: "today, month, agendaWeek, agendaDay",
+				left: "prev,title,next",
+				center: "",
+				right: "today,month,agendaWeek,agendaDay",
 			},
 			editable: true,
 			selectable: true,
@@ -411,7 +417,8 @@ frappe.views.Calendar = class Calendar {
 	prepare_colors(d) {
 		let color, color_name;
 		if (this.get_css_class) {
-			color_name = this.color_map[this.get_css_class(d)] || "blue";
+			color_name = this.get_css_class(d);
+			color_name = this.color_map[color_name] || color_name || "blue";
 
 			if (color_name.startsWith("#")) {
 				color_name = frappe.ui.color.validate_hex(color_name) ? color_name : "blue";

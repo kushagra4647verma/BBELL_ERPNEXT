@@ -1,6 +1,5 @@
 // Copyright (c) 2016, Frappe Technologies Pvt. Ltd. and contributors
 // For license information, please see license.txt
-/* eslint-disable */
 
 frappe.query_reports["Sales Analytics"] = {
 	filters: [
@@ -73,6 +72,23 @@ frappe.query_reports["Sales Analytics"] = {
 			],
 			default: "Monthly",
 			reqd: 1,
+		},
+		{
+			fieldname: "curves",
+			label: __("Curves"),
+			fieldtype: "Select",
+			options: [
+				{ value: "all", label: __("All") },
+				{ value: "non-zeros", label: __("Non-Zeros") },
+				{ value: "total", label: __("Total Only") },
+			],
+			default: "all",
+			reqd: 1,
+		},
+		{
+			fieldname: "show_aggregate_value_from_subsidiary_companies",
+			label: __("Show Aggregate Value from Subsidiary Companies"),
+			fieldtype: "Check",
 		},
 	],
 	get_datatable_options(options) {

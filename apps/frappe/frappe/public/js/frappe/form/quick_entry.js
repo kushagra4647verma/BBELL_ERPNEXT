@@ -60,10 +60,12 @@ frappe.ui.form.QuickEntryForm = class QuickEntryForm {
 		this.meta = frappe.get_meta(this.doctype);
 		let fields = this.meta.fields;
 
-		// prepare a list of mandatory, bold and allow in quick entry fields
 		this.mandatory = fields.filter((df) => {
 			return (
-				(df.reqd || df.bold || df.allow_in_quick_entry) && !df.read_only && !df.is_virtual
+				(df.reqd || df.allow_in_quick_entry) &&
+				!df.read_only &&
+				!df.is_virtual &&
+				df.fieldtype !== "Tab Break"
 			);
 		});
 	}

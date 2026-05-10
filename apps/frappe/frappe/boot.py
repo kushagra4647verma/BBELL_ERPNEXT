@@ -4,15 +4,22 @@
 bootstrap client session
 """
 
+import os
+
 import frappe
 import frappe.defaults
 import frappe.desk.desk_page
+from frappe.core.doctype.installed_applications.installed_applications import (
+	get_setup_wizard_completed_apps,
+	get_setup_wizard_not_required_apps,
+)
 from frappe.core.doctype.navbar_settings.navbar_settings import get_app_logo, get_navbar_settings
 from frappe.desk.doctype.changelog_feed.changelog_feed import get_changelog_feed_items
 from frappe.desk.doctype.form_tour.form_tour import get_onboarding_ui_tours
 from frappe.desk.doctype.route_history.route_history import frequently_visited_links
 from frappe.desk.form.load import get_meta_bundle
 from frappe.email.inbox import get_email_accounts
+from frappe.integrations.frappe_providers.frappecloud_billing import is_fc_site
 from frappe.model.base_document import get_controller
 from frappe.permissions import has_permission
 from frappe.query_builder import DocType
@@ -24,6 +31,7 @@ from frappe.social.doctype.energy_point_settings.energy_point_settings import (
 )
 from frappe.utils import add_user_info, cstr, get_system_timezone
 from frappe.utils.change_log import get_versions
+from frappe.utils.frappecloud import on_frappecloud
 from frappe.website.doctype.web_page_view.web_page_view import is_tracking_enabled
 
 
@@ -42,6 +50,8 @@ def get_bootinfo():
 	# system info
 	bootinfo.sitename = frappe.local.site
 	bootinfo.sysdefaults = frappe.defaults.get_defaults()
+	bootinfo.sysdefaults["setup_complete"] = frappe.is_setup_complete()
+
 	bootinfo.server_date = frappe.utils.nowdate()
 
 	if frappe.session["user"] != "Guest":
@@ -107,9 +117,40 @@ def get_bootinfo():
 	bootinfo.link_title_doctypes = get_link_title_doctypes()
 	bootinfo.translated_doctypes = get_translated_doctypes()
 	bootinfo.subscription_conf = add_subscription_conf()
+	bootinfo.marketplace_apps = get_marketplace_apps()
+	bootinfo.is_fc_site = is_fc_site()
 	bootinfo.changelog_feed = get_changelog_feed_items()
 
+	if sentry_dsn := get_sentry_dsn():
+		bootinfo.sentry_dsn = sentry_dsn
+
+	bootinfo.setup_wizard_completed_apps = get_setup_wizard_completed_apps() or []
+	bootinfo.setup_wizard_not_required_apps = get_setup_wizard_not_required_apps() or []
+	remove_apps_with_incomplete_dependencies(bootinfo)
+
 	return bootinfo
+
+
+def remove_apps_with_incomplete_dependencies(bootinfo):
+	remove_apps = []
+
+	for app in bootinfo.setup_wizard_not_required_apps:
+		if app in bootinfo.setup_wizard_completed_apps:
+			continue
+
+		for required_apps in frappe.get_hooks("required_apps"):
+			required_apps = required_apps.split("/")
+
+			for required_app in required_apps:
+				if app not in bootinfo.setup_wizard_not_required_apps:
+					continue
+
+				if required_app not in bootinfo.setup_wizard_completed_apps:
+					remove_apps.append(app)
+
+	for app in remove_apps:
+		if app in bootinfo.setup_wizard_not_required_apps:
+			bootinfo.setup_wizard_not_required_apps.remove(app)
 
 
 def get_letter_heads():
@@ -155,10 +196,8 @@ def get_allowed_report_names(cache=False) -> set[str]:
 
 
 def get_user_pages_or_reports(parent, cache=False):
-	_cache = frappe.cache()
-
 	if cache:
-		has_role = _cache.get_value("has_role:" + parent, user=frappe.session.user)
+		has_role = frappe.cache.get_value("has_role:" + parent, user=frappe.session.user)
 		if has_role:
 			return has_role
 
@@ -168,7 +207,9 @@ def get_user_pages_or_reports(parent, cache=False):
 	page = DocType("Page")
 	report = DocType("Report")
 
-	if parent == "Report":
+	is_report = parent == "Report"
+
+	if is_report:
 		columns = (report.name.as_("title"), report.ref_doctype, report.report_type)
 	else:
 		columns = (page.title.as_("title"),)
@@ -210,7 +251,7 @@ def get_user_pages_or_reports(parent, cache=False):
 		.distinct()
 	)
 
-	if parent == "Report":
+	if is_report:
 		pages_with_standard_roles = pages_with_standard_roles.where(report.disabled == 0)
 
 	pages_with_standard_roles = pages_with_standard_roles.run(as_dict=True)
@@ -225,19 +266,20 @@ def get_user_pages_or_reports(parent, cache=False):
 		frappe.qb.from_(hasRole).select(Count("*")).where(hasRole.parent == parentTable.name)
 	)
 
-	# pages with no role are allowed
-	if parent == "Page":
-		pages_with_no_roles = (
-			frappe.qb.from_(parentTable)
-			.select(parentTable.name, parentTable.modified, *columns)
-			.where(no_of_roles == 0)
-		).run(as_dict=True)
+	# pages and reports with no role are allowed
+	rows_with_no_roles = (
+		frappe.qb.from_(parentTable)
+		.select(parentTable.name, parentTable.modified, *columns)
+		.where(no_of_roles == 0)
+	).run(as_dict=True)
 
-		for p in pages_with_no_roles:
-			if p.name not in has_role:
-				has_role[p.name] = {"modified": p.modified, "title": p.title}
+	for r in rows_with_no_roles:
+		if r.name not in has_role:
+			has_role[r.name] = {"modified": r.modified, "title": r.title}
+			if is_report:
+				has_role[r.name] |= {"ref_doctype": r.ref_doctype}
 
-	elif parent == "Report":
+	if is_report:
 		if not has_permission("Report", raise_exception=False):
 			return {}
 
@@ -255,7 +297,7 @@ def get_user_pages_or_reports(parent, cache=False):
 			has_role.pop(r, None)
 
 	# Expire every six hours
-	_cache.set_value("has_role:" + parent, has_role, frappe.session.user, 21600)
+	frappe.cache.set_value("has_role:" + parent, has_role, frappe.session.user, 21600)
 	return has_role
 
 
@@ -288,7 +330,7 @@ def add_home_page(bootinfo, docs):
 		return
 	home_page = frappe.db.get_default("desktop:home_page")
 
-	if home_page == "setup-wizard":
+	if not frappe.is_setup_complete():
 		bootinfo.setup_wizard_requires = frappe.get_hooks("setup_wizard_requires")
 
 	try:
@@ -296,8 +338,7 @@ def add_home_page(bootinfo, docs):
 		docs.append(page)
 		bootinfo["home_page"] = page.name
 	except (frappe.DoesNotExistError, frappe.PermissionError):
-		if frappe.message_log:
-			frappe.message_log.pop()
+		frappe.clear_last_message()
 		bootinfo["home_page"] = "Workspaces"
 
 
@@ -437,8 +478,41 @@ def load_currency_docs(bootinfo):
 	bootinfo.docs += currency_docs
 
 
+def get_marketplace_apps():
+	import requests
+
+	apps = []
+	cache_key = "frappe_marketplace_apps"
+
+	if frappe.conf.developer_mode or not on_frappecloud():
+		return apps
+
+	def get_apps_from_fc():
+		remote_site = frappe.conf.frappecloud_url or "frappecloud.com"
+		request_url = f"https://{remote_site}/api/method/press.api.marketplace.get_marketplace_apps"
+		request = requests.get(request_url, timeout=2.0)
+		return request.json()["message"]
+
+	try:
+		apps = frappe.cache().get_value(cache_key, get_apps_from_fc, shared=True)
+		installed_apps = set(frappe.get_installed_apps())
+		apps = [app for app in apps if app["name"] not in installed_apps]
+	except Exception:
+		# Don't retry for a day
+		frappe.cache().set_value(cache_key, apps, shared=True, expires_in_sec=24 * 60 * 60)
+
+	return apps
+
+
 def add_subscription_conf():
 	try:
 		return frappe.conf.subscription
 	except Exception:
 		return ""
+
+
+def get_sentry_dsn():
+	if not frappe.get_system_settings("enable_telemetry"):
+		return
+
+	return os.getenv("FRAPPE_SENTRY_DSN")

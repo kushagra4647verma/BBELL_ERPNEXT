@@ -1,5 +1,5 @@
 import Quill from "quill";
-import ImageResize from "quill-image-resize";
+import ImageResize from "frappe-quill-image-resize";
 import MagicUrl from "quill-magic-url";
 
 Quill.register("modules/imageResize", ImageResize);
@@ -7,6 +7,14 @@ Quill.register("modules/magicUrl", MagicUrl);
 const CodeBlockContainer = Quill.import("formats/code-block-container");
 CodeBlockContainer.tagName = "PRE";
 Quill.register(CodeBlockContainer, true);
+const Embed = Quill.import("blots/embed");
+const Delta = Quill.import("delta");
+
+class BreakBlot extends Embed {}
+BreakBlot.blotName = "Break";
+BreakBlot.tagName = "br";
+
+Quill.register(BreakBlot);
 
 // font size
 let font_sizes = [
@@ -51,7 +59,27 @@ Quill.register(Table, true);
 
 // link without href
 var Link = Quill.import("formats/link");
+var Image = Quill.import("formats/image");
 
+class MyImage extends Image {
+	static create(value) {
+		let node = super.create(value);
+		let attrs = ["style", "align", "src"];
+		attrs.forEach((a) => {
+			if (value[a]) node.setAttribute(a, value[a]);
+		});
+		return node;
+	}
+	static value(node) {
+		return {
+			align: node.align,
+			style: node.style.cssText,
+			src: node.src,
+		};
+	}
+}
+
+Quill.register(MyImage, true);
 class MyLink extends Link {
 	static create(value) {
 		let node = super.create(value);
@@ -69,7 +97,7 @@ Quill.register(MyLink, true);
 
 // image uploader
 const Uploader = Quill.import("modules/uploader");
-Uploader.DEFAULTS.mimetypes.push("image/gif");
+Uploader.DEFAULTS.mimetypes.push("image/gif", "image/webp");
 
 // inline style
 const BackgroundStyle = Quill.import("attributors/style/background");
@@ -123,8 +151,35 @@ frappe.ui.form.ControlTextEditor = class ControlTextEditor extends frappe.ui.for
 		}
 		this.quill = new Quill(this.quill_container[0], this.get_quill_options());
 		this.bind_events();
+		const toolbar = this.quill.getModule("toolbar");
+		toolbar.addHandler("table", this.handle_table_actions);
 	}
 
+	handle_table_actions(value) {
+		const table = this.quill.getModule("table");
+
+		if (value === "insert-table") {
+			table.insertTable(2, 2);
+		} else if (value === "insert-row-above") {
+			table.insertRowAbove();
+		} else if (value === "insert-row-below") {
+			table.insertRowBelow();
+		} else if (value === "insert-column-left") {
+			table.insertColumnLeft();
+		} else if (value === "insert-column-right") {
+			table.insertColumnRight();
+		} else if (value === "delete-row") {
+			table.deleteRow();
+		} else if (value === "delete-column") {
+			table.deleteColumn();
+		} else if (value === "delete-table") {
+			table.deleteTable();
+		}
+
+		if (value !== "delete-row") {
+			table.balanceTables();
+		}
+	}
 	bind_events() {
 		this.quill.on(
 			"text-change",
@@ -147,38 +202,6 @@ frappe.ui.form.ControlTextEditor = class ControlTextEditor extends frappe.ui.for
 			e.stopPropagation();
 		});
 
-		// table commands
-		this.$wrapper.on("click", ".ql-table .ql-picker-item", (e) => {
-			const $target = $(e.currentTarget);
-			const action = $target.data().value;
-			e.preventDefault();
-
-			const table = this.quill.getModule("table");
-			if (action === "insert-table") {
-				table.insertTable(2, 2);
-			} else if (action === "insert-row-above") {
-				table.insertRowAbove();
-			} else if (action === "insert-row-below") {
-				table.insertRowBelow();
-			} else if (action === "insert-column-left") {
-				table.insertColumnLeft();
-			} else if (action === "insert-column-right") {
-				table.insertColumnRight();
-			} else if (action === "delete-row") {
-				table.deleteRow();
-			} else if (action === "delete-column") {
-				table.deleteColumn();
-			} else if (action === "delete-table") {
-				table.deleteTable();
-			}
-
-			if (action !== "delete-row") {
-				table.balanceTables();
-			}
-
-			e.preventDefault();
-		});
-
 		// font size dropdown
 		let $font_size_label = this.$wrapper.find(".ql-size .ql-picker-label:first");
 		let $default_font_size = this.$wrapper.find(".ql-size .ql-picker-item:first");
@@ -198,13 +221,21 @@ frappe.ui.form.ControlTextEditor = class ControlTextEditor extends frappe.ui.for
 	get_quill_options() {
 		const options = {
 			modules: {
-				toolbar: this.get_toolbar_options(),
+				toolbar: Object.keys(this.df).includes("get_toolbar_options")
+					? this.df.get_toolbar_options()
+					: this.get_toolbar_options(),
 				table: true,
 				imageResize: {},
 				magicUrl: true,
 				mention: this.get_mention_options(),
+				keyboard: {
+					bindings: this.get_keyboard_bindings(),
+				},
 			},
-			theme: "snow",
+			theme: this.df.theme || "snow",
+			readOnly: this.disabled || this.df.read_only,
+			bounds: this.quill_container[0],
+			placeholder: __(this.df.placeholder || ""),
 		};
 
 		// In a grid row where space is constrained, hide the toolbar.
@@ -222,7 +253,7 @@ frappe.ui.form.ControlTextEditor = class ControlTextEditor extends frappe.ui.for
 		}
 		let me = this;
 		return {
-			allowedChars: /^[A-Za-z0-9_]*$/,
+			allowedChars: /^[\p{L}0-9_]*$/u,
 			mentionDenotationChars: ["@"],
 			isolateCharacter: true,
 			source: frappe.utils.debounce(async function (search_term, renderList) {
@@ -255,7 +286,7 @@ frappe.ui.form.ControlTextEditor = class ControlTextEditor extends frappe.ui.for
 
 	get_toolbar_options() {
 		return [
-			[{ header: [1, 2, 3, false] }],
+			[{ header: [1, 2, 3, 4, 5, 6, false] }],
 			[{ size: font_sizes }],
 			["bold", "italic", "underline", "strike", "clean"],
 			[{ color: [] }, { background: [] }],
@@ -300,7 +331,12 @@ frappe.ui.form.ControlTextEditor = class ControlTextEditor extends frappe.ui.for
 		}
 
 		// set html without triggering a focus
-		const delta = this.quill.clipboard.convert({ html: value, text: "" });
+		const delta = this.quill.clipboard.convert(
+			{ html: value, text: "" },
+			{
+				image: MyImage,
+			}
+		);
 		this.quill.setContents(delta);
 	}
 
@@ -322,5 +358,44 @@ frappe.ui.form.ControlTextEditor = class ControlTextEditor extends frappe.ui.for
 
 	set_focus() {
 		this.quill.focus();
+	}
+
+	get_keyboard_bindings() {
+		const bindings = {
+			"table enter": {
+				key: "Enter",
+				formats: ["table"],
+				handler: function (range) {
+					this.quill.updateContents(
+						new Delta()
+							.retain(range.index)
+							.delete(range.length)
+							.insert({ Break: true })
+					);
+
+					if (!this.quill.getLeaf(range.index + 1)[0].next) {
+						this.quill.updateContents(
+							new Delta()
+								.retain(range.index + 1)
+								.delete(0)
+								.insert({ Break: true }),
+							"user"
+						);
+					}
+
+					this.quill.setSelection(range.index + 1, Quill.sources.SILENT);
+					return false; // dont call other handlers
+				},
+			},
+		};
+
+		if (this.grid_row) {
+			bindings["tab"] = {
+				key: "Tab",
+				handler: () => true, // call default handler
+			};
+		}
+
+		return bindings;
 	}
 };

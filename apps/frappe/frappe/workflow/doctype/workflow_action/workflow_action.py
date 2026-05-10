@@ -24,6 +24,26 @@ from frappe.utils.verified_command import get_signed_params, verify_request
 
 
 class WorkflowAction(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+		from frappe.workflow.doctype.workflow_action_permitted_role.workflow_action_permitted_role import (
+			WorkflowActionPermittedRole,
+		)
+
+		completed_by: DF.Link | None
+		completed_by_role: DF.Link | None
+		permitted_roles: DF.TableMultiSelect[WorkflowActionPermittedRole]
+		reference_doctype: DF.Link | None
+		reference_name: DF.DynamicLink | None
+		status: DF.Literal["Open", "Completed"]
+		user: DF.Link | None
+		workflow_state: DF.Data | None
+	# end: auto-generated types
 	pass
 
 
@@ -61,11 +81,11 @@ def get_permission_query_conditions(user):
 
 
 def has_permission(doc, user):
-	user_roles = set(frappe.get_roles(user))
+	if user == "Administrator":
+		return True
 
 	permitted_roles = {permitted_role.role for permitted_role in doc.permitted_roles}
-
-	return user == "Administrator" or user_roles.intersection(permitted_roles)
+	return not permitted_roles.isdisjoint(frappe.get_roles(user))
 
 
 def process_workflow_actions(doc, state):
@@ -91,13 +111,18 @@ def process_workflow_actions(doc, state):
 	roles = {t.allowed for t in next_possible_transitions}
 	create_workflow_actions_for_roles(roles, doc)
 
-	if send_email_alert(workflow):
+	if send_email_alert(workflow) and frappe.db.get_value(
+		"Workflow Document State",
+		filters={"parent": workflow, "state": get_doc_workflow_state(doc)},
+		fieldname="send_email",
+	):
 		enqueue(
 			send_workflow_action_email,
 			queue="short",
 			doc=doc,
 			transitions=next_possible_transitions,
 			enqueue_after_commit=True,
+			now=frappe.flags.in_test,
 		)
 
 
@@ -284,7 +309,7 @@ def update_completed_workflow_actions_using_user(doc, user=None):
 def get_next_possible_transitions(workflow_name, state, doc=None):
 	transitions = frappe.get_all(
 		"Workflow Transition",
-		fields=["allowed", "action", "state", "allow_self_approval", "next_state", "`condition`"],
+		fields=["allowed", "action", "state", "allow_self_approval", "next_state", "condition"],
 		filters=[["parent", "=", workflow_name], ["state", "=", state]],
 	)
 
@@ -316,7 +341,8 @@ def get_users_next_action_data(transitions, doc):
 		filtered_users = [
 			user for user in users if has_approval_access(user, doc, transition) and user_has_permission(user)
 		]
-
+		if doc.get("owner") in filtered_users and not transition.get("send_email_to_creator"):
+			filtered_users.remove(doc.get("owner"))
 		for user in filtered_users:
 			if not user_data_map.get(user):
 				user_data_map[user] = frappe._dict(
@@ -360,7 +386,7 @@ def send_workflow_action_email(doc, transitions):
 	users_data = get_users_next_action_data(transitions, doc)
 	common_args = get_common_email_args(doc)
 	message = common_args.pop("message", None)
-	for user, data in users_data.items():  # noqa: B007
+	for data in users_data.values():
 		email_args = {
 			"recipients": [data.get("email")],
 			"args": {"actions": list(deduplicate_actions(data.get("possible_actions"))), "message": message},
@@ -456,14 +482,29 @@ def get_common_email_args(doc):
 		subject = _("Workflow Action") + f" on {doctype}: {docname}"
 		response = get_link_to_form(doctype, docname, f"{doctype}: {docname}")
 
-	common_args = {
+	print_format = doc.meta.default_print_format
+	lang = doc.get("language") or (
+		frappe.get_cached_value("Print Format", print_format, "default_print_language")
+		if print_format
+		else None
+	)
+
+	return {
 		"template": "workflow_action",
 		"header": "Workflow Action",
-		"attachments": [frappe.attach_print(doctype, docname, file_name=docname, doc=doc)],
+		"attachments": [
+			frappe.attach_print(
+				doctype,
+				docname,
+				file_name=docname,
+				doc=doc,
+				lang=lang,
+				print_format=print_format,
+			)
+		],
 		"subject": subject,
 		"message": response,
 	}
-	return common_args
 
 
 def get_email_template_from_workflow(doc):

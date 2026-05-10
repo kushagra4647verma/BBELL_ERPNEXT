@@ -16,6 +16,27 @@ from erpnext.stock.utils import get_stock_balance
 
 
 class PutawayRule(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		capacity: DF.Float
+		company: DF.Link
+		conversion_factor: DF.Float
+		disable: DF.Check
+		item_code: DF.Link
+		item_name: DF.Data | None
+		priority: DF.Int
+		stock_capacity: DF.Float
+		stock_uom: DF.Link | None
+		uom: DF.Link | None
+		warehouse: DF.Link
+	# end: auto-generated types
+
 	def validate(self):
 		self.validate_duplicate_rule()
 		self.validate_warehouse_and_company()
@@ -99,25 +120,35 @@ def apply_putaway_rule(doctype, items, company, sync=None, purpose=None):
 			item = frappe._dict(item)
 
 		source_warehouse = item.get("s_warehouse")
-		serial_nos = get_serial_nos(item.get("serial_no"))
+		serial_nos = []
+		if item.get("serial_no"):
+			serial_nos = get_serial_nos(item.get("serial_no"))
+
 		item.conversion_factor = flt(item.conversion_factor) or 1.0
 		pending_qty, item_code = flt(item.qty), item.item_code
 		pending_stock_qty = flt(item.transfer_qty) if doctype == "Stock Entry" else flt(item.stock_qty)
 		uom_must_be_whole_number = frappe.db.get_value("UOM", item.uom, "must_be_whole_number")
 
 		if not pending_qty or not item_code:
-			updated_table = add_row(item, pending_qty, source_warehouse or item.warehouse, updated_table)
+			updated_table = add_row(
+				item, pending_qty, source_warehouse or item.warehouse, updated_table, serial_nos=serial_nos
+			)
 			continue
 
 		at_capacity, rules = get_ordered_putaway_rules(item_code, company, source_warehouse=source_warehouse)
 
 		if not rules:
-			warehouse = source_warehouse or item.get("warehouse")
+			warehouse = (
+				(source_warehouse or item.get("warehouse"))
+				if not item.get("t_warehouse")
+				else item.get("t_warehouse")
+			)
+
 			if at_capacity:
 				# rules available, but no free space
 				items_not_accomodated.append([item_code, pending_qty])
 			else:
-				updated_table = add_row(item, pending_qty, warehouse, updated_table)
+				updated_table = add_row(item, pending_qty, warehouse, updated_table, serial_nos=serial_nos)
 			continue
 
 		# maintain item/item-warehouse wise rules, to handle if item is entered twice
@@ -260,8 +291,11 @@ def add_row(item, to_allocate, warehouse, updated_table, rule=None, serial_nos=N
 
 	if rule:
 		new_updated_table_row.putaway_rule = rule
+
 	if serial_nos:
 		new_updated_table_row.serial_no = get_serial_nos_to_allocate(serial_nos, to_allocate)
+
+	new_updated_table_row.serial_and_batch_bundle = ""
 
 	updated_table.append(new_updated_table_row)
 	return updated_table

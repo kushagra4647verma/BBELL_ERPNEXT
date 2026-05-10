@@ -35,8 +35,12 @@ frappe.form.formatters = {
 	},
 	Data: function (value, df) {
 		if (df && df.options == "URL") {
-			if (!value) return;
+			if (!value) return "";
 			return `<a href="${value}" title="Open Link" target="_blank">${value}</a>`;
+		}
+		if (df && df.options == "IBAN") {
+			if (!value) return "";
+			return frappe.utils.get_formatted_iban(value);
 		}
 		value = value == null ? "" : value;
 
@@ -49,6 +53,10 @@ frappe.form.formatters = {
 		return __(frappe.form.formatters["Data"](value, df));
 	},
 	Float: function (value, docfield, options, doc) {
+		if (value === null) {
+			return "";
+		}
+
 		// don't allow 0 precision for Floats, hence or'ing with null
 		var precision =
 			docfield.precision ||
@@ -73,9 +81,20 @@ frappe.form.formatters = {
 		}
 	},
 	Int: function (value, docfield, options) {
+		if (value === null) {
+			return "";
+		}
+
+		if (cstr(docfield.options).trim() === "File Size") {
+			return frappe.form.formatters.FileSize(value);
+		}
 		return frappe.form.formatters._right(value == null ? "" : cint(value), options);
 	},
 	Percent: function (value, docfield, options) {
+		if (value === null) {
+			return "";
+		}
+
 		const precision =
 			docfield.precision ||
 			cint(frappe.boot.sysdefaults && frappe.boot.sysdefaults.float_precision) ||
@@ -102,6 +121,10 @@ frappe.form.formatters = {
 		</div>`;
 	},
 	Currency: function (value, docfield, options, doc) {
+		if (value === null) {
+			return "";
+		}
+
 		var currency = frappe.meta.get_field_currency(docfield, doc);
 
 		let precision;
@@ -344,10 +367,11 @@ frappe.form.formatters = {
 		return $("<div></div>").text(value).html();
 	},
 	FileSize: function (value) {
+		value = cint(value);
 		if (value > 1048576) {
-			value = flt(flt(value) / 1048576, 1) + "M";
+			return (value / 1048576).toFixed(2) + "M";
 		} else if (value > 1024) {
-			value = flt(flt(value) / 1024, 1) + "K";
+			return (value / 1024).toFixed(2) + "K";
 		}
 		return value;
 	},
@@ -357,32 +381,35 @@ frappe.form.formatters = {
 		const link_field = meta.fields.find((df) => df.fieldtype === "Link");
 		const formatted_values = rows.map((row) => {
 			const value = row[link_field.fieldname];
-			return frappe.format(value, link_field, options, row);
+			return `<span class="text-nowrap">
+				${frappe.format(value, link_field, options, row)}
+			</span>`;
 		});
 		return formatted_values.join(", ");
 	},
 	Color: (value) => {
-		return value
-			? `<div>
-			<div class="selected-color" style="background-color: ${value}"></div>
-			<span class="color-value">${value}</span>
-		</div>`
-			: "";
+		if (!value) return "";
+		let escaped_value = frappe.utils.escape_html(value);
+		return `<div>
+			<div class="selected-color" style="background-color: ${escaped_value}"></div>
+			<span class="color-value">${escaped_value}</span>
+		</div>`;
 	},
 	Icon: (value) => {
-		return value
-			? `<div>
-			<div class="selected-icon">${frappe.utils.icon(value, "md")}</div>
-			<span class="icon-value">${value}</span>
-		</div>`
-			: "";
+		if (!value) return "";
+		let escaped_value = frappe.utils.escape_html(value);
+		return `<div>
+			<div class="selected-icon">${frappe.utils.icon(escaped_value, "md")}</div>
+			<span class="icon-value">${escaped_value}</span>
+		</div>`;
 	},
 	Attach: format_attachment_url,
 	AttachImage: format_attachment_url,
 };
 
 function format_attachment_url(url) {
-	return url ? `<a href="${url}" target="_blank">${url}</a>` : "";
+	let escaped = frappe.utils.escape_html(url);
+	return url ? `<a href="${escaped}" target="_blank">${escaped}</a>` : "";
 }
 
 frappe.form.get_formatter = function (fieldtype) {

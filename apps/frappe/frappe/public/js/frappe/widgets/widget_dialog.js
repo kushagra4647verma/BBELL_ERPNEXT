@@ -219,7 +219,13 @@ class CardDialog extends WidgetDialog {
 			{
 				fieldtype: "Data",
 				fieldname: "label",
-				label: "Label",
+				label: __("Label"),
+			},
+			{
+				fieldtype: "HTML Editor",
+				fieldname: "description",
+				label: __("Description"),
+				max_height: "7rem",
 			},
 			{
 				fieldname: "links",
@@ -231,17 +237,6 @@ class CardDialog extends WidgetDialog {
 					return me.values ? JSON.parse(me.values.links) : [];
 				},
 				fields: [
-					{
-						fieldname: "label",
-						fieldtype: "Data",
-						in_list_view: 1,
-						label: "Label",
-					},
-					{
-						fieldname: "icon",
-						fieldtype: "Icon",
-						label: "Icon",
-					},
 					{
 						fieldname: "link_type",
 						fieldtype: "Select",
@@ -268,6 +263,30 @@ class CardDialog extends WidgetDialog {
 								};
 							}
 						},
+						onchange: function () {
+							if (this.doc.link_type === "Report" && this.doc.link_to) {
+								frappe.db
+									.get_value("Report", this.doc.link_to, "report_type")
+									.then((r) => {
+										if (r?.message?.report_type) {
+											const report_type = r.message.report_type;
+											this.doc.is_query_report =
+												report_type !== "Report Builder";
+										}
+									});
+							}
+						},
+					},
+					{
+						fieldname: "label",
+						fieldtype: "Data",
+						in_list_view: 1,
+						label: __("Label"),
+					},
+					{
+						fieldname: "icon",
+						fieldtype: "Icon",
+						label: "Icon",
 					},
 					{
 						fieldname: "column_break_7",
@@ -427,7 +446,6 @@ class ShortcutDialog extends WidgetDialog {
 				fieldtype: "Data",
 				fieldname: "url",
 				label: __("URL"),
-				options: "URL",
 				default: "",
 				depends_on: (s) => s.type == "URL",
 				mandatory_depends_on: (s) => s.type == "URL",
@@ -555,7 +573,11 @@ class ShortcutDialog extends WidgetDialog {
 		data.label = data.label ? data.label : frappe.model.unscrub(data.link_to);
 
 		if (data.url) {
-			!validate_url(data.url) &&
+			let _url = data.url;
+			if (data.url.startsWith("/")) {
+				_url = frappe.urllib.get_base_url() + data.url;
+			}
+			!validate_url(_url) &&
 				frappe.throw({
 					message: __("<b>{0}</b> is not a valid URL", [data.url]),
 					title: __("Invalid URL"),
@@ -584,7 +606,7 @@ class NumberCardDialog extends WidgetDialog {
 				{
 					fieldtype: "Link",
 					fieldname: "number_card_name",
-					label: __("Number Cards"),
+					label: __("Number Card"),
 					options: "Number Card",
 					reqd: 1,
 					get_query: () => {

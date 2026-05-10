@@ -12,6 +12,23 @@ from frappe.query_builder.functions import Max
 
 
 class PackageRelease(Document):
+	# begin: auto-generated types
+	# This code is auto-generated. Do not modify anything in this block.
+
+	from typing import TYPE_CHECKING
+
+	if TYPE_CHECKING:
+		from frappe.types import DF
+
+		major: DF.Int
+		minor: DF.Int
+		package: DF.Link
+		patch: DF.Int
+		path: DF.SmallText | None
+		publish: DF.Check
+		release_notes: DF.MarkdownEditor | None
+
+	# end: auto-generated types
 	def set_version(self):
 		# set the next patch release by default
 		doctype = frappe.qb.DocType("Package Release")
@@ -76,8 +93,9 @@ class PackageRelease(Document):
 
 	def export_package_files(self, package):
 		# write readme
-		with open(frappe.get_site_path("packages", package.package_name, "README.md"), "w") as readme:
-			readme.write(package.readme)
+		if package.readme:
+			with open(frappe.get_site_path("packages", package.package_name, "README.md"), "w") as readme:
+				readme.write(package.readme)
 
 		# write license
 		if package.license:

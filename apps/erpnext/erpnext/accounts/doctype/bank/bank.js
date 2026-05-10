@@ -3,14 +3,8 @@
 frappe.provide("erpnext.integrations");
 
 frappe.ui.form.on("Bank", {
-	onload: function (frm) {
-		add_fields_to_mapping_table(frm);
-	},
 	refresh: function (frm) {
 		add_fields_to_mapping_table(frm);
-
-		frappe.dynamic_link = { doc: frm.doc, fieldname: "name", doctype: "Bank" };
-
 		frm.toggle_display(["address_html", "contact_html"], !frm.doc.__islocal);
 
 		if (frm.doc.__islocal) {
@@ -40,11 +34,11 @@ let add_fields_to_mapping_table = function (frm) {
 		});
 	});
 
-	frm.fields_dict.bank_transaction_mapping.grid.update_docfield_property(
-		"bank_transaction_field",
-		"options",
-		options
-	);
+	const grid = frm.fields_dict.bank_transaction_mapping?.grid;
+
+	if (grid) {
+		grid.update_docfield_property("bank_transaction_field", "options", options);
+	}
 };
 
 erpnext.integrations.refreshPlaidLink = class refreshPlaidLink {
@@ -106,6 +100,7 @@ erpnext.integrations.refreshPlaidLink = class refreshPlaidLink {
 
 	onScriptLoaded(me) {
 		me.linkHandler = Plaid.create({
+			// eslint-disable-line no-undef
 			env: me.plaid_env,
 			token: me.token,
 			onSuccess: me.plaid_success,
@@ -118,7 +113,7 @@ erpnext.integrations.refreshPlaidLink = class refreshPlaidLink {
 				"There was an issue connecting to Plaid's authentication server. Check browser console for more information"
 			)
 		);
-		console.log(error);
+		console.error(error);
 	}
 
 	plaid_success(token, response) {

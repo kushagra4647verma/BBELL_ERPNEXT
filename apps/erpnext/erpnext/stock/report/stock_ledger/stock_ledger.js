@@ -27,25 +27,43 @@ frappe.query_reports["Stock Ledger"] = {
 		},
 		{
 			fieldname: "warehouse",
-			label: __("Warehouse"),
-			fieldtype: "Link",
+			label: __("Warehouses"),
+			fieldtype: "MultiSelectList",
 			options: "Warehouse",
-			get_query: function () {
+			get_data: function (txt) {
 				const company = frappe.query_report.get_filter_value("company");
-				return {
-					filters: { company: company },
-				};
+
+				return frappe.db.get_link_options("Warehouse", txt, {
+					company: company,
+				});
 			},
 		},
 		{
 			fieldname: "item_code",
-			label: __("Item"),
-			fieldtype: "Link",
+			label: __("Items"),
+			fieldtype: "MultiSelectList",
 			options: "Item",
-			get_query: function () {
-				return {
-					query: "erpnext.controllers.queries.item_query",
-				};
+			get_data: async function (txt) {
+				let { message: data } = await frappe.call({
+					method: "erpnext.controllers.queries.item_query",
+					args: {
+						doctype: "Item",
+						txt: txt,
+						searchfield: "name",
+						start: 0,
+						page_len: 10,
+						filters: {},
+						as_dict: 1,
+					},
+				});
+				data = data.map(({ name, ...rest }) => {
+					return {
+						value: name,
+						description: Object.values(rest),
+					};
+				});
+
+				return data || [];
 			},
 		},
 		{
@@ -59,6 +77,14 @@ frappe.query_reports["Stock Ledger"] = {
 			label: __("Batch No"),
 			fieldtype: "Link",
 			options: "Batch",
+			on_change() {
+				const batch_no = frappe.query_report.get_filter_value("batch_no");
+				if (batch_no) {
+					frappe.query_report.set_filter_value("segregate_serial_batch_bundle", 1);
+				} else {
+					frappe.query_report.set_filter_value("segregate_serial_batch_bundle", 0);
+				}
+			},
 		},
 		{
 			fieldname: "brand",
@@ -91,6 +117,12 @@ frappe.query_reports["Stock Ledger"] = {
 			options: "Currency\nFloat",
 			default: "Currency",
 		},
+		{
+			fieldname: "segregate_serial_batch_bundle",
+			label: __("Segregate Serial / Batch Bundle"),
+			fieldtype: "Check",
+			default: 0,
+		},
 	],
 	formatter: function (value, row, column, data, default_formatter) {
 		value = default_formatter(value, row, column, data);
@@ -101,6 +133,13 @@ frappe.query_reports["Stock Ledger"] = {
 		}
 
 		return value;
+	},
+
+	onload: function (report) {
+		report.page.add_inner_button(__("View Stock Balance"), function () {
+			var filters = report.get_values();
+			frappe.set_route("query-report", "Stock Balance", filters);
+		});
 	},
 };
 

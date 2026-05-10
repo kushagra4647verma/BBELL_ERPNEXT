@@ -41,12 +41,16 @@ def set_gst_category(doc):
 
 
 def fetch_or_guess_gst_category(doc):
+    # High Seas Sales
+    if doc.gst_category == "Overseas":
+        return doc.gst_category
+
     # Any transaction can be treated as deemed export
     if doc.gstin and doc.gst_category == "Deemed Export":
-        return "Deemed Export"
+        return doc.gst_category
 
-    if doc.gstin and is_autofill_party_info_enabled():
-        gstin_info = _get_gstin_info(doc.gstin, throw_error=False) or {}
+    if doc.gstin and is_autofill_party_info_enabled() and not frappe.flags.in_import:
+        gstin_info = _get_gstin_info(doc.gstin, doc=doc, throw_error=False) or {}
 
         if gstin_info.get("gst_category"):
             return gstin_info.gst_category
@@ -61,9 +65,7 @@ def validate_pan(doc):
     """
 
     if doc.gstin:
-        doc.pan = (
-            pan_from_gstin if is_valid_pan(pan_from_gstin := doc.gstin[2:12]) else ""
-        )
+        doc.pan = pan_from_gstin if is_valid_pan(pan_from_gstin := doc.gstin[2:12]) else ""
         return
 
     if not doc.pan:
@@ -82,9 +84,7 @@ def set_docs_with_previous_gstin(doc, method=None):
     if not previous_gstin or previous_gstin == doc.gstin:
         return
 
-    docs_with_previous_gstin = get_docs_with_previous_gstin(
-        previous_gstin, doc.doctype, doc.name
-    )
+    docs_with_previous_gstin = get_docs_with_previous_gstin(previous_gstin, doc.doctype, doc.name)
     if not docs_with_previous_gstin:
         return
 
@@ -105,7 +105,10 @@ def get_docs_with_previous_gstin(gstin, doctype, docname):
 
 
 @frappe.whitelist()
-def update_docs_with_previous_gstin(gstin, gst_category, docs_with_previous_gstin):
+def update_docs_with_previous_gstin(gstin: str, gst_category: str, docs_with_previous_gstin: str):
+    """
+    Permission check not required as doc.save check permissions.
+    """
     frappe.flags.in_update_docs_with_previous_gstin = True
     docs_with_previous_gstin = json.loads(docs_with_previous_gstin)
 
@@ -118,9 +121,7 @@ def update_docs_with_previous_gstin(gstin, gst_category, docs_with_previous_gsti
                 doc.save()
             except Exception as e:
                 frappe.clear_last_message()
-                frappe.throw(
-                    "Error updating {0} {1}:<br/> {2}".format(doctype, docname, str(e))
-                )
+                frappe.throw(f"Error updating {doctype} {docname}:<br/> {e!s}")
 
     frappe.msgprint(_("GSTIN Updated"), indicator="green", alert=True)
 

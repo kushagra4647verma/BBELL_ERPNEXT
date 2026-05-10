@@ -5,7 +5,7 @@
 		display: flex;
 		margin-right: var(--margin-sm);
 		cursor: pointer;
-		--icon-stroke: var(--gray-500);
+		--icon-stroke: var(--gray-700);
 		.sidebar-toggle-icon {
 			display: none;
 		}
@@ -28,16 +28,17 @@
 		display: inline-flex;
 		align-items: center;
 		.title-text {
+			@include get_textstyle("2xl", "bold");
 			cursor: pointer;
 			margin-bottom: 0px;
 			margin-right: var(--margin-sm);
-			max-width: 500px;
+			max-width: 25vw;
 		}
 		.indicator-pill {
 			margin-top: 2px;
 		}
 		.sub-heading {
-			font-size: var(--text-sm);
+			@include get_textstyle("sm", "regular");
 		}
 	}
 }
@@ -57,9 +58,17 @@
 		height: var(--btn-height);
 		margin-left: var(--margin-sm, 8px);
 		border-radius: var(--border-radius);
+		line-height: 1;
+		padding: 4px 8px;
+		&,
+		& .hidden-xs {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+		}
 	}
 	.btn:not(.icon-btn) {
-		padding: 4px 10px;
+		padding: 4px 8px;
 	}
 	.btn-primary,
 	.btn-secondary {
@@ -76,12 +85,18 @@
 }
 
 .layout-main-section-wrapper {
-	margin-bottom: var(--page-bottom-margin);
+	min-width: 0;
 }
 
 .layout-main-section.frappe-card {
 	overflow: hidden;
 	@include card($padding: 0px);
+	box-shadow: none;
+	border: 1px solid var(--border-color);
+
+	[dir="rtl"] & {
+		overflow: visible;
+	}
 }
 
 .page-head {
@@ -93,16 +108,13 @@
 	transition: 0.5s top;
 	.page-head-content {
 		height: var(--page-head-height);
-	}
-	&.drop-shadow {
-		box-shadow: var(--shadow-sm);
-		background-color: var(--fg-color) !important;
+		padding: 8px 0px;
 	}
 }
 
 .page-form {
 	margin: 0;
-	padding: var(--padding-sm);
+	padding: var(--padding-xs);
 	display: flex;
 	flex-wrap: wrap;
 	background-color: var(--card-bg);
@@ -155,6 +167,8 @@
 	}
 }
 .layout-main-section {
+	scroll-margin-top: var(--navbar-height);
+
 	.frappe-list,
 	.report-wrapper {
 		padding: 0 var(--padding-xs);
@@ -168,7 +182,7 @@
 
 	.msg-box {
 		margin-bottom: 4em;
-		font-size: var(--text-sm);
+		@include get_textstyle("sm", "regular");
 
 		// To compensate for perceived centering
 		.null-state {
@@ -180,7 +194,7 @@
 			}
 		}
 		p {
-			font-size: var(--text-md);
+			@include get_textstyle("base", "regular");
 		}
 
 		.meta-description {
