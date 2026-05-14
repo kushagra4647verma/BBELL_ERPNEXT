@@ -1,0 +1,36 @@
+{
+ "creation": "2021-05-07 09:42:10.308682",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "notify_party",
+  "notify_address_display"
+ ],
+ "fields": [
+  {
+   "fieldname": "notify_party",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Notify Party",
+   "options": "Address"
+  },
+  {
+   "fieldname": "notify_address_display",
+   "fieldtype": "Small Text",
+   "label": "Notify Address Display",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "modified": "2021-05-07 11:07:03.886462",
+ "modified_by": "Administrator",
+ "module": "Yogeshdyes",
+ "name": "Notify Party Address",
+ "owner": "Administrator",
+ "permissions": [],
+ "quick_entry": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

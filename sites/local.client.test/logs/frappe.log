@@ -748,3 +748,9 @@ Traceback (most recent call last):
   File "/Users/kushagraverma/frappe/client-bench/env/lib/python3.10/site-packages/werkzeug/local.py", line 501, in _get_current_object
     raise RuntimeError(unbound_message) from None
 RuntimeError: object is not bound
+2026-05-14 21:07:10,364 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {'report_name': 'Item-wise Purchase Register Chemical', 'filters': '{"date_range":["2026-04-14","2026-05-14"],"company":"Test"}', 'ignore_prepared_report': 'false', 'are_default_filters': 'true', 'cmd': 'frappe.desk.query_report.run'}
+2026-05-14 21:15:01,547 ERROR frappe Error while inserting deferred Error Log record: Error Log iv7mhran2e: 'Title' (cannot import name 'get_group_by_conditions' from 'erpnext.accounts.report.item_wise_sales_register.item_wise_sales_register' (/Users/kushagraverma/frappe/client-bench/apps/erpnext/erpnext/accounts/report/item_wise_sales_register/item_wise_sales_register.py)) will get truncated, as max characters allowed is 140
+Site: local.client.test
+Form Dict: {}

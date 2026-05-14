@@ -4,3 +4,6 @@ india_compliance
 purchase_fast_entry
 erpnext
 finbyzerp
+hrms
+chemical
+yogeshdyes

@@ -1,7 +1,6 @@
-env/
-logs/
-sites/*/private/files
-sites/*/private/backups
-sites/assets/
-node_modules/
+.DS_Store
 *.pyc
+*.egg-info
+*.swp
+tags
+chemical/docs/current

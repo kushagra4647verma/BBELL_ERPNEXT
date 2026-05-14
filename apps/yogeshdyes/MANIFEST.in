@@ -1,0 +1,18 @@
+include MANIFEST.in
+include requirements.txt
+include *.json
+include *.md
+include *.py
+include *.txt
+recursive-include yogeshdyes *.css
+recursive-include yogeshdyes *.csv
+recursive-include yogeshdyes *.html
+recursive-include yogeshdyes *.ico
+recursive-include yogeshdyes *.js
+recursive-include yogeshdyes *.json
+recursive-include yogeshdyes *.md
+recursive-include yogeshdyes *.png
+recursive-include yogeshdyes *.py
+recursive-include yogeshdyes *.svg
+recursive-include yogeshdyes *.txt
+recursive-exclude yogeshdyes *.pyc
