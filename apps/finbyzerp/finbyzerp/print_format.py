@@ -3,8 +3,7 @@ from __future__ import unicode_literals
 import pdfkit, os, frappe, io
 from frappe.utils import scrub_urls
 from frappe import _
-from PyPDF2 import PdfFileReader, PdfFileWriter
-from distutils.version import LooseVersion
+from PyPDF2 import PdfReader, PdfWriter
 from frappe.utils.pdf import get_wkhtmltopdf_version,get_file_data_from_writer,get_cookie_options,cleanup, read_options_from_html
 
 
@@ -28,24 +27,19 @@ def get_pdf(html, options=None, output=None):
 	})
 
 	filedata = ''
-	if LooseVersion(get_wkhtmltopdf_version()) > LooseVersion('0.12.3'):
+	if get_wkhtmltopdf_version() > '0.12.3':
 		options.update({"disable-smart-shrinking": ""})
 
 	try:
-		# Set filename property to false, so no file is actually created
 		filedata = pdfkit.from_string(html, False, options=options or {})
-
-		# https://pythonhosted.org/PyPDF2/PdfFileReader.html
-		# create in-memory binary streams from filedata and create a PdfFileReader object
-		reader = PdfFileReader(io.BytesIO(filedata))
+		reader = PdfReader(io.BytesIO(filedata))
 	except OSError as e:
 		if any([error in str(e) for error in PDF_CONTENT_ERRORS]):
 			if not filedata:
 				frappe.throw(_("PDF generation failed because of broken image links"))
 
-			# allow pdfs with missing images if file got created
-			if output:  # output is a PdfFileWriter object
-				output.appendPagesFromReader(reader)
+			if output:
+				output.append(reader)
 		else:
 			raise
 	finally:
@@ -53,15 +47,13 @@ def get_pdf(html, options=None, output=None):
 
 	if "password" in options:
 		password = options["password"]
-		if six.PY2:
-			password = frappe.safe_encode(password)
 
 	if output:
-		output.appendPagesFromReader(reader)
+		output.append(reader)
 		return output
 
-	writer = PdfFileWriter()
-	writer.appendPagesFromReader(reader)
+	writer = PdfWriter()
+	writer.append(reader)
 
 	if "password" in options:
 		writer.encrypt(password)
