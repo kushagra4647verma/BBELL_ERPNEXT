@@ -49,6 +49,10 @@ yarn-error.log*
 # -----------------------------
 
 config/pids/
+config/redis_cache.conf
+config/redis_queue.conf
+config/redis_socketio.conf
+Procfile
 *.pid
 *.rdb
 
