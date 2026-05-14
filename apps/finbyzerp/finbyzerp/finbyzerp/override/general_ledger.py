@@ -39,7 +39,7 @@ def check_freezing_date(posting_date, adv_adj=False):
 			)
 		)
 
-from erpnext.accounts.report.general_ledger.general_ledger import get_result, validate_filters, validate_party, set_account_currency, get_columns
+from erpnext.accounts.report.general_ledger.general_ledger import get_result, validate_filters, validate_party, set_account_currency, get_columns, get_gl_entries, get_data_with_opening_closing, get_accounting_dimensions
 
 def execute(filters=None):
 	if not filters:
@@ -64,9 +64,46 @@ def execute(filters=None):
 
 	columns = get_columns(filters)
 
-	#update_translations()
+	# If party filter is set, get all vouchers for that party then fetch all GL entries for those vouchers
+	if filters.get("party") and filters.get("party_type"):
+		accounting_dimensions = []
+		if filters.get("include_dimensions"):
+			accounting_dimensions = get_accounting_dimensions()
 
-	res = get_result(filters, account_details)
+		# Get all voucher nos that involve this party
+		party_gl = get_gl_entries(filters, accounting_dimensions)
+		voucher_nos = list(set([d.voucher_no for d in party_gl if d.voucher_no]))
+
+		if voucher_nos:
+			# Now fetch ALL GL entries for those vouchers (remove party filter temporarily)
+			filters_copy = frappe._dict(filters.copy())
+			party = filters_copy.pop("party", None)
+			party_type = filters_copy.pop("party_type", None)
+			filters_copy["voucher_no"] = voucher_nos
+
+			# Get all entries for those vouchers
+			all_gl_entries = frappe.db.sql("""
+				select
+					name as gl_entry, posting_date, account, party_type, party,
+					voucher_type, voucher_subtype, voucher_no,
+					cost_center, project,
+					against_voucher_type, against_voucher, account_currency,
+					against, is_opening, creation,
+					debit, credit, debit_in_account_currency, credit_in_account_currency
+				from `tabGL Entry`
+				where company=%(company)s
+					and voucher_no in %(voucher_no)s
+					and is_cancelled = 0
+					and (posting_date between %(from_date)s and %(to_date)s or is_opening = 'Yes')
+				order by posting_date, voucher_type, voucher_no
+			""", filters_copy, as_dict=1)
+
+			data = get_data_with_opening_closing(filters, account_details, accounting_dimensions, all_gl_entries)
+			res = get_result_as_list(data, filters)
+		else:
+			res = get_result(filters, account_details)
+	else:
+		res = get_result(filters, account_details)
 
 	if filters.get("account"):
 		for row in res:
@@ -74,7 +111,6 @@ def execute(filters=None):
 				meta = frappe.get_meta(row.voucher_type)
 				if meta.has_field('bill_no'):
 					row.update({'bill_no':frappe.db.get_value(row.voucher_type , row.voucher_no , 'bill_no')})
-				
 
 	return columns, res
 

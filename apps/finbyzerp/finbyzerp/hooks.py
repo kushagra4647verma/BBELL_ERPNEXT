@@ -16,6 +16,8 @@ app_logo_url = "/assets/finbyzerp/images/FinbyzLogo.svg"
 
 after_install = "finbyzerp.install.after_install"
 
+ignore_links_on_delete = ["GL Entry"]
+
 # from erpnext.regional.doctype.gstr_3b_report.gstr_3b_report import GSTR3BReport
 # from finbyzerp.finbyzerp.override.gstr_3b_report import prepare_data, get_itc_details, get_inter_state_supplies, get_tax_amounts
 # GSTR3BReport.prepare_data = prepare_data
@@ -127,7 +129,8 @@ doctype_js = {
 	"BOM":"public/js/doctype_js/bom.js",
 	"Form Tour": "public/js/doctype_js/form_tour.js",
     "Quotation": "public/js/doctype_js/quotation.js",
-	"Quick Stock Balance": "public/js/doctype_js/quick_stock_balance.js"
+	"Quick Stock Balance": "public/js/doctype_js/quick_stock_balance.js",
+	"Item": "public/js/doctype_js/item.js"
 }
 website_context = {
 	"favicon": 	"/assets/finbyzerp/images/favicon.ico",
@@ -237,6 +240,7 @@ doc_events = {
 	},
 	"Journal Entry":{
 		"before_insert": "finbyzerp.api.before_insert",
+		"on_trash": "finbyzerp.finbyzerp.doc_events.journal_entry.on_trash",
 	},
 	# "Payment Entry":{
 	# 	# "validate":"finbyzerp.finbyzerp.doc_events.payment_entry.validate"

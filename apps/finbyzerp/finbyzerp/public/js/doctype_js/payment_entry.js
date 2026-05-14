@@ -3,6 +3,17 @@ frappe.ui.form.on('Payment Entry', {
 		if (frm.doc.__islocal){
 			frm.set_df_property("company", "read_only", (!frm.doc.__islocal || frm.doc.amended_from) ? 1 : 0);
 		}
+		if (frm.fields_dict.other_contacts) {
+			frm.fields_dict.other_contacts.grid.get_field("contact").get_query = function(doc) {
+				if(frm.doc.party_name) {
+					return {
+						query: "frappe.contacts.doctype.contact.contact.contact_query",
+						filters: { link_doctype: frm.doc.party_type, link_name: frm.doc.party_name}
+					};
+				}
+				else frappe.throw(__("Please set Party"));
+			};
+		}
 	},
 	onload: (frm) => {
 		if (frm.doc.__islocal){
@@ -116,16 +127,6 @@ frappe.ui.form.on('Payment Entry Reference', {
 		}
 	}
 });
-
-cur_frm.fields_dict.other_contacts.grid.get_field("contact").get_query = function(doc) {
-	if(cur_frm.doc.party_name) {
-		return {
-			query: "frappe.contacts.doctype.contact.contact.contact_query",
-			filters: { link_doctype: cur_frm.doc.party_type, link_name: cur_frm.doc.party_name} 
-		};
-	}
-	else frappe.throw(__("Please set Party"));
-};
 
 frappe.ui.form.on('Other Contact', {
 

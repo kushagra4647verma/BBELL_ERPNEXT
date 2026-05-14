@@ -2,12 +2,26 @@ import frappe
 from frappe import _
 from frappe.utils import add_days, cint, formatdate, get_datetime, getdate
 
-def validate(self,method):
-	before_validate(self,method)
+NON_FACTORY_WAREHOUSE = "Non-Factory Stores - Test"
+
+def validate(self, method):
+	before_validate(self, method)
 	if self.is_new() and not self.is_stock_item:
 		for row in self.item_defaults:
 			if not row.expense_account:
 				frappe.msgprint("Please define correct expense account in Item Defaults.<br>In absence of same expense will be parked in 'Cost of Goods Sold' account")
+
+	# If Non-Factory Item, set default warehouse to Non-Factory Stores
+	if self.get("is_non_factory_item"):
+		for row in self.item_defaults:
+			if row.default_warehouse and row.default_warehouse != NON_FACTORY_WAREHOUSE:
+				frappe.throw(
+					_("Item is marked as Non-Factory Item. Default Warehouse must be set to '{0}', not '{1}'.").format(
+						NON_FACTORY_WAREHOUSE, row.default_warehouse
+					)
+				)
+			if not row.default_warehouse:
+				row.default_warehouse = NON_FACTORY_WAREHOUSE
 		# frappe.msgprint("Please define correct expense account in Item Defaults.<br>In absence of same expense will be parked in 'Cost of Goods Sold' account")
 
 def before_validate(self,method):
