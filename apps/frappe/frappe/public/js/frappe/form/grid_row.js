@@ -644,17 +644,7 @@ export default class GridRow {
 	}
 
 	validate_columns_width() {
-		let total_column_width = 0.0;
-
-		this.selected_columns_for_grid.forEach((row) => {
-			if (row.columns && row.columns > 0) {
-				total_column_width += cint(row.columns);
-			}
-		});
-
-		if (total_column_width && total_column_width > 10) {
-			frappe.throw(__("The total column width cannot be more than 10."));
-		}
+		// Column width limit removed to allow more columns in quick entry
 	}
 
 	remove_selected_column() {

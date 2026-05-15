@@ -14,3 +14,4 @@ import "./report_js/purchase_order_trends.js"
 import "./report_js/purchase_receipt_trends.js"
 import "./report_js/purchase_invoice_trends.js";
 import "./transaction.js";
+import "./finbyzerp/grid_row_override.js";
