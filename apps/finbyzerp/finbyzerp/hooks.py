@@ -377,6 +377,10 @@ fixtures = [
          "dt": "Custom Field", 
          "filters":[["module", "in", ['Finbyzerp']]]
       },
+      {
+         "dt": "Print Format",
+         "filters":[["doc_type", "in", ["Quality Inspection"]]]
+      },
 ]
 
 from india_compliance.gst_india.api_classes.taxpayer_base import FilesAPI

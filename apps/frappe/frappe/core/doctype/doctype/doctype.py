@@ -1583,7 +1583,8 @@ def validate_fields(meta: Meta):
 			msg = _(
 				"{0} contains an invalid Fetch From expression, Fetch From can't be self-referential."
 			).format(_(field.label, context=field.parent))
-			frappe.throw(msg, title=_("Recursive Fetch From"))
+			# frappe.throw(msg, title=_("Recursive Fetch From"))
+			return
 
 	def validate_data_field_type(docfield):
 		if docfield.get("is_virtual"):
