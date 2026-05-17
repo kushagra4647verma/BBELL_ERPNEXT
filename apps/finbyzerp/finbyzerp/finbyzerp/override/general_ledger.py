@@ -64,6 +64,14 @@ def execute(filters=None):
 
 	columns = get_columns(filters)
 
+	# Add Has Attachment column
+	columns.append({
+		"label": _("Has Attachment"),
+		"fieldname": "has_attachment",
+		"fieldtype": "Data",
+		"width": 120,
+	})
+
 	# If party filter is set, get all vouchers for that party then fetch all GL entries for those vouchers
 	if filters.get("party") and filters.get("party_type"):
 		accounting_dimensions = []
@@ -111,6 +119,25 @@ def execute(filters=None):
 				meta = frappe.get_meta(row.voucher_type)
 				if meta.has_field('bill_no'):
 					row.update({'bill_no':frappe.db.get_value(row.voucher_type , row.voucher_no , 'bill_no')})
+
+	# Add has_attachment flag
+	voucher_nos = list(set([r.get("voucher_no") for r in res if r.get("voucher_no")]))
+	attached_vouchers = set()
+	if voucher_nos:
+		attachments = frappe.db.sql("""
+			SELECT attached_to_name
+			FROM `tabFile`
+			WHERE attached_to_name IN %(voucher_nos)s
+			AND is_private = 0 OR is_private = 1
+			GROUP BY attached_to_name
+		""", {"voucher_nos": voucher_nos}, as_dict=1)
+		attached_vouchers = set([a.attached_to_name for a in attachments])
+
+	for row in res:
+		if row.get("voucher_no"):
+			row["has_attachment"] = "Yes" if row["voucher_no"] in attached_vouchers else "No"
+		else:
+			row["has_attachment"] = ""
 
 	return columns, res
 

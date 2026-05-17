@@ -1,11 +1,29 @@
 import frappe
 from erpnext.stock.doctype.quality_inspection.quality_inspection import QualityInspection as _QualityInspection
 
+# Custom doctypes that don't follow the "{doctype} Item" naming convention
+CUSTOM_REFERENCE_CHILD_MAP = {
+	"Outward Sample": "Outward Sample Detail",
+	"Inward Sample": "Inward Sample Detail",
+}
+
 class QualityInspection(_QualityInspection):
-	def update_qc_reference(self):
+	def set_child_row_reference(self):
+		# Skip for custom doctypes that don't have a standard "{doctype} Item" child table
+		if self.reference_type in CUSTOM_REFERENCE_CHILD_MAP:
+			return
+		# Also skip if the child table doesn't exist
+		doctype = self.reference_type + " Item"
+		if self.reference_type == "Stock Entry":
+			doctype = "Stock Entry Detail"
+		if not frappe.db.table_exists(f"tab{doctype}"):
+			return
+		super().set_child_row_reference()
+
+	def update_qc_reference(self, remove_reference=False):
 		# TODO: to be done in version-15
 		# Added Item Reference Field For Proper Update
-  
+
 		quality_inspection = self.name if self.docstatus == 1 else ""
 
 		if self.reference_type == "Job Card":
@@ -27,6 +45,12 @@ class QualityInspection(_QualityInspection):
 
 			if self.reference_type == "Stock Entry":
 				doctype = "Stock Entry Detail"
+
+			# Skip for custom doctypes that don't have a standard child table
+			if self.reference_type in CUSTOM_REFERENCE_CHILD_MAP:
+				return
+			if not frappe.db.table_exists(f"tab{doctype}"):
+				return
 
 			if self.reference_type and self.reference_name:
 				conditions = ""
