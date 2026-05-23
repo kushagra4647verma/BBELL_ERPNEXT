@@ -1,12 +1,13 @@
-cur_frm.fields_dict.taxes_and_charges.get_query = function(doc) {
-	return {
-		filters: {
-			"company": doc.company
-		}
-	}
-};
-
 frappe.ui.form.on("Purchase Order", {
+    onload: function(frm) {
+        frm.set_query("taxes_and_charges", function(doc) {
+            return {
+                filters: {
+                    "company": doc.company
+                }
+            };
+        });
+    },
     validate: function(frm) {
 		frappe.db.get_value("Company",frm.doc.company,'maintain_as_is_new',function(c){
 			if(!c.maintain_as_is_new){

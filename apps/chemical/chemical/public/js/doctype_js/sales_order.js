@@ -1,4 +1,28 @@
 frappe.ui.form.on("Sales Order", {
+    onload: function(frm) {
+        frm.set_query("outward_sample", "items", function(doc, cdt, cdn) {
+            let d = locals[cdt][cdn];
+            if (!d.item_code) {
+                frappe.throw(__("Please select Item Code first."));
+            }
+            return {
+                filters: {
+                    'docstatus': 1,
+                    "link_to": 'Customer',
+                    "product_name": d.item_code,
+                    "party": doc.customer,
+                }
+            };
+        });
+
+        frm.set_query("taxes_and_charges", function(doc) {
+            return {
+                filters: {
+                    "company": doc.company,
+                }
+            };
+        });
+    },
     before_save: function (frm) {
         frm.trigger('cal_rate_qty')
         frm.doc.items.forEach(function (d) {
@@ -100,29 +124,6 @@ frappe.ui.form.on("Sales Order", {
     
 });
 
-cur_frm.fields_dict.items.grid.get_field("outward_sample").get_query = function(doc,cdt,cdn) {
-    let d = locals[cdt][cdn];
-    if(!d.item_code){
-        frappe.throw(__("Please select Item Code first."))
-    }
-	return {
-		filters: {
-            'docstatus':1,
-            "link_to":'Customer',
-            "product_name": d.item_code,
-            "party":doc.customer,
-            
-		}
-	}
-};
-// filter
-cur_frm.fields_dict.taxes_and_charges.get_query = function (doc) {
-	return {
-		filters: {
-			"company": doc.company,
-		}
-	}
-};
 
 frappe.ui.form.on("Sales Order Item", {
     item_code: function(frm,cdt,cdn) {

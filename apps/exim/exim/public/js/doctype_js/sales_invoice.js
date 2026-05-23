@@ -1,83 +1,69 @@
 //EXIM
-cur_frm.add_fetch('advance_authorisation_license', 'approved_qty', 'license_qty');
-cur_frm.add_fetch('advance_authorisation_license', 'remaining_export_qty', 'license_remaining_qty');
-cur_frm.add_fetch('advance_authorisation_license', 'approved_amount', 'license_amount');
-cur_frm.add_fetch('advance_authorisation_license', 'remaining_export_amount', 'license_remaining_amount');
-
-// Address Filter
-cur_frm.set_query("notify_party", function () {
-    return {
-        query: "frappe.contacts.doctype.address.address.address_query",
-        filters: { link_doctype: "Customer", link_name: cur_frm.doc.customer }
-    };
-});
-
-cur_frm.fields_dict.items.grid.get_field("advance_authorisation_license").get_query = function (doc, cdt, cdn) {
-    let d = locals[cdt][cdn];
-    return {
-        filters: {
-            "export_item": d.item_code,
-        }
-    }
-};
-
-// Customer Address Filter
-cur_frm.set_query("customer_address", function () {
-    return {
-        query: "frappe.contacts.doctype.address.address.address_query",
-        filters: {
-            link_doctype: "Customer",
-            link_name: cur_frm.doc.customer
-        }
-    };
-});
-
-// Shipping Address Filter
-cur_frm.set_query("shipping_address_name", function () {
-    return {
-        query: "frappe.contacts.doctype.address.address.address_query",
-        filters: { link_doctype: "Customer", link_name: cur_frm.doc.customer }
-    };
-});
-
-// Customer Contact Filter
-cur_frm.set_query("contact_person", function () {
-    return {
-        query: "frappe.contacts.doctype.contact.contact.contact_query",
-        filters: { link_doctype: "Customer", link_name: cur_frm.doc.customer }
-    };
-});
-
 frappe.ui.form.on("Sales Invoice", {
     onload: function (frm) {
-        // frm.trigger("set_package");
+        frm.add_fetch('advance_authorisation_license', 'approved_qty', 'license_qty');
+        frm.add_fetch('advance_authorisation_license', 'remaining_export_qty', 'license_remaining_qty');
+        frm.add_fetch('advance_authorisation_license', 'approved_amount', 'license_amount');
+        frm.add_fetch('advance_authorisation_license', 'remaining_export_amount', 'license_remaining_amount');
+
+        frm.set_query("notify_party", function() {
+            return {
+                query: "frappe.contacts.doctype.address.address.address_query",
+                filters: { link_doctype: "Customer", link_name: frm.doc.customer }
+            };
+        });
+
+        frm.set_query("advance_authorisation_license", "items", function(doc, cdt, cdn) {
+            let d = locals[cdt][cdn];
+            return {
+                filters: { "export_item": d.item_code }
+            };
+        });
+
+        frm.set_query("customer_address", function() {
+            return {
+                query: "frappe.contacts.doctype.address.address.address_query",
+                filters: { link_doctype: "Customer", link_name: frm.doc.customer }
+            };
+        });
+
+        frm.set_query("shipping_address_name", function() {
+            return {
+                query: "frappe.contacts.doctype.address.address.address_query",
+                filters: { link_doctype: "Customer", link_name: frm.doc.customer }
+            };
+        });
+
+        frm.set_query("contact_person", function() {
+            return {
+                query: "frappe.contacts.doctype.contact.contact.contact_query",
+                filters: { link_doctype: "Customer", link_name: frm.doc.customer }
+            };
+        });
+
+        // existing onload logic
         if (frm.doc.customer_address || frm.doc.shipping_address_name) {
-            frappe.db.get_value("Address", frm.doc.customer_address, "country", function (r) {
-                frappe.db.get_value("Address", frm.doc.shipping_address_name, "country", function (d) {
+            frappe.db.get_value("Address", frm.doc.customer_address, "country", function(r) {
+                frappe.db.get_value("Address", frm.doc.shipping_address_name, "country", function(d) {
                     if (r.country == "India" || d.country == "India") {
-                        cur_frm.set_df_property("shipping_details", "hidden", 1);
-                    }
-                    else {
-                        cur_frm.set_df_property("shipping_details", "hidden", 0);
+                        frm.set_df_property("shipping_details", "hidden", 1);
+                    } else {
+                        frm.set_df_property("shipping_details", "hidden", 0);
                     }
                 });
             });
         }
         var so_list_item = [];
-        frm.doc.items.forEach(function (d) {
-            if (d.sales_order) {
-                so_list_item.push(d.sales_order)
-            }
-        })
+        frm.doc.items.forEach(function(d) {
+            if (d.sales_order) so_list_item.push(d.sales_order);
+        });
         if (so_list_item.length) {
-            frm.set_query("contract_and_lc", function () {
+            frm.set_query("contract_and_lc", function() {
                 return {
                     query: "exim.api.contract_and_lc_filter",
-                    filters: {
-                        'sales_order_item': so_list_item
-                    }
-                }
-            })
+                    filters: { 'sales_order_item': so_list_item }
+                };
+            });
         }
     },
     contract_and_lc: function (frm) {

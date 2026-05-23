@@ -1,7 +1,7 @@
 frappe.ui.form.on("Purchase Invoice", {
     refresh: function(frm) {
         if (frm.doc.docstatus > 0 && frm.doc.update_stock) {
-            cur_frm.add_custom_button(__("Stock Ledger Chemical"), function() {
+            frm.add_custom_button(__("Stock Ledger Chemical"), function() {
                 frappe.route_options = {
                     voucher_no: frm.doc.name,
                     from_date: frm.doc.posting_date,

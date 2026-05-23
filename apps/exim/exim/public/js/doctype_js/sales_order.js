@@ -1,39 +1,47 @@
-this.frm.cscript.onload = function (frm) {
-    // Billing Address Filter
-    this.frm.set_query("customer_address", function () {
-        return {
-            query: "frappe.contacts.doctype.address.address.address_query",
-            filters: { link_doctype: "Customer", link_name: cur_frm.doc.customer }
-        };
-    });
-
-    // Shipping Address Filter
-    this.frm.set_query("shipping_address_name", function () {
-        return {
-            query: "frappe.contacts.doctype.address.address.address_query",
-            filters: { link_doctype: "Customer", link_name: cur_frm.doc.customer }
-        };
-    });
-
-    // Supplier Contact Filter
-    this.frm.set_query("contact_person", function () {
-        return {
-            query: "frappe.contacts.doctype.contact.contact.contact_query",
-            filters: { link_doctype: "Customer", link_name: cur_frm.doc.customer }
-        };
-    });
-
-    cur_frm.fields_dict.items.grid.get_field("ref_no").get_query = function (doc, cdt, cdn) {
-        let d = locals[cdt][cdn];
-        return {
-            filters: {
-                "product_name": d.item_code,
-            }
-        }
-    };
-
-}
 frappe.ui.form.on("Sales Order", {
+    onload: function(frm) {
+        frm.set_query("customer_address", function() {
+            return {
+                query: "frappe.contacts.doctype.address.address.address_query",
+                filters: { link_doctype: "Customer", link_name: frm.doc.customer }
+            };
+        });
+
+        frm.set_query("shipping_address_name", function() {
+            return {
+                query: "frappe.contacts.doctype.address.address.address_query",
+                filters: { link_doctype: "Customer", link_name: frm.doc.customer }
+            };
+        });
+
+        frm.set_query("contact_person", function() {
+            return {
+                query: "frappe.contacts.doctype.contact.contact.contact_query",
+                filters: { link_doctype: "Customer", link_name: frm.doc.customer }
+            };
+        });
+
+        frm.set_query("ref_no", "items", function(doc, cdt, cdn) {
+            let d = locals[cdt][cdn];
+            return {
+                filters: {
+                    "product_name": d.item_code,
+                }
+            };
+        });
+
+        if (frm.doc.customer_address || frm.doc.shipping_address_name) {
+            frappe.db.get_value("Address", frm.doc.customer_address, "country", function(r) {
+                frappe.db.get_value("Address", frm.doc.shipping_address_name, "country", function(d) {
+                    if (r.country == "India" || d.country == "India") {
+                        frm.set_df_property("shipping_details", "hidden", 1);
+                    } else {
+                        frm.set_df_property("shipping_details", "hidden", 0);
+                    }
+                });
+            });
+        }
+    },
     before_save: function (frm) {
         frm.trigger("cal_total");
         frappe.call({
@@ -62,20 +70,6 @@ frappe.ui.form.on("Sales Order", {
         }
 		
     },
-	onload:function(frm){
-		if(frm.doc.customer_address || frm.doc.shipping_address_name){
-			frappe.db.get_value("Address", frm.doc.customer_address, "country", function (r) {
-				frappe.db.get_value("Address", frm.doc.shipping_address_name, "country", function (d) {
-					if(r.country == "India" || d.country == "India"){
-						cur_frm.set_df_property("shipping_details", "hidden", 1);
-					}
-					else{
-						cur_frm.set_df_property("shipping_details", "hidden", 0);
-					}
-				});
-			});
-		}
-	},
 	onload_post_render: function(frm){
 		// hide delivery note from make button
 		let $group = cur_frm.page.get_inner_group_button("Make");

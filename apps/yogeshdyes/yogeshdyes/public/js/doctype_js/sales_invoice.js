@@ -214,4 +214,4 @@ erpnext.accounts.SalesInvoiceController = class SalesInvoiceController extends e
 		}
 }}
 
-extend_cscript(cur_frm.cscript, new erpnext.accounts.SalesInvoiceController({ frm: cur_frm }));
+

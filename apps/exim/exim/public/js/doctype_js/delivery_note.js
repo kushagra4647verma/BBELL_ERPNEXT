@@ -1,22 +1,20 @@
 
 
-// Shipping Address Filter
-cur_frm.set_query("shipping_address_name", function () {
-    return {
-        query: "frappe.contacts.doctype.address.address.address_query",
-        filters: { link_doctype: "Customer", link_name: cur_frm.doc.customer }
-    };
-});
-
-// Customer Contact Filter
-cur_frm.set_query("contact_person", function () {
-    return {
-        query: "frappe.contacts.doctype.contact.contact.contact_query",
-        filters: { link_doctype: "Customer", link_name: cur_frm.doc.customer }
-    };
-});
-
 frappe.ui.form.on("Delivery Note", {
+    onload: function(frm) {
+        frm.set_query("shipping_address_name", function() {
+            return {
+                query: "frappe.contacts.doctype.address.address.address_query",
+                filters: { link_doctype: "Customer", link_name: frm.doc.customer }
+            };
+        });
+        frm.set_query("contact_person", function() {
+            return {
+                query: "frappe.contacts.doctype.contact.contact.contact_query",
+                filters: { link_doctype: "Customer", link_name: frm.doc.customer }
+            };
+        });
+    },
     caclulate_total: function (frm) {
         let total_qty = 0;
         let total_packages = 0;

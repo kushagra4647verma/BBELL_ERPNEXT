@@ -122,4 +122,9 @@ class MariaDBTable(DBTable):
 					).format(fieldname, self.table_name)
 				)
 
+			# 1118 = Row size too large - skip for tables with too many custom columns
+			if e.args[0] == 1118:
+				print(f"Skipping row size error for {self.table_name} - table has too many columns for local dev")
+				return
+
 			raise

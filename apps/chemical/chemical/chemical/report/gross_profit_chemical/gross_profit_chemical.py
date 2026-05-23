@@ -55,6 +55,7 @@ def execute(filters=None):
 				"gross_profit",
 				"gross_profit_percent",
 				"project",
+				"shipping_address_name",
 			],
 			"item_code": [
 				"item_code",
@@ -365,6 +366,13 @@ def get_columns(group_wise_columns, filters):
 				"options": "Payment Term",
 				"width": 170,
 			},
+			"shipping_address_name": {
+				"label": _("Shipping Address"),
+				"fieldname": "shipping_address_name",
+				"fieldtype": "Link",
+				"options": "Address",
+				"width": 150,
+			},
 		}
 	)
 
@@ -406,7 +414,8 @@ def get_column_names():
 			"gross_profit_percent": "gross_profit_%",
 			"project": "project",
 			"batch_no":"batch_no",
-			"lot_no":"lot_no"
+			"lot_no":"lot_no",
+			"shipping_address_name": "shipping_address_name",
 		}
 	)
 
@@ -850,7 +859,8 @@ class GrossProfitGenerator(object):
 				`tabSales Invoice Item`.name as "si_detail",
 				`tabSales Invoice Item`.batch_no as batch_no,
 				`tabSales Invoice Item`.lot_no as lot_no,
-				item.has_batch_no
+				item.has_batch_no,
+				`tabSales Invoice`.shipping_address_name as shipping_address_name
 				{sales_person_cols}
 				{payment_term_cols}
 			from
