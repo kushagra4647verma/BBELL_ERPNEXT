@@ -391,24 +391,12 @@ fixtures = [
 
 from india_compliance.gst_india.api_classes.taxpayer_base import FilesAPI
 from india_compliance.gst_india.api_classes.taxpayer_returns import ReturnsAPI
-from india_compliance.gst_india.api_classes.nic.e_invoice import EInvoiceAPI
-from finbyzerp.e_invoice_override_14 import einvoice_setup
 from finbyzerp.returns import returns_api_setup
 
 FilesAPI.BASE_PATH = "gstn/files"
 ReturnsAPI.SENSITIVE_INFO = ReturnsAPI.SENSITIVE_INFO + ('authorization',)
 ReturnsAPI.BASE_PATH = "gstn"
 ReturnsAPI.setup = returns_api_setup
-EInvoiceAPI.setup = einvoice_setup
-
-from india_compliance.gst_india.api_classes.nic.e_waybill import EWaybillAPI
-from finbyzerp.e_invoice_override_14 import ewaybill_setup
-EWaybillAPI.setup = ewaybill_setup
-
-from india_compliance.gst_india.api_classes.base import BaseAPI
-from finbyzerp.e_invoice_override_14 import get_url
-BaseAPI.get_url = get_url
-
 from india_compliance.gst_india.api_classes.public import PublicAPI
 from finbyzerp.e_invoice_override_14 import get_gstin_info
 PublicAPI.get_gstin_info = get_gstin_info 

@@ -368,7 +368,7 @@ def fetch_auth_token(self):
 	client_id, client_secret = get_client_details(self)
 	headers = {"gspappid": client_id, "gspappsecret": client_secret}
 	res = {}
-	url = "https://gsp.adaequare.com/gsp/authenticate?grant_type=token"\
+	url = "https://gsp.adaequare.com/gsp/authenticate?grant_type=token"
 
 	res = make_request("post", url, headers = headers)
 	self.gst_settings.auth_token = "{} {}".format(
