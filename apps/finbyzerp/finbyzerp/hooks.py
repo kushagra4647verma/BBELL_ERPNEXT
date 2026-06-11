@@ -389,18 +389,6 @@ fixtures = [
       },
 ]
 
-from india_compliance.gst_india.api_classes.taxpayer_base import FilesAPI
-from india_compliance.gst_india.api_classes.taxpayer_returns import ReturnsAPI
-from finbyzerp.returns import returns_api_setup
-
-FilesAPI.BASE_PATH = "gstn/files"
-ReturnsAPI.SENSITIVE_INFO = ReturnsAPI.SENSITIVE_INFO + ('authorization',)
-ReturnsAPI.BASE_PATH = "gstn"
-ReturnsAPI.setup = returns_api_setup
-from india_compliance.gst_india.api_classes.public import PublicAPI
-from finbyzerp.e_invoice_override_14 import get_gstin_info
-PublicAPI.get_gstin_info = get_gstin_info 
-
 from india_compliance.gst_india.utils.transaction_data import GSTTransactionData
 from finbyzerp.e_invoice_override_14 import update_transaction_tax_details as new_update_transaction_tax_details
 GSTTransactionData.update_transaction_tax_details = new_update_transaction_tax_details
