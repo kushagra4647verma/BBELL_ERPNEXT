@@ -788,3 +788,39 @@ Form Dict: {'doctype': 'Quality Inspection', 'name': 'MAT-QA-2025-00005-1', 'for
 If this file exists please check that this process can read it or you can pass path to it manually in method call, check README. Otherwise please install wkhtmltopdf - https://github.com/JazzCore/python-pdfkit/wiki/Installing-wkhtmltopdf) will get truncated, as max characters allowed is 140
 Site: local.client.test
 Form Dict: {}
+2026-05-23 17:54:23,116 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {'report_name': 'GST Sales Register Beta - BBELL', 'filters': '{"company":"BBELL INDUSTRY LLP","date_range":["2026-04-01","2026-04-30"],"summary_by":"Summary by Item"}', 'ignore_prepared_report': 'false', 'are_default_filters': 'true', 'cmd': 'frappe.desk.query_report.run'}
+2026-05-23 17:54:23,182 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {'report_name': 'GST Sales Register Beta - BBELL', 'filters': '{"company":"BBELL INDUSTRY LLP","date_range":["2026-04-01","2026-04-30"],"summary_by":"Summary by Item"}', 'ignore_prepared_report': 'false', 'are_default_filters': 'true', 'cmd': 'frappe.desk.query_report.run'}
+2026-05-29 20:06:59,595 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {'docname': 'SINVBIL262700026', 'force': 'true', 'cmd': 'india_compliance.gst_india.utils.e_invoice.generate_e_invoice'}
+2026-05-29 20:07:06,525 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {'docname': 'SINVBIL262700026', 'force': 'true', 'cmd': 'india_compliance.gst_india.utils.e_invoice.generate_e_invoice'}
+2026-05-29 20:07:23,151 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {'docname': 'SINVBIL262700026', 'force': 'true', 'cmd': 'india_compliance.gst_india.utils.e_invoice.generate_e_invoice'}
+2026-05-29 20:07:49,410 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {'docname': 'SINVBIL262700026', 'force': 'true', 'cmd': 'india_compliance.gst_india.utils.e_invoice.generate_e_invoice'}
+2026-05-29 20:08:06,705 ERROR frappe New Exception collected in error log
+Site: local.client.test
+Form Dict: {'docname': 'SINVBIL262700026', 'force': 'true', 'cmd': 'india_compliance.gst_india.utils.e_invoice.generate_e_invoice'}
+2026-05-29 20:15:59,653 ERROR frappe Error while inserting deferred Error Log record: Error Log 0kc7ms2but: 'Title' (HTTPSConnectionPool(host='asp.resilient.tech', port=443): Max retries exceeded with url: /standard/ei/api/auth (Caused by NameResolutionError("HTTPSConnection(host='asp.resilient.tech', port=443): Failed to resolve 'asp.resilient.tech' ([Errno 8] nodename nor servname provided, or not known)"))) will get truncated, as max characters allowed is 140
+Site: local.client.test
+Form Dict: {}
+2026-05-29 20:15:59,656 ERROR frappe Error while inserting deferred Error Log record: Error Log 0kc4ch0s8a: 'Title' (HTTPSConnectionPool(host='asp.resilient.tech', port=443): Max retries exceeded with url: /standard/ei/api/auth (Caused by NameResolutionError("HTTPSConnection(host='asp.resilient.tech', port=443): Failed to resolve 'asp.resilient.tech' ([Errno 8] nodename nor servname provided, or not known)"))) will get truncated, as max characters allowed is 140
+Site: local.client.test
+Form Dict: {}
+2026-05-29 20:15:59,658 ERROR frappe Error while inserting deferred Error Log record: Error Log 0kch66hs70: 'Title' (HTTPSConnectionPool(host='asp.resilient.tech', port=443): Max retries exceeded with url: /standard/ei/api/auth (Caused by NameResolutionError("HTTPSConnection(host='asp.resilient.tech', port=443): Failed to resolve 'asp.resilient.tech' ([Errno 8] nodename nor servname provided, or not known)"))) will get truncated, as max characters allowed is 140
+Site: local.client.test
+Form Dict: {}
+2026-05-29 20:15:59,661 ERROR frappe Error while inserting deferred Error Log record: Error Log 0kc20suil4: 'Title' (HTTPSConnectionPool(host='asp.resilient.tech', port=443): Max retries exceeded with url: /standard/ei/api/auth (Caused by NameResolutionError("HTTPSConnection(host='asp.resilient.tech', port=443): Failed to resolve 'asp.resilient.tech' ([Errno 8] nodename nor servname provided, or not known)"))) will get truncated, as max characters allowed is 140
+Site: local.client.test
+Form Dict: {}
+2026-05-29 20:15:59,663 ERROR frappe Error while inserting deferred Error Log record: Error Log 0kcqucr57v: 'Title' (HTTPSConnectionPool(host='asp.resilient.tech', port=443): Max retries exceeded with url: /standard/ei/api/auth (Caused by NameResolutionError("HTTPSConnection(host='asp.resilient.tech', port=443): Failed to resolve 'asp.resilient.tech' ([Errno 8] nodename nor servname provided, or not known)"))) will get truncated, as max characters allowed is 140
+Site: local.client.test
+Form Dict: {}

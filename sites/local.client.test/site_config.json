@@ -1,5 +1,7 @@
 {
  "db_name": "_010f58db80839130",
  "db_password": "anLljw66owACnaap",
- "db_type": "mariadb"
+ "db_type": "mariadb",
+ "encryption_key": "zhORyOjboCj4sMRsBsNoMbVgSywM4Cjuv4K7RDrNGiY=",
+ "ic_api_secret": "YHDX4FwzKn1k7ey701NLn9ANYZU1uVZI9ZakiiAB0"
 }
