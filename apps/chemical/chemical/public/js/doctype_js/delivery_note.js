@@ -43,7 +43,7 @@ frappe.ui.form.on("Delivery Note", {
         frm.set_query("batch_no", "items", function(doc, cdt, cdn) {
             let d = locals[cdt][cdn];
             if (!d.item_code) {
-                frappe.throw(__("Please enter Item Code to get batch no"));
+                return {}; // return empty to allow field to be clickable
             } else {
                 return {
                     query: "chemical.batch_valuation.get_batch_no",

@@ -38,7 +38,7 @@ frappe.ui.form.on("Sales Invoice", {
 		frm.set_query("batch_no", "items", function(doc, cdt, cdn) {
 			let d = locals[cdt][cdn];
 			if (!d.item_code) {
-				frappe.throw(__("Please enter Item Code to get batch no"));
+				return {}; // return empty to allow field to be clickable
 			} else {
 				if (d.item_group == "Finished Products") {
 					return {
@@ -62,6 +62,9 @@ frappe.ui.form.on("Sales Invoice", {
 	},
 
 	refresh: function(frm) {
+		// Make batch_no always editable in items table
+		frm.fields_dict.items.grid.toggle_enable("batch_no", true);
+
 		if (frm.doc.docstatus > 0 && frm.doc.update_stock) {
 			frm.add_custom_button(__("Stock Ledger Chemical"), function() {
 				frappe.route_options = {
