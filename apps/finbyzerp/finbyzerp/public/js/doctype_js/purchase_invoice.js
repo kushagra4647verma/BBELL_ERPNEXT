@@ -3,6 +3,8 @@ frappe.ui.form.on('Purchase Invoice', {
 		if (frm.doc.__islocal){
 		frm.set_df_property("company", "read_only", (!frm.doc.__islocal || frm.doc.amended_from) ? 1 : 0);
 		}
+		// Make batch_no always editable in items table
+		frm.fields_dict.items.grid.toggle_enable("batch_no", true);
 	},
 	onload: (frm) => {
 		if (frm.doc.__islocal){
