@@ -146,7 +146,10 @@ def get_data(filters, conditions):
                                      data1[d][0]), as_list=1)
                 des[ind] = row[i][0]
                 for j in range(1, len(conditions["columns"]) - inc):
-                    des[j + inc] = row1[0][j]
+                    if row1 and row1[0] and j < len(row1[0]):
+                        des[j + inc] = row1[0][j]
+                    else:
+                        des[j + inc] = 0
 
                 data.append(des)
     else:
