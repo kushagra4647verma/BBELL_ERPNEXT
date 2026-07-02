@@ -2,70 +2,70 @@
 // For license information, please see license.txt
 
 
-cur_frm.fields_dict.sales_taxes_and_charges.get_query = function (doc) {
-	return {
-		filters: {
-			"company": doc.company,
-		}
-	}
+// cur_frm.fields_dict.sales_taxes_and_charges.get_query = function (doc) {
+// 	return {
+// 		filters: {
+// 			"company": doc.company,
+// 		}
+// 	}
 };
-cur_frm.fields_dict.purchase_taxes_and_charges.get_query = function (doc) {
-	return {
-		filters: {
-			"company": doc.company,
-		}
-	}
-};
-
-cur_frm.fields_dict.items.grid.get_field("expense_account").get_query = function(doc) {
-	return {
-		filters: {
-			"company": doc.company,
-		}
-	}
+// cur_frm.fields_dict.purchase_taxes_and_charges.get_query = function (doc) {
+// 	return {
+// 		filters: {
+// 			"company": doc.company,
+// 		}
+// 	}
 };
 
-cur_frm.fields_dict.items.grid.get_field("income_account").get_query = function(doc) {
-	return {
-		filters: {
-			"company": doc.company,
-		}
-	}
+// cur_frm.fields_dict.items.grid.get_field("expense_account").get_query = function(doc) {
+// 	return {
+// 		filters: {
+// 			"company": doc.company,
+// 		}
+// 	}
+};
+
+// cur_frm.fields_dict.items.grid.get_field("income_account").get_query = function(doc) {
+// 	return {
+// 		filters: {
+// 			"company": doc.company,
+// 		}
+// 	}
 };
 
 
 // Customer Address Filter
-cur_frm.set_query("customer_address", function () {
-    return {
-        query: "frappe.contacts.doctype.address.address.address_query",
-        filters: {
-            link_doctype: "Customer",
-            link_name: cur_frm.doc.party
-        }
-    };
+// cur_frm.set_query("customer_address", function () {
+//     return {
+//         query: "frappe.contacts.doctype.address.address.address_query",
+//         filters: {
+//             link_doctype: "Customer",
+//             link_name: cur_frm.doc.party
+//         }
+//     };
 });
-cur_frm.set_query("supplier_address", function () {
-    return {
-        query: "frappe.contacts.doctype.address.address.address_query",
-        filters: {
-            link_doctype: "Supplier",
-            link_name: cur_frm.doc.party
-        }
-    };
+// cur_frm.set_query("supplier_address", function () {
+//     return {
+//         query: "frappe.contacts.doctype.address.address.address_query",
+//         filters: {
+//             link_doctype: "Supplier",
+//             link_name: cur_frm.doc.party
+//         }
+//     };
 });
 // Shipping Address Filter
-cur_frm.set_query("shipping_address_name", function () {
-    return {
-        query: "frappe.contacts.doctype.address.address.address_query",
-        filters: { link_doctype: "Customer", link_name: cur_frm.doc.party }
-    };
+// cur_frm.set_query("shipping_address_name", function () {
+//     return {
+//         query: "frappe.contacts.doctype.address.address.address_query",
+//         filters: { link_doctype: "Customer", link_name: cur_frm.doc.party }
+//     };
 });
 // Customer Contact Filter
-cur_frm.set_query("contact_person", function () {
-    return {
-        query: "frappe.contacts.doctype.contact.contact.contact_query",
-        filters: { link_doctype: cur_frm.doc.party_type, link_name: cur_frm.doc.party }
-    };
+// cur_frm.set_query("contact_person", function () {
+//     return {
+//         query: "frappe.contacts.doctype.contact.contact.contact_query",
+//         filters: { link_doctype: cur_frm.doc.party_type, link_name: cur_frm.doc.party }
+//     };
 });
 
 frappe.ui.form.on("Credit and Debit Note Item",{

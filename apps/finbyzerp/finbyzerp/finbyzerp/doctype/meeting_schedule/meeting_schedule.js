@@ -1,10 +1,11 @@
-this.frm.add_fetch('contact', 'email_id', 'email_id');
+// this.frm.add_fetch('contact', 'email_id', 'email_id');
 
-cur_frm.set_query("contact", function() {
-	return {
-		query: "frappe.contacts.doctype.contact.contact.contact_query",
-		filters: { link_doctype: cur_frm.doc.party_type, link_name: cur_frm.doc.party } 
-	};
+
+// cur_frm.set_query("contact", function() {
+// 	return {
+// 		query: "frappe.contacts.doctype.contact.contact.contact_query",
+// 		filters: { link_doctype: cur_frm.doc.party_type, link_name: cur_frm.doc.party } 
+// 	};
 });
 
 frappe.ui.form.on('Meeting Schedule', {
