@@ -1,35 +1,35 @@
 // Copyright (c) 2021, FinByz Tech Pvt. Ltd. and contributors
 // For license information, please see license.txt
 
-cur_frm.fields_dict.manufacturing_consumption_details.grid.get_field("work_order").get_query = function(doc) {
-	return {
-		'filters': {'docstatus':1,
-			"Status": ['!=', "Completed"],
-		}
-	}
+// cur_frm.fields_dict.manufacturing_consumption_details.grid.get_field("work_order").get_query = function(doc) {
+// 	return {
+// 		'filters': {'docstatus':1,
+// 			"Status": ['!=', "Completed"],
+// 		}
+// 	}
 };
-cur_frm.fields_dict.manufacturing_consumption_details.grid.get_field("item_code").get_query = function(doc) {
-	return {
-		filters: {
-			"is_stock_item":1,
-		}
-	}
+// cur_frm.fields_dict.manufacturing_consumption_details.grid.get_field("item_code").get_query = function(doc) {
+// 	return {
+// 		filters: {
+// 			"is_stock_item":1,
+// 		}
+// 	}
 };
-cur_frm.fields_dict.manufacturing_consumption_details.grid.get_field("s_warehouse").get_query = function(doc) {
-	return {
-		filters: {
-			'is_group':0,
-			"company":doc.company,
-		}
-	}
+// cur_frm.fields_dict.manufacturing_consumption_details.grid.get_field("s_warehouse").get_query = function(doc) {
+// 	return {
+// 		filters: {
+// 			'is_group':0,
+// 			"company":doc.company,
+// 		}
+// 	}
 };
-cur_frm.fields_dict.source_warehouse.get_query = function(doc) {
-	return {
-	   'filters': {
-		'is_group':0,
-		"company":doc.company,
-		}
-	}
+// cur_frm.fields_dict.source_warehouse.get_query = function(doc) {
+// 	return {
+// 	   'filters': {
+// 		'is_group':0,
+// 		"company":doc.company,
+// 		}
+// 	}
 };
 
 frappe.ui.form.on('Manufacturing Consumption', {

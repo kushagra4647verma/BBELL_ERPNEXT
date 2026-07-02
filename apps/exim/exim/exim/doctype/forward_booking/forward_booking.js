@@ -4,36 +4,36 @@
 
 let set_currency = 0;
 
-cur_frm.fields_dict.bank.get_query = function(doc) {
-	return {
-		filters: {
-			"bank_type": "Indian Bank",
-		}
-	}
+// cur_frm.fields_dict.bank.get_query = function(doc) {
+// 	return {
+// 		filters: {
+// 			"bank_type": "Indian Bank",
+// 		}
+// 	}
 };
 
-cur_frm.fields_dict.bank_account.get_query = function(doc){
-	return {
-		filters: {
-			'is_group': 0,
-			'account_currency': "INR",
-			'account_type': "Bank"
-		}
-	}
+// cur_frm.fields_dict.bank_account.get_query = function(doc){
+// 	return {
+// 		filters: {
+// 			'is_group': 0,
+// 			'account_currency': "INR",
+// 			'account_type': "Bank"
+// 		}
+// 	}
 }
 
-cur_frm.fields_dict.cancellation_details.grid.get_field('bank_account').get_query = function(doc){
-	return {
-		filters: {
-			'is_group': 0,
-			'account_currency': "INR",
-			'account_type': "Bank"
-		}
-	}
+// cur_frm.fields_dict.cancellation_details.grid.get_field('bank_account').get_query = function(doc){
+// 	return {
+// 		filters: {
+// 			'is_group': 0,
+// 			'account_currency': "INR",
+// 			'account_type': "Bank"
+// 		}
+// 	}
 }
 
 //Filter Purchase & Sales Order
-cur_frm.set_query("document", "forward_booking_underlying", function(doc, cdt, cdn){
+// cur_frm.set_query("document", "forward_booking_underlying", function(doc, cdt, cdn){
 	var d = locals[cdt][cdn];
 	return {
 		filters: [

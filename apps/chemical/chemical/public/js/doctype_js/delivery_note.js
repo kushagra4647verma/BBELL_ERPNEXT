@@ -56,6 +56,22 @@ frappe.ui.form.on("Delivery Note", {
         });
     },
     refresh: function(frm) {
+        // Re-apply batch query on refresh to override v15 defaults
+        frm.set_query("batch_no", "items", function(doc, cdt, cdn) {
+            let d = locals[cdt][cdn];
+            if (!d.item_code) {
+                return {};
+            } else {
+                return {
+                    query: "chemical.batch_valuation.get_batch_no",
+                    filters: {
+                        'item_code': d.item_code,
+                        'warehouse': d.warehouse,
+                    }
+                };
+            }
+        });
+
 		if(frm.doc.docstatus > 0) {
 			frm.add_custom_button(__("Stock Ledger Chemical"), function() {
 				frappe.route_options = {
@@ -315,13 +331,38 @@ frappe.ui.form.on("Delivery Note Item", {
 
     batch_no: function (frm, cdt, cdn) {
         let d = locals[cdt][cdn];
-        frappe.db.get_value("Batch", d.batch_no, ['packaging_material', 'packing_size', 'lot_no', 'batch_yield', 'concentration'], function (r) {
-            console.log(r.packing_size)
-            frappe.model.set_value(cdt, cdn, 'packaging_material', r.packaging_material);
-            frappe.model.set_value(cdt, cdn, 'packing_size', r.packing_size);
-            frappe.model.set_value(cdt, cdn, 'lot_no', r.lot_no);
-            frappe.model.set_value(cdt, cdn, 'batch_yield', r.batch_yield);
-            frappe.model.set_value(cdt, cdn, 'concentration', r.concentration);
-        });
+        if (d.batch_no) {
+            frappe.db.get_value("Batch", d.batch_no, ['packaging_material', 'packing_size', 'lot_no', 'batch_yield', 'concentration'], function (r) {
+                frappe.model.set_value(cdt, cdn, 'packaging_material', r.packaging_material);
+                frappe.model.set_value(cdt, cdn, 'packing_size', r.packing_size);
+                frappe.model.set_value(cdt, cdn, 'lot_no', r.lot_no);
+                frappe.model.set_value(cdt, cdn, 'batch_yield', r.batch_yield);
+                frappe.model.set_value(cdt, cdn, 'concentration', r.concentration);
+            });
+        }
+    },
+    lot_no: function(frm, cdt, cdn) {
+        let d = locals[cdt][cdn];
+        if (d.lot_no && d.item_code) {
+            frappe.call({
+                method: "frappe.client.get_list",
+                args: {
+                    doctype: "Batch",
+                    filters: { lot_no: d.lot_no, item: d.item_code },
+                    fields: ["name", "packaging_material", "packing_size", "lot_no", "batch_yield", "concentration"],
+                    limit_page_length: 1
+                },
+                callback: function(r) {
+                    if (r.message && r.message.length) {
+                        let batch = r.message[0];
+                        frappe.model.set_value(cdt, cdn, 'batch_no', batch.name);
+                        frappe.model.set_value(cdt, cdn, 'packaging_material', batch.packaging_material);
+                        frappe.model.set_value(cdt, cdn, 'packing_size', batch.packing_size);
+                        frappe.model.set_value(cdt, cdn, 'batch_yield', batch.batch_yield);
+                        frappe.model.set_value(cdt, cdn, 'concentration', batch.concentration);
+                    }
+                }
+            });
+        }
     }
 });

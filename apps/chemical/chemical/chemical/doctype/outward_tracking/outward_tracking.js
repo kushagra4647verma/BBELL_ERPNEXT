@@ -1,22 +1,23 @@
 // Copyright (c) 2018, Finbyz Tech Pvt Ltd and contributors
 // For license information, please see license.txt
 
-cur_frm.add_fetch("sample_ref", "product_name", "item");
-cur_frm.add_fetch("sample_ref", "ref_no", "ref_no");
+// cur_frm.add_fetch("sample_ref", "product_name", "item");
+// cur_frm.add_fetch("sample_ref", "ref_no", "ref_no");
 // cur_frm.add_fetch("sample_ref", "batch_size", "pss_qty");
-cur_frm.add_fetch("sample_ref", "po_no", "po_no");
+// cur_frm.add_fetch("sample_ref", "po_no", "po_no");
 // cur_frm.add_fetch("sample_ref", "supply_site", "supply_site");
 
-cur_frm.fields_dict.sample_items.grid.get_field("sample_ref").get_query = function (doc) {
-	return {
-		filters: {
-			"party": doc.party,
-		}
-	}
+
+// cur_frm.fields_dict.sample_items.grid.get_field("sample_ref").get_query = function (doc) {
+// 	return {
+// 		filters: {
+// 			"party": doc.party,
+// 		}
+// 	}
 };
 
 //Contact Filter
-cur_frm.set_query("contact_person", function () {
+// cur_frm.set_query("contact_person", function () {
 	if (cur_frm.doc.link_to == "Customer") {
 		return {
 			query: "frappe.contacts.doctype.contact.contact.contact_query",
@@ -38,7 +39,7 @@ cur_frm.set_query("contact_person", function () {
 });
 
 //Company Address filter
-cur_frm.set_query("company_address", function (doc) {
+// cur_frm.set_query("company_address", function (doc) {
 	if (doc.company == undefined) {
 		frappe.msgprint("Please select the Company");
 	}
@@ -50,7 +51,7 @@ cur_frm.set_query("company_address", function (doc) {
 	}
 });
 
-cur_frm.set_query("address_link", function () {
+// cur_frm.set_query("address_link", function () {
 	if (cur_frm.doc.link_to == "Customer") {
 		return {
 			query: "frappe.contacts.doctype.address.address.address_query",

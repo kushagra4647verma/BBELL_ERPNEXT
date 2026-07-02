@@ -1,97 +1,6 @@
 // Copyright (c) 2019, FinByz Tech Pvt. Ltd. and contributors
 // For license information, please see license.txt
 
-//fetch territory from party.
-//cur_frm.add_fetch("party", "territory", "destination");
-
-//fetch item name in child table.
-cur_frm.add_fetch("inward_sample", "item_code", "item_name");
-cur_frm.add_fetch("batch_no", "concentration", "concentration");
-
-cur_frm.add_fetch("item_code", "item_name", "item_name");
-cur_frm.add_fetch("item_code", "stock_uom", "uom");
-cur_frm.add_fetch("item_code", "item_group", "item_group");
-
-cur_frm.fields_dict.details.grid.get_field("bom_no").get_query = function(doc) {
-	return {
-		filters: {
-			"item": doc.item_code,
-			"docstatus": 1,
-			"is_active":1
-		}
-	}
-};
-
-cur_frm.fields_dict.link_to.get_query = function (doc) {
-	return {
-		filters: {
-			"name": ['in', ['Lead', 'Customer', "Supplier"]],
-		}
-	}
-};
-
-// Add searchfield to customer  and Supplier and item query
-this.frm.cscript.onload = function (frm) {
-	// this.frm.set_query("product_name", function () {
-	// 	return {
-	// 		query: "chemical.query.new_item_query",
-	// 		filters: {
-	// 			'is_sales_item': 1,
-	// 			"item_group": "FINISHED DYES"
-	// 		}
-	// 	}
-	// });
-	this.frm.set_query("party", function (frm) {
-		if (cur_frm.doc.link_to == 'Customer') {
-			return {
-				query: "chemical.query.new_customer_query",
-			}
-		}
-		else if (cur_frm.doc.link_to == 'Supplier') {
-			return {
-				query: "chemical.query.new_supplier_query",
-			}
-		}
-
-	});
-	this.frm.set_query("sales_order", function () {
-		return {
-			query: "chemical.query.sales_order_query",
-			filters: {
-				"customer": cur_frm.doc.party
-			}
-		}
-	});
-	this.frm.set_query("batch_no", "details", function (doc, cdt, cdn) {
-		let d = locals[cdt][cdn];
-		if (!d.item_name) {
-			frappe.msgprint(__("Please select Item"));
-		}
-		else {
-			return {
-				query: "chemical.query.get_batch_no",
-				filters: {
-					'item_code': d.item_code,
-				}
-			}
-		}
-	});
-	// this.frm.set_query("batch_no", "details", function(doc, cdt, cdn) {
-	// 	let d = locals[cdt][cdn];
-	// 	if(!d.item_name){
-	// 		frappe.msgprint(__("Please select Item"));
-	// 	}
-	// 	else{
-	// 		return {
-	// 			query: "chemical.query.get_outward_sample_batch_no",
-	// 			filters: {
-	// 				'item_name': d.item_name,
-	// 			}
-	// 		}
-	// 	}
-	// });
-}
-
 frappe.ui.form.on('Outward Sample', {
 	before_save: function (frm) {
 		frm.trigger("cal_total_qty");
@@ -296,6 +205,29 @@ frappe.ui.form.on('Outward Sample', {
 		if (frm.doc.__islocal) {
 			frm.trigger('get_naming_series')
 		}
+		// Queries moved from top-level cur_frm calls
+		frm.set_query("bom_no", "details", function(doc, cdt, cdn) {
+			let d = locals[cdt][cdn];
+			return { filters: { "item": d.item_code, "docstatus": 1, "is_active": 1 } };
+		});
+		frm.set_query("link_to", function() {
+			return { filters: { "name": ['in', ['Lead', 'Customer', 'Supplier']] } };
+		});
+		frm.set_query("party", function() {
+			if (frm.doc.link_to == 'Customer') {
+				return { query: "chemical.query.new_customer_query" };
+			} else if (frm.doc.link_to == 'Supplier') {
+				return { query: "chemical.query.new_supplier_query" };
+			}
+		});
+		frm.set_query("sales_order", function() {
+			return { query: "chemical.query.sales_order_query", filters: { "customer": frm.doc.party } };
+		});
+		frm.set_query("batch_no", "details", function(doc, cdt, cdn) {
+			let d = locals[cdt][cdn];
+			if (!d.item_name) return {};
+			return { query: "chemical.query.get_batch_no", filters: { 'item_code': d.item_code } };
+		});
 	}
 });
 

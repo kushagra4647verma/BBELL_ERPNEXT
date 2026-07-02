@@ -1,21 +1,23 @@
-cur_frm.add_fetch("sales_order", "currency", "currency");
-cur_frm.add_fetch("sales_order", "port_of_loading", "port_of_loading");
-cur_frm.add_fetch("sales_order", "port_of_discharge", "port_of_discharge");
-cur_frm.add_fetch("sales_order", "grand_total", "contract_amount");
-cur_frm.add_fetch("sales_order", "transaction_date", "contract_date");
+// cur_frm.add_fetch("sales_order", "currency", "currency");
+// cur_frm.add_fetch("sales_order", "port_of_loading", "port_of_loading");
+// cur_frm.add_fetch("sales_order", "port_of_discharge", "port_of_discharge");
+// cur_frm.add_fetch("sales_order", "grand_total", "contract_amount");
+// cur_frm.add_fetch("sales_order", "transaction_date", "contract_date");
 
-this.frm.add_fetch("sales_order", "grand_total", "grand_total");
-this.frm.add_fetch("sales_order", "net_total", "net_total");
 
-cur_frm.fields_dict.lc_opening_bank.get_query = function(doc) {
-	return {
-		filters: {
-			'bank_type': 'Foreign Bank'
-		}
-	}
+// this.frm.add_fetch("sales_order", "grand_total", "grand_total");
+// this.frm.add_fetch("sales_order", "net_total", "net_total");
+
+
+// cur_frm.fields_dict.lc_opening_bank.get_query = function(doc) {
+// 	return {
+// 		filters: {
+// 			'bank_type': 'Foreign Bank'
+// 		}
+// 	}
 };
 
-cur_frm.fields_dict.contract_term_order.grid.get_field("sales_order").get_query = function(doc,cdt,cdn) {
+// cur_frm.fields_dict.contract_term_order.grid.get_field("sales_order").get_query = function(doc,cdt,cdn) {
 	let d = locals[cdt][cdn];
 	return {
 		filters: {

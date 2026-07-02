@@ -3,11 +3,11 @@
 
 frappe.provide("erpnext.stock");
 
-this.frm.add_fetch('batch_no', 'lot_no', 'lot_no');
-this.frm.add_fetch('batch_no', 'packaging_material', 'packaging_material');
-this.frm.add_fetch('batch_no', 'packing_size', 'packing_size');
-this.frm.add_fetch('batch_no', 'batch_yield', 'batch_yield');
-this.frm.add_fetch('batch_no', 'concentration', 'concentration');
+// this.frm.add_fetch('batch_no', 'lot_no', 'lot_no');
+// this.frm.add_fetch('batch_no', 'packaging_material', 'packaging_material');
+// this.frm.add_fetch('batch_no', 'packing_size', 'packing_size');
+// this.frm.add_fetch('batch_no', 'batch_yield', 'batch_yield');
+// this.frm.add_fetch('batch_no', 'concentration', 'concentration');
 
 frappe.ui.form.on('Material Transfer Instruction', {
 	setup: function(frm) {
@@ -425,4 +425,4 @@ erpnext.stock.select_batch_and_serial_no = (frm, item) => {
 	});
 }
 
-extend_cscript(cur_frm.cscript, new erpnext.stock.MaterialTransferInstruction({frm: cur_frm}));
+// extend_cscript(cur_frm.cscript, new erpnext.stock.MaterialTransferInstruction({frm: cur_frm}));
